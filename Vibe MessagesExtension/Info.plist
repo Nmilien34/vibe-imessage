@@ -9,5 +9,11 @@
 		<key>NSExtensionPointIdentifier</key>
 		<string>com.apple.message-payload-provider</string>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Vibe needs access to your camera to record video vibes.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Vibe needs access to your microphone to record audio for your vibes.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Vibe needs access to Apple Music to share songs.</string>
 </dict>
 </plist>
