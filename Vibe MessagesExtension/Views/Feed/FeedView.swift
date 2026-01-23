@@ -30,17 +30,52 @@ struct CompactFeedView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Streak indicator
-            if let streak = appState.streak, streak.currentStreak > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
-                        .foregroundColor(.orange)
-                    Text("\(streak.currentStreak) day streak!")
-                        .font(.caption)
-                        .fontWeight(.medium)
+            // Top row: Streak + New Updates
+            HStack {
+                // Streak indicator
+                if let streak = appState.streak, streak.currentStreak > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(.orange)
+                        Text("\(streak.currentStreak) day streak!")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                    }
                 }
-                .padding(.vertical, 4)
+
+                Spacer()
+
+                // New Updates Badge
+                if appState.newVibesCount > 0 {
+                    Button {
+                        if let firstUnseenVibe = appState.vibes.first(where: {
+                            !appState.seenVibeIds.contains($0.id) && $0.userId != appState.userId
+                        }) {
+                            appState.navigateToViewer(opening: firstUnseenVibe.id)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("\(appState.newVibesCount) New")
+                                .fontWeight(.bold)
+                            Text("🥳")
+                        }
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            LinearGradient(
+                                colors: [.pink, .purple],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .foregroundColor(.white)
+                        .clipShape(Capsule())
+                    }
+                }
             }
+            .padding(.horizontal)
+            .padding(.vertical, 4)
 
             // Horizontal scroll of vibe rings
             ScrollView(.horizontal, showsIndicators: false) {

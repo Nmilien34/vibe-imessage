@@ -17,8 +17,7 @@ enum CameraMode: String, CaseIterable, Identifiable {
 }
 
 struct CreatorCameraView: View {
-    @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var appState: AppState // To access dismissComposer via appState if needed
+    @EnvironmentObject var appState: AppState
     
     // Config
     var initialMode: CameraMode = .normal
@@ -87,12 +86,7 @@ struct CreatorCameraView: View {
         HStack {
             // Close Button
             Button {
-                // Dismiss logic
-                if appState.isComposerPresented {
-                    appState.dismissComposer()
-                } else {
-                    dismiss()
-                }
+                appState.dismissComposer()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 18, weight: .bold))

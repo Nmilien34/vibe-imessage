@@ -142,6 +142,9 @@ class AppState: ObservableObject {
     // MARK: - Authentication
 
     func handleAppleSignIn(identityToken: String, firstName: String?, lastName: String?) async {
+        print("Auth Debug: Starting Apple Sign In flow...")
+        print("Auth Debug: Identity Token length: \(identityToken.count)")
+        
         isLoading = true
         error = nil
 
@@ -177,12 +180,21 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
             UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
             
+            print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
+            
         } catch {
             self.error = "Sign in failed: \(error.localizedDescription)"
-            print("Apple Auth Error: \(error)")
+            print("Auth Debug: Apple Auth Error: \(error)")
         }
 
         isLoading = false
+    }
+
+    func bypassLogin() {
+        self.userId = "user_me"
+        self.isAuthenticated = true
+        UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
+        print("Auth Debug: Login bypassed by developer.")
     }
 
     // MARK: - Vibe Actions

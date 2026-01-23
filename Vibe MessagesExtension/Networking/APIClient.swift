@@ -81,16 +81,15 @@ actor APIClient {
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
         
-        if useMockData {
             self.mockVibes = [
-                // 1. Unlocked Video (Story)
+                // 1. Unlocked Video (Story) - Friend 1
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
                     userId: "user_friend_1",
                     conversationId: "conv_1",
                     type: .video,
-                    mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", // Sample video
+                    mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                     thumbnailUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
                     songData: nil,
                     batteryLevel: nil,
@@ -98,22 +97,22 @@ actor APIClient {
                     poll: nil,
                     isLocked: false,
                     unlockedBy: [],
-                    reactions: [Reaction(userId: "me", emoji: "🔥")],
+                    reactions: [Reaction(userId: "user_me", emoji: "🔥")],
                     viewedBy: [],
                     expiresAt: Date().addingTimeInterval(86400),
                     createdAt: Date().addingTimeInterval(-300),
                     updatedAt: Date().addingTimeInterval(-300)
                 ),
                 
-                // 2. Unlocked Photo
+                // 2. Unlocked Photo - Friend 2
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
                     userId: "user_friend_2",
                     conversationId: "conv_1",
                     type: .photo,
-                    mediaUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=3000&auto=format&fit=crop",
-                    thumbnailUrl: nil, // For photos, mediaUrl is used
+                    mediaUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=1000&auto=format&fit=crop",
+                    thumbnailUrl: nil,
                     songData: nil,
                     batteryLevel: nil,
                     mood: nil,
@@ -127,7 +126,7 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-1200)
                 ),
 
-                // 3. Locked POV (Requires strict unlock)
+                // 3. Locked POV - Friend 3
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -140,7 +139,7 @@ actor APIClient {
                     batteryLevel: nil,
                     mood: nil,
                     poll: nil,
-                    isLocked: true, // LOCKED!
+                    isLocked: true,
                     unlockedBy: [],
                     reactions: [],
                     viewedBy: [],
@@ -149,11 +148,11 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-3600)
                 ),
 
-                // 4. Unlocked Mood
+                // 4. Unlocked Mood - Friend 1
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
-                    userId: "user_friend_1", // Same friend posted twice
+                    userId: "user_friend_1",
                     conversationId: "conv_1",
                     type: .mood,
                     mediaUrl: nil,
@@ -165,13 +164,13 @@ actor APIClient {
                     isLocked: false,
                     unlockedBy: [],
                     reactions: [],
-                    viewedBy: ["me"],
+                    viewedBy: ["user_me"],
                     expiresAt: Date().addingTimeInterval(40000),
                     createdAt: Date().addingTimeInterval(-7200),
                     updatedAt: Date().addingTimeInterval(-7200)
                 ),
 
-                // 5. Unlocked Poll
+                // 5. Unlocked Poll - Friend 4
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -183,7 +182,7 @@ actor APIClient {
                     songData: nil,
                     batteryLevel: nil,
                     mood: nil,
-                    poll: Poll(question: "Pizza or Tacos?", options: [PollOption(text: "Pizza"), PollOption(text: "Tacos")]),
+                    poll: Poll(question: "Pizza or Tacos?", options: [PollOption(id: "o1", text: "Pizza"), PollOption(id: "o2", text: "Tacos")]),
                     isLocked: false,
                     unlockedBy: [],
                     reactions: [],
@@ -193,9 +192,58 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-100)
                 ),
                 
-                // --- PROFIlE / RECENT VIBES (user_me) ---
+                // 6. Unlocked Battery - Friend 5
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_5",
+                    conversationId: "conv_1",
+                    type: .battery,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: 12,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [Reaction(userId: "user_me", emoji: "🪫")],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(3600),
+                    createdAt: Date().addingTimeInterval(-50),
+                    updatedAt: Date().addingTimeInterval(-50)
+                ),
+
+                // 7. Unlocked Song - Friend 2
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_2",
+                    conversationId: "conv_1",
+                    type: .song,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: SongData(
+                        title: "Starboy",
+                        artist: "The Weeknd",
+                        albumArt: "https://upload.wikimedia.org/wikipedia/en/3/39/The_Weeknd_-_Starboy.png",
+                        previewUrl: nil,
+                        spotifyId: "s1"
+                    ),
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(70000),
+                    createdAt: Date().addingTimeInterval(-5000),
+                    updatedAt: Date().addingTimeInterval(-5000)
+                ),
                 
-                // 6. My Past Mood
+                // --- PROFILE / HISTORY (user_me) ---
+                
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -206,7 +254,7 @@ actor APIClient {
                     thumbnailUrl: nil,
                     songData: nil,
                     batteryLevel: nil,
-                    mood: Mood(emoji: "😴", text: "Need coffee..."),
+                    mood: Mood(emoji: "😴", text: "Long day..."),
                     poll: nil,
                     isLocked: false,
                     unlockedBy: [],
@@ -217,7 +265,6 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-40000)
                 ),
                 
-                // 7. My Past Photo
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -239,7 +286,6 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-50000)
                 ),
                 
-                // 8. My Past Song
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -267,7 +313,6 @@ actor APIClient {
                     updatedAt: Date().addingTimeInterval(-80000)
                 ),
                 
-                // 9. My Past Battery
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
@@ -290,7 +335,7 @@ actor APIClient {
                 )
             ]
         }
-    }
+
 
     func get<T: Decodable>(_ path: String) async throws -> T {
         if useMockData {
@@ -442,6 +487,25 @@ actor APIClient {
     private func performMockPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
         // Simulate network delay
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+
+        // Handle Apple Auth (Mock)
+        if path.contains("/auth/apple") {
+            // Since we use Generics T, we need to create the expected structure
+            // In a real app we'd decode B to AuthRequest, but here we just return a success response
+            let response = """
+            {
+                "token": "mock_jwt_token_123",
+                "user": {
+                    "id": "user_me",
+                    "firstName": "Vibe",
+                    "lastName": "User",
+                    "email": "user@example.com"
+                }
+            }
+            """.data(using: .utf8)!
+            
+            return try decoder.decode(T.self, from: response)
+        }
         
         // Add new vibe
         if path.hasSuffix("/vibes") {

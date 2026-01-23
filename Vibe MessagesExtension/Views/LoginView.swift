@@ -61,7 +61,19 @@ struct LoginView: View {
             .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
             .frame(height: 56)
             .padding(.horizontal, 40)
-            .padding(.bottom, 50)
+            
+            #if DEBUG
+            Button {
+                appState.bypassLogin()
+            } label: {
+                Text("Dev: Skip Login")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.gray)
+            }
+            .padding(.top, 10)
+            #endif
+            
+            Spacer()
         }
         .background(Color(UIColor.systemBackground))
     }
