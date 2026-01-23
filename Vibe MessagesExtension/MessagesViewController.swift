@@ -126,9 +126,7 @@ class MessagesViewController: MSMessagesAppViewController {
             requestPresentationStyle(.expanded)
 
             // Find the vibe in our list and navigate to it
-            if let index = appState.vibes.firstIndex(where: { $0.id == vibeId }) {
-                appState.navigateToViewer(startingAt: index)
-            }
+            appState.navigateToViewer(opening: vibeId)
         }
     }
 
