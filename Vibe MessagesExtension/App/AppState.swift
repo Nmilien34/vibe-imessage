@@ -35,6 +35,7 @@ class AppState: ObservableObject {
     // MARK: - Conversation Context
     @Published var conversationId: String?
     @Published var userId: String
+    @Published var isAuthenticated: Bool = false
     @Published var presentationMode: PresentationMode = .compact
 
     // MARK: - Navigation
@@ -45,6 +46,14 @@ class AppState: ObservableObject {
     @Published var streak: Streak?
     @Published var isLoading = false
     @Published var error: String?
+    
+    // MARK: - Seen Tracking (for "X New Updates" feature)
+    @Published var seenVibeIds: Set<String> = []
+    
+    /// Number of vibes that haven't been seen yet (for badge display)
+    var newVibesCount: Int {
+        vibes.filter { !seenVibeIds.contains($0.id) && $0.userId != userId }.count
+    }
 
     // MARK: - Composer State
     @Published var selectedVibeType: VibeType?
@@ -69,19 +78,15 @@ class AppState: ObservableObject {
     private let vibeService = VibeService.shared
 
     init() {
-        // Fixed ID for mock/testing consistency so "Recent Vibes" shows data
-        self.userId = "user_me"
-        
-        // In production/real app, you would use:
-        /*
+        // Check for existing session
         if let storedUserId = UserDefaults.standard.string(forKey: "vibeUserId") {
             self.userId = storedUserId
+            self.isAuthenticated = true
         } else {
-            let newUserId = UUID().uuidString
-            UserDefaults.standard.set(newUserId, forKey: "vibeUserId")
-            self.userId = newUserId
+            // Start unauthenticated
+            self.userId = "anonymous"
+            self.isAuthenticated = false
         }
-        */
     }
 
     // MARK: - Conversation Handling
@@ -132,6 +137,52 @@ class AppState: ObservableObject {
 
     func refreshVibes() async {
         await loadVibes()
+    }
+
+    // MARK: - Authentication
+
+    func handleAppleSignIn(identityToken: String, firstName: String?, lastName: String?) async {
+        isLoading = true
+        error = nil
+
+        struct AuthRequest: Encodable {
+            let identityToken: String
+            let firstName: String?
+            let lastName: String?
+        }
+
+        struct AuthResponse: Decodable {
+            let token: String
+            let user: UserData
+        }
+
+        struct UserData: Decodable {
+            let id: String
+            let firstName: String?
+            let lastName: String?
+            let email: String?
+        }
+
+        do {
+            let response: AuthResponse = try await APIClient.shared.post("/auth/apple", body: AuthRequest(
+                identityToken: identityToken,
+                firstName: firstName,
+                lastName: lastName
+            ))
+
+            self.userId = response.user.id
+            self.isAuthenticated = true
+            
+            // Save to UserDefaults for persistence
+            UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
+            UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
+            
+        } catch {
+            self.error = "Sign in failed: \(error.localizedDescription)"
+            print("Apple Auth Error: \(error)")
+        }
+
+        isLoading = false
     }
 
     // MARK: - Vibe Actions
@@ -190,6 +241,21 @@ class AppState: ObservableObject {
             updateVibe(updatedVibe)
         } catch {
             print("Error marking as viewed: \(error)")
+        }
+        
+        // Also mark as seen locally (for aggregation badge)
+        markVibeAsSeen(vibe.id)
+    }
+    
+    /// Mark a vibe as "seen" locally (for "New Updates" badge tracking)
+    func markVibeAsSeen(_ vibeId: String) {
+        seenVibeIds.insert(vibeId)
+    }
+    
+    /// Mark all current vibes as seen
+    func markAllVibesAsSeen() {
+        for vibe in vibes {
+            seenVibeIds.insert(vibe.id)
         }
     }
 

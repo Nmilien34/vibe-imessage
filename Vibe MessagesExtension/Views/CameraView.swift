@@ -142,11 +142,41 @@ struct CameraView: View {
             
             // Generate thumbnail and data
             Task {
-                if let videoData = try? Data(contentsOf: video.url) {
-                    let thumbnail = await generateThumbnail(for: video.url)
-                    onFinish?(videoData, thumbnail)
-                    dismiss()
+                let videoData = try? Data(contentsOf: video.url)
+                var thumbnail = await generateThumbnail(for: video.url)
+                
+                // Simulator fallback: if thumbnail generation fails, use a placeholder
+                if thumbnail == nil {
+                    // Create a simple colored placeholder image
+                    let size = CGSize(width: 300, height: 400)
+                    let renderer = UIGraphicsImageRenderer(size: size)
+                    thumbnail = renderer.image { context in
+                        // Gradient background
+                        let colors = [UIColor.systemPink.cgColor, UIColor.systemPurple.cgColor]
+                        let colorSpace = CGColorSpaceCreateDeviceRGB()
+                        let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: [0.0, 1.0])!
+                        context.cgContext.drawLinearGradient(gradient, 
+                                                            start: CGPoint(x: 0, y: 0), 
+                                                            end: CGPoint(x: size.width, y: size.height), 
+                                                            options: [])
+                        
+                        // Draw "SIMULATOR" text
+                        let text = "🎬 Test Vibe"
+                        let font = UIFont.boldSystemFont(ofSize: 24)
+                        let textAttributes: [NSAttributedString.Key: Any] = [
+                            .font: font,
+                            .foregroundColor: UIColor.white
+                        ]
+                        let textSize = text.size(withAttributes: textAttributes)
+                        let textPoint = CGPoint(x: (size.width - textSize.width) / 2, 
+                                               y: (size.height - textSize.height) / 2)
+                        text.draw(at: textPoint, withAttributes: textAttributes)
+                    }
                 }
+                
+                // If no video data (simulator), just pass nil - the flow will still work
+                onFinish?(videoData, thumbnail)
+                dismiss()
             }
         }
     }

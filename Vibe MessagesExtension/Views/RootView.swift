@@ -14,15 +14,19 @@ struct RootView: View {
         ZStack {
             // Main content
             Group {
-                switch appState.currentDestination {
-                case .feed:
-                    FeedView()
-                case .viewer(let startIndex):
-                    VibeViewerView(startIndex: startIndex)
-                case .composer:
-                    ComposerView()
-                case .unlockComposer:
-                    UnlockCameraView()
+                if !appState.isAuthenticated {
+                    LoginView()
+                } else {
+                    switch appState.currentDestination {
+                    case .feed:
+                        FeedView()
+                    case .viewer(let startIndex):
+                        VibeViewerView(startIndex: startIndex)
+                    case .composer:
+                        ComposerView()
+                    case .unlockComposer:
+                        UnlockCameraView()
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.2), value: appState.currentDestination)

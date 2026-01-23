@@ -477,6 +477,18 @@ actor APIClient {
             }
         }
         
+        // Handle Presigned URL (Mock)
+        if path.contains("/upload/presigned-url") {
+             let response = PresignedUrlResponse(
+                 uploadUrl: "https://mock-s3.com/upload",
+                 publicUrl: "https://mock-s3.com/file-\(UUID().uuidString)", // Unique URL to avoid caching issues in mock
+                 key: UUID().uuidString
+             )
+             if let result = response as? T {
+                 return result
+             }
+        }
+        
         // Handle Interactions (View, Unlock)
         if path.contains("/view") || path.contains("/unlock") {
              // For simplicity, just return success if T is Void or similar response

@@ -171,13 +171,14 @@ class MessagesViewController: MSMessagesAppViewController {
         // 4. Create Layout
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
-        layout.caption = isLocked ? "🔒 Locked Vibez" : "New Vibez"
+        layout.caption = isLocked ? "🔒 New Locked Vibe!" : "✨ New Vibe!"
         layout.subcaption = "Tap to view • \(Int(video.duration))s"
 
         // 5. Create Message
         let message = MSMessage(session: conversation.selectedMessage?.session ?? MSSession())
         message.layout = layout
-        message.summaryText = isLocked ? "shared a locked vibez" : "shared a vibez"
+        // This text appears in the conversation transcript/notification
+        message.summaryText = isLocked ? "just posted a locked vibe 🔒" : "just posted a vibe ✨"
 
         // 6. Encode data for the extension to read later
         var components = URLComponents()
@@ -197,7 +198,22 @@ class MessagesViewController: MSMessagesAppViewController {
             if let error = error {
                 print("Error inserting message: \(error)")
             } else {
-                self?.dismiss()
+                // SUCCESS! Now save to our backend (AppState) so it shows in the feed/story
+                Task { @MainActor [weak self] in
+                    do {
+                        try await self?.appState.createVibe(
+                            type: .video, // Assuming video for now, or derive from recording type
+                            mediaUrl: mockRemoteUrl,
+                            thumbnailUrl: nil, // Thumbnail usually generated on server or from mediaUrl
+                            isLocked: isLocked
+                        )
+                        // Dismiss after saving
+                        self?.dismiss(animated: true)
+                    } catch {
+                        print("Error saving vibe to backend: \(error)")
+                        self?.dismiss(animated: true)
+                    }
+                }
             }
         }
     }

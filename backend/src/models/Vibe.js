@@ -15,11 +15,11 @@ const vibeSchema = new mongoose.Schema({
     index: true,
   },
 
-  // Content type: 'video', 'song', 'battery', 'mood', 'poll'
+  // Content type: 'video', 'photo', 'song', 'battery', 'mood', 'poll'
   type: {
     type: String,
     required: true,
-    enum: ['video', 'song', 'battery', 'mood', 'poll'],
+    enum: ['video', 'photo', 'song', 'battery', 'mood', 'poll'],
   },
 
   // Media URL (S3) for video content
