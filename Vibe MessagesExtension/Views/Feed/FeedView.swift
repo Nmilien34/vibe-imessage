@@ -64,8 +64,9 @@ struct CompactFeedView: View {
                             isCurrentUser: true,
                             size: ringSize
                         ) {
-                            if let index = appState.vibes.firstIndex(where: { $0.userId == appState.userId }) {
-                                appState.navigateToViewer(startingAt: index)
+                            // Find first vibe for current user (which is the one displayed in the ring typically, or just open the first one)
+                            if let firstVibe = currentUserVibes.first {
+                                appState.navigateToViewer(opening: firstVibe.id)
                             }
                         }
                     }
@@ -80,9 +81,7 @@ struct CompactFeedView: View {
                                 isCurrentUser: false,
                                 size: ringSize
                             ) {
-                                if let index = appState.vibes.firstIndex(where: { $0.id == firstVibe.id }) {
-                                    appState.navigateToViewer(startingAt: index)
-                                }
+                                appState.navigateToViewer(opening: firstVibe.id)
                             }
                         }
                     }
@@ -291,8 +290,8 @@ struct ExpandedFeedView: View {
                                     isCurrentUser: true,
                                     size: ringSize
                                 ) {
-                                    if let index = appState.vibes.firstIndex(where: { $0.userId == appState.userId }) {
-                                        appState.navigateToViewer(startingAt: index)
+                                    if let firstVibe = currentUserVibes.first {
+                                        appState.navigateToViewer(opening: firstVibe.id)
                                     }
                                 }
                                 Text("You")
@@ -313,9 +312,7 @@ struct ExpandedFeedView: View {
                                         isCurrentUser: false,
                                         size: ringSize
                                     ) {
-                                        if let index = appState.vibes.firstIndex(where: { $0.id == firstVibe.id }) {
-                                            appState.navigateToViewer(startingAt: index)
-                                        }
+                                        appState.navigateToViewer(opening: firstVibe.id)
                                     }
                                     Text("Friend")
                                         .font(.caption)
@@ -340,7 +337,7 @@ struct ExpandedFeedView: View {
                     ], spacing: 8) {
                         ForEach(Array(appState.vibes.enumerated()), id: \.element.id) { index, vibe in
                             VibeGridCell(vibe: vibe, userId: appState.userId) {
-                                appState.navigateToViewer(startingAt: index)
+                                appState.navigateToViewer(opening: vibe.id)
                             }
                         }
                     }

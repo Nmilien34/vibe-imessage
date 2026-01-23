@@ -53,6 +53,7 @@ class AppState: ObservableObject {
     @Published var shouldShowVibePicker = false
 
     // MARK: - Viewer State
+    @Published var viewerVibes: [Vibe] = []
     @Published var currentViewerIndex = 0
 
     // MARK: - Unlock Flow State
@@ -208,9 +209,29 @@ class AppState: ObservableObject {
 
     // MARK: - Navigation
 
-    func navigateToViewer(startingAt index: Int) {
-        currentViewerIndex = index
-        currentDestination = .viewer(startIndex: index)
+    func navigateToViewer(opening vibeId: String) {
+        // 1. Prepare Playlist: Group by user, sort oldest to newest per user
+        let grouped = vibesGroupedByUser()
+        
+        // Flatten and sort each group by creation date (Oldest first)
+        var playlist: [Vibe] = []
+        for userVibes in grouped {
+            let sortedUserVibes = userVibes.sorted(by: { $0.createdAt < $1.createdAt })
+            playlist.append(contentsOf: sortedUserVibes)
+        }
+        
+        self.viewerVibes = playlist
+        
+        // 2. Find index
+        if let index = playlist.firstIndex(where: { $0.id == vibeId }) {
+            currentViewerIndex = index
+            currentDestination = .viewer(startIndex: index)
+        } else {
+            // Fallback (shouldn't happen)
+            currentViewerIndex = 0
+            currentDestination = .viewer(startIndex: 0)
+        }
+        
         requestExpand()
     }
 

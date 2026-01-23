@@ -21,19 +21,38 @@ struct VibeViewerView: View {
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if appState.vibes.isEmpty {
+                if appState.viewerVibes.isEmpty {
                     emptyState
                 } else {
                     // Main content
-                    TabView(selection: $currentIndex) {
-                        ForEach(Array(appState.vibes.enumerated()), id: \.element.id) { index, vibe in
-                            vibeContent(vibe, geometry: geometry)
-                                .tag(index)
+                    ZStack {
+                        TabView(selection: $currentIndex) {
+                            ForEach(Array(appState.viewerVibes.enumerated()), id: \.element.id) { index, vibe in
+                                vibeContent(vibe, geometry: geometry)
+                                    .tag(index)
+                            }
                         }
-                    }
-                    .tabViewStyle(.page(indexDisplayMode: .never))
-                    .onChange(of: currentIndex) { _, newIndex in
-                        markAsViewed(at: newIndex)
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        .onChange(of: currentIndex) { _, newIndex in
+                            markAsViewed(at: newIndex)
+                        }
+                        
+                        // Tap Navigation Overlay
+                        HStack(spacing: 0) {
+                            // Left side (Previous)
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    goToPrevious()
+                                }
+                            
+                            // Right side (Next)
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    goToNext()
+                                }
+                        }
                     }
 
                     // Overlay UI
@@ -49,20 +68,27 @@ struct VibeViewerView: View {
             currentIndex = startIndex
             markAsViewed(at: startIndex)
         }
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                    }
-                }
-                .onEnded { value in
-                    if value.translation.height > 100 {
-                        appState.navigateToFeed()
-                    }
-                    dragOffset = 0
-                }
-        )
+    }
+    
+    private func goToNext() {
+        if currentIndex < appState.viewerVibes.count - 1 {
+            withAnimation {
+                currentIndex += 1
+            }
+        } else {
+            // End of all vibes, close viewer
+            appState.navigateToFeed()
+        }
+    }
+    
+    private func goToPrevious() {
+        if currentIndex > 0 {
+            withAnimation {
+                currentIndex -= 1
+            }
+        } else {
+            // At start, maybe just stay or close? Instagram stays.
+        }
     }
 
     private var emptyState: some View {
@@ -117,9 +143,9 @@ struct VibeViewerView: View {
             Spacer()
 
             // Progress indicators
-            if !appState.vibes.isEmpty {
+            if !appState.viewerVibes.isEmpty {
                 HStack(spacing: 4) {
-                    ForEach(0..<appState.vibes.count, id: \.self) { index in
+                    ForEach(0..<appState.viewerVibes.count, id: \.self) { index in
                         Capsule()
                             .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
                             .frame(width: index == currentIndex ? 20 : 8, height: 4)
@@ -131,8 +157,8 @@ struct VibeViewerView: View {
             Spacer()
 
             // Timer
-            if currentIndex < appState.vibes.count {
-                CountdownTimer(expiresAt: appState.vibes[currentIndex].expiresAt)
+            if currentIndex < appState.viewerVibes.count {
+                CountdownTimer(expiresAt: appState.viewerVibes[currentIndex].expiresAt)
             }
         }
         .padding()
@@ -149,8 +175,8 @@ struct VibeViewerView: View {
     private var bottomBar: some View {
         VStack(spacing: 16) {
             // Reactions
-            if currentIndex < appState.vibes.count {
-                let vibe = appState.vibes[currentIndex]
+            if currentIndex < appState.viewerVibes.count {
+                let vibe = appState.viewerVibes[currentIndex]
 
                 // Show existing reactions
                 if !vibe.reactions.isEmpty {
@@ -232,8 +258,8 @@ struct VibeViewerView: View {
     }
 
     private func markAsViewed(at index: Int) {
-        guard index < appState.vibes.count else { return }
-        let vibe = appState.vibes[index]
+        guard index < appState.viewerVibes.count else { return }
+        let vibe = appState.viewerVibes[index]
         Task {
             await appState.markAsViewed(vibe)
         }
