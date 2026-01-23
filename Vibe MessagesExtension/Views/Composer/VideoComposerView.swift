@@ -14,8 +14,9 @@ struct VideoComposerView: View {
     let isLocked: Bool
 
     @State private var selectedItem: PhotosPickerItem?
-    @State private var videoData: Data?
+    @State private var mediaData: Data?
     @State private var thumbnailImage: UIImage?
+    @State private var mediaType: VibeType = .video
     @State private var isUploading = false
     @State private var uploadProgress: Double = 0
     @State private var error: String?
@@ -32,17 +33,19 @@ struct VideoComposerView: View {
                         .cornerRadius(16)
                         .frame(maxHeight: 300)
 
-                    // Play icon overlay
-                    Image(systemName: "play.circle.fill")
-                        .font(.system(size: 50))
-                        .foregroundColor(.white.opacity(0.8))
+                    // Play icon overlay (only for video)
+                    if mediaType == .video {
+                        Image(systemName: "play.circle.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
 
-                    // Change video button
+                    // Change media button
                     VStack {
                         HStack {
                             Spacer()
                             Button {
-                                videoData = nil
+                                mediaData = nil
                                 thumbnailImage = nil
                                 selectedItem = nil
                             } label: {
@@ -58,7 +61,7 @@ struct VideoComposerView: View {
                 }
                 .padding(.horizontal)
             } else {
-                // Video picker options
+                // Media picker options
                 VStack(spacing: 16) {
                     // Camera option
                     Button {
@@ -86,7 +89,7 @@ struct VideoComposerView: View {
                     // Photo library option
                     PhotosPicker(
                         selection: $selectedItem,
-                        matching: .videos,
+                        matching: .any(of: [.videos, .images]),
                         photoLibrary: .shared()
                     ) {
                         HStack(spacing: 12) {
@@ -125,15 +128,15 @@ struct VideoComposerView: View {
                         .foregroundColor(.secondary)
                 }
                 .padding(.horizontal)
-            } else if videoData != nil {
+            } else if mediaData != nil {
                 Button {
                     Task {
-                        await shareVideo()
+                        await shareMedia()
                     }
                 } label: {
                     HStack {
                         Image(systemName: "paperplane.fill")
-                        Text("Share Vibe")
+                        Text("Share Vibez")
                     }
                     .font(.headline)
                     .frame(maxWidth: .infinity)
@@ -154,28 +157,44 @@ struct VideoComposerView: View {
         .padding(.vertical)
         .onChange(of: selectedItem) { _, newValue in
             Task {
-                await loadVideo(from: newValue)
+                await loadMedia(from: newValue)
             }
         }
         .fullScreenCover(isPresented: $showCamera) {
             CameraView { data, thumbnail in
-                videoData = data
+                mediaData = data
                 thumbnailImage = thumbnail
+                mediaType = .video
                 showCamera = false
             }
         }
     }
 
-    private func loadVideo(from item: PhotosPickerItem?) async {
+    private func loadMedia(from item: PhotosPickerItem?) async {
         guard let item = item else { return }
 
         do {
-            if let data = try await item.loadTransferable(type: Data.self) {
-                videoData = data
-                thumbnailImage = await generateThumbnail(from: data)
+            // Check if it's a video or image
+            if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
+                if let data = try await item.loadTransferable(type: Data.self) {
+                    mediaData = data
+                    thumbnailImage = await generateThumbnail(from: data)
+                    mediaType = .video
+                    return
+                }
+            }
+            
+            if item.supportedContentTypes.contains(where: { $0.conforms(to: .image) }) {
+                if let data = try await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    mediaData = data
+                    thumbnailImage = image
+                    mediaType = .photo
+                    return
+                }
             }
         } catch {
-            self.error = "Failed to load video"
+            self.error = "Failed to load media"
         }
     }
 
@@ -183,12 +202,12 @@ struct VideoComposerView: View {
         let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
         try? data.write(to: tempURL)
 
-        let asset = AVAsset(url: tempURL)
+        let asset = AVURLAsset(url: tempURL)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
 
         do {
-            let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
+            let (cgImage, _) = try await imageGenerator.image(at: .zero)
             try? FileManager.default.removeItem(at: tempURL)
             return UIImage(cgImage: cgImage)
         } catch {
@@ -197,37 +216,48 @@ struct VideoComposerView: View {
         }
     }
 
-    private func shareVideo() async {
-        guard let videoData = videoData else { return }
+    private func shareMedia() async {
+        guard let data = mediaData else { return }
 
         isUploading = true
         error = nil
 
         do {
-            // Upload video
+            // Upload media
             uploadProgress = 0.3
+            let fileType = mediaType == .video ? "mp4" : "jpg"
+            let folder = mediaType == .video ? "vibes" : "photos"
+            
             let mediaUrl = try await VibeService.shared.uploadMedia(
-                data: videoData,
-                fileType: "mp4",
-                folder: "vibes"
+                data: data,
+                fileType: fileType,
+                folder: folder
             )
 
-            // Upload thumbnail if available
+            // Upload thumbnail if available (and if video)
+            // For photos, the mediaURL itself is the image, but we might want a smaller thumb?
+            // For simplicity, for photos we use mediaUrl as thumbnail too or upload same data if needed.
             uploadProgress = 0.6
             var thumbnailUrl: String?
-            if let thumbnail = thumbnailImage,
+            
+            if mediaType == .video,
+               let thumbnail = thumbnailImage,
                let thumbnailData = thumbnail.jpegData(compressionQuality: 0.8) {
                 thumbnailUrl = try await VibeService.shared.uploadMedia(
                     data: thumbnailData,
                     fileType: "jpg",
                     folder: "thumbnails"
                 )
+            } else if mediaType == .photo {
+                // For photos, thumbnail is just the photo itself or a resized version.
+                // We'll just define the main image as the mediaUrl.
+                thumbnailUrl = mediaUrl
             }
 
             // Create vibe
             uploadProgress = 0.9
             try await appState.createVibe(
-                type: .video,
+                type: mediaType,
                 mediaUrl: mediaUrl,
                 thumbnailUrl: thumbnailUrl,
                 isLocked: isLocked

@@ -23,7 +23,7 @@ class StoryBubbleRenderer {
         )
         
         let renderer = ImageRenderer(content: view)
-        renderer.scale = UIScreen.main.scale
+        renderer.scale = UITraitCollection.current.displayScale
         
         return renderer.uiImage ?? UIImage(systemName: "exclamationmark.triangle")!
     }
@@ -97,7 +97,7 @@ struct StoryBubbleView: View {
                     
                     Spacer()
                     
-                    Text("Vibe")
+                    Text("Vibez")
                         .font(.caption)
                         .fontWeight(.bold)
                         .padding(.horizontal, 8)

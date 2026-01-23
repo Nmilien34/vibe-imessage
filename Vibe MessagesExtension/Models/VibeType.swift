@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 
 enum VibeType: String, Codable, CaseIterable {
+    case photo
     case video
     case song
     case battery
@@ -17,6 +18,7 @@ enum VibeType: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .photo: return "Photo"
         case .video: return "Video"
         case .song: return "Song"
         case .battery: return "Battery"
@@ -27,6 +29,7 @@ enum VibeType: String, Codable, CaseIterable {
 
     var icon: String {
         switch self {
+        case .photo: return "photo.fill"
         case .video: return "video.fill"
         case .song: return "music.note"
         case .battery: return "battery.100"
@@ -37,6 +40,7 @@ enum VibeType: String, Codable, CaseIterable {
 
     var color: Color {
         switch self {
+        case .photo: return .blue
         case .video: return .pink
         case .song: return .green
         case .battery: return .yellow

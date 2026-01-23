@@ -82,7 +82,48 @@ actor APIClient {
         self.encoder.dateEncodingStrategy = .iso8601
         
         if useMockData {
-            setupMockData()
+            self.mockVibes = [
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_1",
+                    conversationId: "conv_1",
+                    type: .mood,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: Mood(emoji: "🚀", text: "Launching something new!"),
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [Reaction(userId: "me", emoji: "🔥")],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(86400),
+                    createdAt: Date().addingTimeInterval(-7200),
+                    updatedAt: Date().addingTimeInterval(-7200)
+                ),
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_2",
+                    conversationId: "conv_1",
+                    type: .battery,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: 5,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: true,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(80000),
+                    createdAt: Date().addingTimeInterval(-300),
+                    updatedAt: Date().addingTimeInterval(-300)
+                )
+            ]
         }
     }
 
@@ -191,61 +232,27 @@ actor APIClient {
     
     private struct EmptyBody: Encodable {}
 
-    private func setupMockData() {
-        // Create some initial mock vibes
-        let yesterday = Date().addingTimeInterval(-86400)
-        let twoHoursAgo = Date().addingTimeInterval(-7200)
-        let fiveMinutesAgo = Date().addingTimeInterval(-300)
-        
-        mockVibes = [
-            Vibe(
-                id: UUID().uuidString,
-                oderId: nil,
-                userId: "user_friend_1",
-                conversationId: "conv_1",
-                type: .mood,
-                mediaUrl: nil,
-                thumbnailUrl: nil,
-                songData: nil,
-                batteryLevel: nil,
-                mood: Mood(emoji: "🚀", text: "Launching something new!"),
-                poll: nil,
-                isLocked: false,
-                unlockedBy: [],
-                reactions: [Reaction(userId: "me", emoji: "🔥")],
-                viewedBy: [],
-                expiresAt: Date().addingTimeInterval(86400),
-                createdAt: twoHoursAgo,
-                updatedAt: twoHoursAgo
-            ),
-            Vibe(
-                id: UUID().uuidString,
-                oderId: nil,
-                userId: "user_friend_2",
-                conversationId: "conv_1",
-                type: .battery,
-                mediaUrl: nil,
-                thumbnailUrl: nil,
-                songData: nil,
-                batteryLevel: 5,
-                mood: nil,
-                poll: nil,
-                isLocked: true,
-                unlockedBy: [],
-                reactions: [],
-                viewedBy: [],
-                expiresAt: Date().addingTimeInterval(80000),
-                createdAt: fiveMinutesAgo,
-                updatedAt: fiveMinutesAgo
-            )
-        ]
-    }
-
     private func performMockGet<T: Decodable>(_ path: String) async throws -> T {
         // Simulate network delay
         try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
 
-        if path.contains("/vibes") {
+        // Handle Streaks (must check before generic vibes, or handle specific suffix)
+        if path.hasSuffix("/streak") || path.contains("/streaks") {
+            let streak = Streak(
+                conversationId: "conv_1",
+                currentStreak: 5,
+                longestStreak: 12,
+                lastPostDate: Date(),
+                todayPosters: ["me"]
+            )
+            let response = StreakResponse(streak: streak)
+            if let result = response as? T {
+                return result
+            }
+        }
+
+        // Handle Vibes List
+        if path.contains("/vibes") && !path.contains("/streak") {
             // Retrieve vibes (filter by conversation if needed, for now return all)
             let response = VibesResponse(vibes: mockVibes.sorted(by: { $0.createdAt > $1.createdAt }))
             if let result = response as? T {
@@ -259,14 +266,6 @@ actor APIClient {
                 publicUrl: "https://mock-s3.com/file.mov",
                 key: UUID().uuidString
             )
-            if let result = response as? T {
-                return result
-            }
-        }
-        
-        if path.contains("/streaks") {
-            let streak = Streak(count: 5, lastInteraction: Date())
-            let response = StreakResponse(streak: streak)
             if let result = response as? T {
                 return result
             }

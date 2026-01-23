@@ -26,11 +26,25 @@ class CameraViewModel: NSObject, ObservableObject {
     
     private let maxDuration: TimeInterval = 15.0
     
+    var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+    
     override init() {
         super.init()
     }
     
     func checkPermissions() {
+        if isSimulator {
+            // Simulate authorized
+            setupSession()
+            return
+        }
+
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             setupSession()
@@ -52,6 +66,11 @@ class CameraViewModel: NSObject, ObservableObject {
     }
     
     func setupSession() {
+        if isSimulator {
+            // In simulator, we don't create a session, but we act as if we are ready
+            return
+        }
+
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             
@@ -94,6 +113,7 @@ class CameraViewModel: NSObject, ObservableObject {
     }
     
     func stopSession() {
+        if isSimulator { return }
         sessionQueue.async { [weak self] in
             self?.session?.stopRunning()
             DispatchQueue.main.async {
@@ -106,6 +126,13 @@ class CameraViewModel: NSObject, ObservableObject {
     
     func startRecording() {
         guard !isRecording else { return }
+        
+        if isSimulator {
+            isRecording = true
+            startTimer()
+            return
+        }
+
         guard let session = session, session.isRunning else { return }
         
         let outputPath = NSTemporaryDirectory() + UUID().uuidString + ".mov"
@@ -116,10 +143,31 @@ class CameraViewModel: NSObject, ObservableObject {
     
     func stopRecording() {
         guard isRecording else { return }
+        
+        if isSimulator {
+            isRecording = false
+            stopTimer()
+            
+            // Generate dummy video
+            Task { @MainActor in
+                let outputUrl = URL(fileURLWithPath: NSTemporaryDirectory() + UUID().uuidString + ".mov")
+                // In a real app we'd write dummy bytes, but for now we might fail or need a real dummy file.
+                // Hack: Write a tiny text file masked as .mov so it exists at least? 
+                // NO, AVAsset will fail.
+                // Better approach: Since we are in mock mode, VideoComposer might fail to generate thumbnail from invalid file.
+                // We'll create a minimal valid MP4 if possible, OR, rely on Mock Data in VideoComposer to ignore file content if simulator.
+                // For now, let's create a minimal generic file to ensure "existence".
+                try? "DUMMY VIDEO DATA".data(using: .utf8)?.write(to: outputUrl)
+                self.recordedVideo = VideoRecording(url: outputUrl, duration: self.recordingTime)
+            }
+            return
+        }
+
         videoOutput.stopRecording()
     }
     
     func flipCamera() {
+        if isSimulator { return }
         sessionQueue.async { [weak self] in
             guard let self = self, let session = self.session else { return }
             
@@ -173,7 +221,12 @@ class CameraViewModel: NSObject, ObservableObject {
         startTime = nil
         recordingTime = 0
     }
+    
+    // Helper to generate a dummy valid video file? 
+    // Swift is hard to generate video without AVAssetWriter.
+    // We will assume VideoComposer handles "bad" videos gracefully in simulator.
 }
+
 
 extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {

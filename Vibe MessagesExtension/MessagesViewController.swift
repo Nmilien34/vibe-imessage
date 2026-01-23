@@ -173,13 +173,13 @@ class MessagesViewController: MSMessagesAppViewController {
         // 4. Create Layout
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
-        layout.caption = isLocked ? "🔒 Locked Vibe" : "New Vibe"
+        layout.caption = isLocked ? "🔒 Locked Vibez" : "New Vibez"
         layout.subcaption = "Tap to view • \(Int(video.duration))s"
 
         // 5. Create Message
         let message = MSMessage(session: conversation.selectedMessage?.session ?? MSSession())
         message.layout = layout
-        message.summaryText = isLocked ? "shared a locked vibe" : "shared a vibe"
+        message.summaryText = isLocked ? "shared a locked vibez" : "shared a vibez"
 
         // 6. Encode data for the extension to read later
         var components = URLComponents()
@@ -205,17 +205,23 @@ class MessagesViewController: MSMessagesAppViewController {
     }
 
     private func generateThumbnail(for url: URL) -> UIImage? {
-        let asset = AVAsset(url: url)
+        let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         generator.maximumSize = CGSize(width: 300, height: 400)
 
-        do {
-            let cgImage = try generator.copyCGImage(at: .zero, actualTime: nil)
-            return UIImage(cgImage: cgImage)
-        } catch {
-            print("Thumbnail generation failed: \(error)")
-            return nil
+        // Using semaphores to wait for async replacement:
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultImage: UIImage?
+        
+        generator.generateCGImageAsynchronously(for: .zero) { cgImage, _, error in
+            if let cgImage = cgImage {
+                resultImage = UIImage(cgImage: cgImage)
+            }
+            semaphore.signal()
         }
+        
+        _ = semaphore.wait(timeout: .now() + 2.0)
+        return resultImage
     }
 }

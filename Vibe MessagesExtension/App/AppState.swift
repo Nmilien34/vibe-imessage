@@ -48,6 +48,7 @@ class AppState: ObservableObject {
 
     // MARK: - Composer State
     @Published var selectedVibeType: VibeType?
+    @Published var composerIsLocked: Bool = false
     @Published var isComposerPresented = false
 
     // MARK: - Viewer State
@@ -212,8 +213,9 @@ class AppState: ObservableObject {
         requestExpand()
     }
 
-    func navigateToComposer(type: VibeType? = nil) {
+    func navigateToComposer(type: VibeType? = nil, isLocked: Bool = false) {
         selectedVibeType = type
+        composerIsLocked = isLocked
         currentDestination = .composer
         requestExpand()
     }
@@ -224,7 +226,9 @@ class AppState: ObservableObject {
 
     func dismissComposer() {
         isComposerPresented = false
+        isComposerPresented = false
         selectedVibeType = nil
+        composerIsLocked = false
         currentDestination = .feed
     }
 

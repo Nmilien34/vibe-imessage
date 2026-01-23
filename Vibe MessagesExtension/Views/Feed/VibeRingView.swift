@@ -44,6 +44,21 @@ struct VibeRingView: View {
         Group {
             if let firstVibe = vibes.first {
                 switch firstVibe.type {
+                case .photo:
+                    if let mediaUrl = firstVibe.mediaUrl,
+                       let url = URL(string: mediaUrl) {
+                        AsyncImage(url: url) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Color.gray.opacity(0.3)
+                        }
+                    } else {
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: size * 0.4))
+                            .foregroundColor(.white)
+                    }
                 case .video:
                     if let thumbnailUrl = firstVibe.thumbnailUrl,
                        let url = URL(string: thumbnailUrl) {

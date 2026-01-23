@@ -11,7 +11,7 @@ import UIKit
 import AVFoundation
 
 /// Service for creating and managing iMessage messages
-class MessageService {
+final class MessageService: Sendable {
 
     // MARK: - Singleton
     static let shared = MessageService()
@@ -161,29 +161,41 @@ class MessageService {
 
     // MARK: - Thumbnail Generation
 
-    /// Generates a thumbnail from a video URL
+    /// Generates a thumbnail from a video URL (Synchronous wrapper - use with caution or prefer async)
     func generateThumbnail(from videoURL: URL) -> UIImage? {
-        let asset = AVAsset(url: videoURL)
+        let asset = AVURLAsset(url: videoURL)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
         imageGenerator.maximumSize = CGSize(width: 300, height: 300)
-
-        do {
-            let cgImage = try imageGenerator.copyCGImage(at: .zero, actualTime: nil)
-            return UIImage(cgImage: cgImage)
-        } catch {
-            print("MessageService: Error generating thumbnail: \(error)")
-            return nil
+        
+        // Using semaphores to wait for async replacement:
+        let semaphore = DispatchSemaphore(value: 0)
+        var resultImage: UIImage?
+        
+        imageGenerator.generateCGImageAsynchronously(for: .zero) { cgImage, _, error in
+            if let cgImage = cgImage {
+                resultImage = UIImage(cgImage: cgImage)
+            }
+            semaphore.signal()
         }
+        
+        _ = semaphore.wait(timeout: .now() + 2.0)
+        return resultImage
     }
 
     /// Generates a thumbnail asynchronously
     func generateThumbnail(from videoURL: URL) async -> UIImage? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let thumbnail = self.generateThumbnail(from: videoURL)
-                continuation.resume(returning: thumbnail)
-            }
+        let asset = AVURLAsset(url: videoURL)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        imageGenerator.maximumSize = CGSize(width: 300, height: 300)
+        
+        do {
+            let (cgImage, _) = try await imageGenerator.image(at: .zero)
+            return UIImage(cgImage: cgImage)
+        } catch {
+            print("MessageService: Error generating thumbnail: \(error)")
+            return nil
         }
     }
 
@@ -199,6 +211,8 @@ class MessageService {
     /// Creates a caption for a vibe based on its type
     private func createCaption(for vibe: Vibe) -> String {
         switch vibe.type {
+        case .photo:
+            return "\(getDisplayName()) Photo"
         case .video:
             return "\(getDisplayName()) Moment"
         case .song:
@@ -233,6 +247,8 @@ class MessageService {
             // Background color based on vibe type
             let backgroundColor: UIColor
             switch vibe.type {
+            case .photo:
+                backgroundColor = UIColor.systemBlue
             case .video:
                 backgroundColor = UIColor.systemPink
             case .song:
@@ -251,6 +267,8 @@ class MessageService {
             // Draw icon or emoji in center
             let iconText: String
             switch vibe.type {
+            case .photo:
+                iconText = "📸"
             case .video:
                 iconText = "🎬"
             case .song:

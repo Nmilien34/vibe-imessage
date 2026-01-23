@@ -111,6 +111,7 @@ struct CompactFeedView: View {
 // MARK: - Expanded Feed View (Full screen)
 struct ExpandedFeedView: View {
     @EnvironmentObject var appState: AppState
+    @State private var showVibePicker = false
 
     private let ringSize: CGFloat = 80
 
@@ -132,13 +133,17 @@ struct ExpandedFeedView: View {
             .refreshable {
                 await appState.refreshVibes()
             }
+            .overlay {
+                // Vibe Picker Overlay
+                VibePickerOverlay(isPresented: $showVibePicker)
+            }
         }
     }
 
     private var headerView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Vibes")
+                Text("Vibez")
                     .font(.largeTitle)
                     .fontWeight(.bold)
 
@@ -163,7 +168,9 @@ struct ExpandedFeedView: View {
 
             // Add vibe button
             Button {
-                appState.navigateToComposer()
+                withAnimation {
+                    showVibePicker = true
+                }
             } label: {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 32))
@@ -215,7 +222,9 @@ struct ExpandedFeedView: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                appState.navigateToComposer()
+                withAnimation {
+                    showVibePicker = true
+                }
             } label: {
                 Label("Share a Vibe", systemImage: "plus")
                     .font(.headline)
@@ -247,7 +256,9 @@ struct ExpandedFeedView: View {
                         if !appState.hasUserPostedToday() {
                             VStack(spacing: 6) {
                                 AddVibeButton(size: ringSize) {
-                                    appState.navigateToComposer()
+                                    withAnimation {
+                                        showVibePicker = true
+                                    }
                                 }
                                 Text("Add")
                                     .font(.caption)
@@ -335,10 +346,30 @@ struct VibeGridCell: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                // Background based on type
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(vibe.type.color.opacity(0.3))
-                    .aspectRatio(1, contentMode: .fit)
+                // Background
+                if (vibe.type == .video || vibe.type == .photo),
+                   let urlString = vibe.thumbnailUrl ?? (vibe.type == .photo ? vibe.mediaUrl : nil),
+                   let url = URL(string: urlString) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.gray.opacity(0.3)
+                    }
+                    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                } else {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(vibe.type.color.opacity(0.3))
+                        .aspectRatio(1, contentMode: .fit)
+                }
+                
+                // Dark overlay for visibility if image present
+                if (vibe.type == .video || vibe.type == .photo) {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.black.opacity(0.2))
+                }
 
                 // Content preview
                 VStack(spacing: 8) {
@@ -381,6 +412,10 @@ struct VibeGridCell: View {
     @ViewBuilder
     private var contentPreview: some View {
         switch vibe.type {
+        case .photo:
+            Image(systemName: "photo.fill")
+                .font(.title)
+                .foregroundColor(vibe.type.color)
         case .video:
             Image(systemName: "video.fill")
                 .font(.title)

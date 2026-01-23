@@ -105,6 +105,19 @@ struct LockedVibeView: View {
     @ViewBuilder
     private var blurredPreview: some View {
         switch vibe.type {
+        case .photo:
+            if let mediaUrl = vibe.mediaUrl,
+               let url = URL(string: mediaUrl) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    vibe.type.color
+                }
+            } else {
+                vibe.type.color
+            }
         case .video:
             if let thumbnailUrl = vibe.thumbnailUrl,
                let url = URL(string: thumbnailUrl) {

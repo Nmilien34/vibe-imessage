@@ -84,6 +84,8 @@ struct VibeViewerView: View {
             }
         } else {
             switch vibe.type {
+            case .photo:
+                PhotoVibeContent(vibe: vibe)
             case .video:
                 VideoVibeContent(vibe: vibe)
             case .song:
@@ -265,6 +267,29 @@ struct ReactionPicker: View {
         .padding()
         .background(.ultraThinMaterial)
         .clipShape(Capsule())
+    }
+}
+
+// MARK: - Photo Vibe Content
+struct PhotoVibeContent: View {
+    let vibe: Vibe
+
+    var body: some View {
+        ZStack {
+            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                } placeholder: {
+                    ProgressView()
+                }
+            } else {
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundColor(.gray)
+            }
+        }
     }
 }
 

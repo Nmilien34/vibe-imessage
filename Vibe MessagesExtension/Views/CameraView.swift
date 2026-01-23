@@ -28,9 +28,20 @@ struct CameraView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            if let session = model.session {
-                CameraPreviewView(session: session)
-                    .ignoresSafeArea()
+            if model.session != nil || model.isSimulator {
+                // Preview Layer
+                if let session = model.session {
+                    CameraPreviewView(session: session)
+                        .ignoresSafeArea()
+                } else {
+                    // Simulator Placeholder
+                    ZStack {
+                        Color.gray.opacity(0.3).ignoresSafeArea()
+                        Text("Simulator Camera Mode\nTap Record to Test")
+                            .multilineTextAlignment(.center)
+                            .foregroundColor(.white)
+                    }
+                }
                 
                 // Top Bar
                 VStack {
@@ -132,7 +143,7 @@ struct CameraView: View {
             // Generate thumbnail and data
             Task {
                 if let videoData = try? Data(contentsOf: video.url) {
-                    let thumbnail = generateThumbnail(for: video.url)
+                    let thumbnail = await generateThumbnail(for: video.url)
                     onFinish?(videoData, thumbnail)
                     dismiss()
                 }
@@ -140,13 +151,13 @@ struct CameraView: View {
         }
     }
     
-    private func generateThumbnail(for url: URL) -> UIImage? {
-        let asset = AVAsset(url: url)
+    private func generateThumbnail(for url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
         
         do {
-            let cgImage = try generator.copyCGImage(at: .zero, actualTime: nil)
+            let (cgImage, _) = try await generator.image(at: .zero)
             return UIImage(cgImage: cgImage)
         } catch {
             return nil

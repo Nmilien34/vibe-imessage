@@ -27,6 +27,9 @@ struct Vibe: Codable, Identifiable, Equatable {
     let createdAt: Date
     let updatedAt: Date
 
+}
+
+extension Vibe {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case oderId
