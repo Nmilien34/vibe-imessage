@@ -20,154 +20,104 @@ struct VideoComposerView: View {
     @State private var isUploading = false
     @State private var uploadProgress: Double = 0
     @State private var error: String?
-    @State private var showCamera = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             if let thumbnail = thumbnailImage {
                 // Preview
-                ZStack {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .cornerRadius(16)
-                        .frame(maxHeight: 300)
+                VStack(spacing: 24) {
+                    ZStack {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .cornerRadius(16)
+                            .frame(maxHeight: 300)
 
-                    // Play icon overlay (only for video)
-                    if mediaType == .video {
-                        Image(systemName: "play.circle.fill")
-                            .font(.system(size: 50))
-                            .foregroundColor(.white.opacity(0.8))
-                    }
+                        // Play icon overlay (only for video)
+                        if mediaType == .video {
+                            Image(systemName: "play.circle.fill")
+                                .font(.system(size: 50))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
 
-                    // Change media button
-                    VStack {
-                        HStack {
-                            Spacer()
-                            Button {
-                                mediaData = nil
-                                thumbnailImage = nil
-                                selectedItem = nil
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
+                        // Change media button
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    mediaData = nil
+                                    thumbnailImage = nil
+                                    selectedItem = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
                                     .font(.title2)
                                     .foregroundColor(.white)
                                     .shadow(radius: 5)
+                                }
+                                .padding()
                             }
-                            .padding()
+                            Spacer()
                         }
-                        Spacer()
                     }
-                }
-                .padding(.horizontal)
-            } else {
-                // Media picker options
-                VStack(spacing: 16) {
-                    // Camera option
-                    Button {
-                        showCamera = true
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "camera.fill")
-                                .font(.title2)
-                            Text("Record Video")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                    }
-
-                    // Photo library option
-                    PhotosPicker(
-                        selection: $selectedItem,
-                        matching: .any(of: [.videos, .images]),
-                        photoLibrary: .shared()
-                    ) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "photo.on.rectangle")
-                                .font(.title2)
-                            Text("Choose from Library")
-                                .font(.headline)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                        .background(Color(.secondarySystemBackground))
-                        .foregroundColor(.primary)
-                        .cornerRadius(16)
-                    }
-                }
-                .padding(.horizontal)
-            }
-
-            Spacer()
-
-            // Error message
-            if let error = error {
-                Text(error)
-                    .font(.caption)
-                    .foregroundColor(.red)
                     .padding(.horizontal)
-            }
+                    
+                    // Error message
+                    if let error = error {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .padding(.horizontal)
+                    }
 
-            // Upload progress or share button
-            if isUploading {
-                VStack(spacing: 8) {
-                    ProgressView(value: uploadProgress)
-                        .progressViewStyle(.linear)
-                    Text("Uploading...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-            } else if mediaData != nil {
-                Button {
-                    Task {
-                        await shareMedia()
+                    // Upload progress or share button
+                    if isUploading {
+                        VStack(spacing: 8) {
+                            ProgressView(value: uploadProgress)
+                                .progressViewStyle(.linear)
+                            Text("Uploading...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal)
+                    } else if mediaData != nil {
+                         Button {
+                            Task {
+                                await shareMedia()
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "paperplane.fill")
+                                Text("Share Vibez")
+                            }
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                LinearGradient(
+                                    colors: [.pink, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "paperplane.fill")
-                        Text("Share Vibez")
-                    }
-                    .font(.headline)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(
-                        LinearGradient(
-                            colors: [.pink, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
                 }
-                .padding(.horizontal)
+                .padding(.vertical)
+            } else {
+                // Creator Camera View (Default State)
+                CreatorCameraView(initialLocked: isLocked, selectedItem: $selectedItem)
             }
         }
-        .padding(.vertical)
         .onChange(of: selectedItem) { _, newValue in
             Task {
                 await loadMedia(from: newValue)
             }
         }
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraView { data, thumbnail in
-                mediaData = data
-                thumbnailImage = thumbnail
-                mediaType = .video
-                showCamera = false
-            }
-        }
+    }
+
     }
 
     private func loadMedia(from item: PhotosPickerItem?) async {

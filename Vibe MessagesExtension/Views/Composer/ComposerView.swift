@@ -234,39 +234,41 @@ struct ComposerView: View {
     @ViewBuilder
     private func typeComposer(for type: VibeType) -> some View {
         VStack(spacing: 0) {
-            // ARCADE HEADER
-            HStack {
-                Button {
-                    withAnimation {
-                        selectedType = nil
+            // ARCADE HEADER (Hidden for Video/Photo which have custom UI)
+            if type != .video && type != .photo {
+                HStack {
+                    Button {
+                        withAnimation {
+                            selectedType = nil
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("Back")
+                                .font(.headline)
+                        }
+                        .foregroundColor(.primary)
                     }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .bold))
-                        Text("Back")
-                            .font(.headline)
-                    }
-                    .foregroundColor(.primary)
+                    .frame(width: 80, alignment: .leading) // Fixed width for balance
+
+                    Spacer()
+
+                    Text(type.displayName)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+
+                    Spacer()
+
+                    // Balance the header
+                    Color.clear
+                        .frame(width: 80)
                 }
-                .frame(width: 80, alignment: .leading) // Fixed width for balance
-
-                Spacer()
-
-                Text(type.displayName)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-
-                Spacer()
-
-                // Balance the header
-                Color.clear
-                    .frame(width: 80)
-            }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 16)
-            .background(Color(uiColor: .systemGroupedBackground)) 
+                .padding(.horizontal)
+                .padding(.top, 16)
+                .padding(.bottom, 16)
+                .background(Color(uiColor: .systemGroupedBackground))
+            } 
 
             // COMPOSER CONTENT
             switch type {
