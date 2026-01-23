@@ -83,10 +83,77 @@ actor APIClient {
         
         if useMockData {
             self.mockVibes = [
+                // 1. Unlocked Video (Story)
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
                     userId: "user_friend_1",
+                    conversationId: "conv_1",
+                    type: .video,
+                    mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", // Sample video
+                    thumbnailUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [Reaction(userId: "me", emoji: "🔥")],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(86400),
+                    createdAt: Date().addingTimeInterval(-300),
+                    updatedAt: Date().addingTimeInterval(-300)
+                ),
+                
+                // 2. Unlocked Photo
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_2",
+                    conversationId: "conv_1",
+                    type: .photo,
+                    mediaUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=3000&auto=format&fit=crop",
+                    thumbnailUrl: nil, // For photos, mediaUrl is used
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(85000),
+                    createdAt: Date().addingTimeInterval(-1200),
+                    updatedAt: Date().addingTimeInterval(-1200)
+                ),
+
+                // 3. Locked POV (Requires strict unlock)
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_3",
+                    conversationId: "conv_1",
+                    type: .video,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: true, // LOCKED!
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(80000),
+                    createdAt: Date().addingTimeInterval(-3600),
+                    updatedAt: Date().addingTimeInterval(-3600)
+                ),
+
+                // 4. Unlocked Mood
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_friend_1", // Same friend posted twice
                     conversationId: "conv_1",
                     type: .mood,
                     mediaUrl: nil,
@@ -97,31 +164,33 @@ actor APIClient {
                     poll: nil,
                     isLocked: false,
                     unlockedBy: [],
-                    reactions: [Reaction(userId: "me", emoji: "🔥")],
-                    viewedBy: [],
-                    expiresAt: Date().addingTimeInterval(86400),
+                    reactions: [],
+                    viewedBy: ["me"],
+                    expiresAt: Date().addingTimeInterval(40000),
                     createdAt: Date().addingTimeInterval(-7200),
                     updatedAt: Date().addingTimeInterval(-7200)
                 ),
+
+                // 5. Unlocked Poll
                 Vibe(
                     id: UUID().uuidString,
                     oderId: nil,
-                    userId: "user_friend_2",
+                    userId: "user_friend_4",
                     conversationId: "conv_1",
-                    type: .battery,
+                    type: .poll,
                     mediaUrl: nil,
                     thumbnailUrl: nil,
                     songData: nil,
-                    batteryLevel: 5,
+                    batteryLevel: nil,
                     mood: nil,
-                    poll: nil,
-                    isLocked: true,
+                    poll: Poll(question: "Pizza or Tacos?", options: [PollOption(text: "Pizza"), PollOption(text: "Tacos")]),
+                    isLocked: false,
                     unlockedBy: [],
                     reactions: [],
                     viewedBy: [],
-                    expiresAt: Date().addingTimeInterval(80000),
-                    createdAt: Date().addingTimeInterval(-300),
-                    updatedAt: Date().addingTimeInterval(-300)
+                    expiresAt: Date().addingTimeInterval(90000),
+                    createdAt: Date().addingTimeInterval(-100),
+                    updatedAt: Date().addingTimeInterval(-100)
                 )
             ]
         }

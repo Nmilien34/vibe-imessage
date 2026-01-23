@@ -136,7 +136,9 @@ struct ExpandedFeedView: View {
             }
             .overlay {
                 // Vibe Picker Overlay
-                VibePickerOverlay(isPresented: $showVibePicker)
+                if showVibePicker {
+                    VibePickerOverlay(isPresented: $showVibePicker)
+                }
             }
             .onChange(of: appState.shouldShowVibePicker) { _, shouldShow in
                 if shouldShow {
