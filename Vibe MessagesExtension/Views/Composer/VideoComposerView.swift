@@ -118,7 +118,7 @@ struct VideoComposerView: View {
         }
     }
 
-    }
+
 
     private func loadMedia(from item: PhotosPickerItem?) async {
         guard let item = item else { return }

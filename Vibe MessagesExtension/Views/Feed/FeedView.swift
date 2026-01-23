@@ -48,7 +48,8 @@ struct CompactFeedView: View {
                     // Add button (if user hasn't posted today)
                     if !appState.hasUserPostedToday() {
                         AddVibeButton(size: ringSize) {
-                            appState.navigateToComposer()
+                            appState.shouldShowVibePicker = true
+                            appState.requestExpand()
                         }
                     }
 
@@ -136,6 +137,18 @@ struct ExpandedFeedView: View {
             .overlay {
                 // Vibe Picker Overlay
                 VibePickerOverlay(isPresented: $showVibePicker)
+            }
+            .onChange(of: appState.shouldShowVibePicker) { _, shouldShow in
+                if shouldShow {
+                    showVibePicker = true
+                    appState.shouldShowVibePicker = false
+                }
+            }
+            .onAppear {
+                if appState.shouldShowVibePicker {
+                    showVibePicker = true
+                    appState.shouldShowVibePicker = false
+                }
             }
         }
     }

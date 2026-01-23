@@ -50,6 +50,7 @@ class AppState: ObservableObject {
     @Published var selectedVibeType: VibeType?
     @Published var composerIsLocked: Bool = false
     @Published var isComposerPresented = false
+    @Published var shouldShowVibePicker = false
 
     // MARK: - Viewer State
     @Published var currentViewerIndex = 0
