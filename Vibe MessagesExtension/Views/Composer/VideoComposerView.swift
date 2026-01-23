@@ -161,6 +161,7 @@ struct VideoComposerView: View {
             CameraView { data, thumbnail in
                 videoData = data
                 thumbnailImage = thumbnail
+                showCamera = false
             }
         }
     }
@@ -239,30 +240,6 @@ struct VideoComposerView: View {
         }
 
         isUploading = false
-    }
-}
-
-// MARK: - Camera View
-struct CameraView: View {
-    @Environment(\.dismiss) var dismiss
-    let onCapture: (Data, UIImage?) -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            VStack {
-                Text("Camera not available in preview")
-                    .foregroundColor(.white)
-
-                Button("Close") {
-                    dismiss()
-                }
-                .padding()
-                .background(Color.white.opacity(0.2))
-                .cornerRadius(8)
-            }
-        }
     }
 }
 

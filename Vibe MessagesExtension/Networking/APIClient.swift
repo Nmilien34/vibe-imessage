@@ -36,6 +36,9 @@ enum APIError: Error, LocalizedError {
 actor APIClient {
     static let shared = APIClient()
 
+    // SET THIS TO TRUE TO ENABLE MOCK MODE (No Backend Required)
+    let useMockData = true
+
     #if DEBUG
     private let baseURL = "http://localhost:3000/api"
     #else
@@ -45,6 +48,10 @@ actor APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
+
+    // MARK: - Mock Data Store
+    private var mockVibes: [Vibe] = []
+    private var mockUsers: [String: String] = ["user123": "You"]
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -56,16 +63,14 @@ actor APIClient {
         self.decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-
-            // Try ISO8601 with fractional seconds
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            if let date = formatter.date(from: dateString) {
+            
+            // Handle ISO8601 variations
+            if let date = ISO8601DateFormatter().date(from: dateString) {
                 return date
             }
-
-            // Try ISO8601 without fractional seconds
-            formatter.formatOptions = [.withInternetDateTime]
+            
+            let formatter = DateFormatter()
+            formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
             if let date = formatter.date(from: dateString) {
                 return date
             }
@@ -75,9 +80,17 @@ actor APIClient {
 
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
+        
+        if useMockData {
+            setupMockData()
+        }
     }
 
     func get<T: Decodable>(_ path: String) async throws -> T {
+        if useMockData {
+            return try await performMockGet(path)
+        }
+        
         guard let url = URL(string: "\(baseURL)\(path)") else {
             throw APIError.invalidURL
         }
@@ -90,6 +103,10 @@ actor APIClient {
     }
 
     func post<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        if useMockData {
+            return try await performMockPost(path, body: body)
+        }
+        
         guard let url = URL(string: "\(baseURL)\(path)") else {
             throw APIError.invalidURL
         }
@@ -103,6 +120,10 @@ actor APIClient {
     }
 
     func postEmpty<T: Decodable>(_ path: String) async throws -> T {
+        if useMockData {
+            return try await performMockPost(path, body: EmptyBody())
+        }
+        
         guard let url = URL(string: "\(baseURL)\(path)") else {
             throw APIError.invalidURL
         }
@@ -127,15 +148,7 @@ actor APIClient {
                 throw APIError.httpError(statusCode: httpResponse.statusCode, message: message)
             }
 
-            do {
-                return try decoder.decode(T.self, from: data)
-            } catch {
-                print("Decoding error: \(error)")
-                if let jsonString = String(data: data, encoding: .utf8) {
-                    print("Raw JSON: \(jsonString)")
-                }
-                throw APIError.decodingError(error)
-            }
+            return try decoder.decode(T.self, from: data)
         } catch let error as APIError {
             throw error
         } catch {
@@ -145,6 +158,12 @@ actor APIClient {
 
     // MARK: - S3 Upload
     func uploadToS3(data: Data, presignedUrl: String, contentType: String) async throws {
+        if useMockData {
+            // Simulate upload delay
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            return
+        }
+        
         guard let url = URL(string: presignedUrl) else {
             throw APIError.invalidURL
         }
@@ -166,5 +185,144 @@ actor APIClient {
         } catch {
             throw APIError.networkError(error)
         }
+    }
+    
+    // MARK: - Mock Implementation
+    
+    private struct EmptyBody: Encodable {}
+
+    private func setupMockData() {
+        // Create some initial mock vibes
+        let yesterday = Date().addingTimeInterval(-86400)
+        let twoHoursAgo = Date().addingTimeInterval(-7200)
+        let fiveMinutesAgo = Date().addingTimeInterval(-300)
+        
+        mockVibes = [
+            Vibe(
+                id: UUID().uuidString,
+                oderId: nil,
+                userId: "user_friend_1",
+                conversationId: "conv_1",
+                type: .mood,
+                mediaUrl: nil,
+                thumbnailUrl: nil,
+                songData: nil,
+                batteryLevel: nil,
+                mood: Mood(emoji: "🚀", text: "Launching something new!"),
+                poll: nil,
+                isLocked: false,
+                unlockedBy: [],
+                reactions: [Reaction(userId: "me", emoji: "🔥")],
+                viewedBy: [],
+                expiresAt: Date().addingTimeInterval(86400),
+                createdAt: twoHoursAgo,
+                updatedAt: twoHoursAgo
+            ),
+            Vibe(
+                id: UUID().uuidString,
+                oderId: nil,
+                userId: "user_friend_2",
+                conversationId: "conv_1",
+                type: .battery,
+                mediaUrl: nil,
+                thumbnailUrl: nil,
+                songData: nil,
+                batteryLevel: 5,
+                mood: nil,
+                poll: nil,
+                isLocked: true,
+                unlockedBy: [],
+                reactions: [],
+                viewedBy: [],
+                expiresAt: Date().addingTimeInterval(80000),
+                createdAt: fiveMinutesAgo,
+                updatedAt: fiveMinutesAgo
+            )
+        ]
+    }
+
+    private func performMockGet<T: Decodable>(_ path: String) async throws -> T {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+
+        if path.contains("/vibes") {
+            // Retrieve vibes (filter by conversation if needed, for now return all)
+            let response = VibesResponse(vibes: mockVibes.sorted(by: { $0.createdAt > $1.createdAt }))
+            if let result = response as? T {
+                return result
+            }
+        }
+        
+        if path.contains("/auth/generate-upload-url") {
+            let response = PresignedUrlResponse(
+                uploadUrl: "https://mock-s3.com/upload",
+                publicUrl: "https://mock-s3.com/file.mov",
+                key: UUID().uuidString
+            )
+            if let result = response as? T {
+                return result
+            }
+        }
+        
+        if path.contains("/streaks") {
+            let streak = Streak(count: 5, lastInteraction: Date())
+            let response = StreakResponse(streak: streak)
+            if let result = response as? T {
+                return result
+            }
+        }
+
+        throw APIError.invalidURL
+    }
+
+    private func performMockPost<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        // Simulate network delay
+        try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+        
+        // Add new vibe
+        if path.hasSuffix("/vibes") {
+             // We need to 'decode' the body to create a vibe, but we can't easily do that generics.
+             // For this simple mock, we'll try to cast B or construct a dummy.
+             // Since we know the app sends CreateVibeRequest...
+            if let request = body as? CreateVibeRequest {
+                let newVibe = Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: request.userId,
+                    conversationId: request.conversationId,
+                    type: request.type,
+                    mediaUrl: request.mediaUrl,
+                    thumbnailUrl: request.thumbnailUrl,
+                    songData: request.songData,
+                    batteryLevel: request.batteryLevel,
+                    mood: request.mood,
+                    poll: request.poll.map { Poll(question: $0.question, options: $0.options.map { PollOption(text: $0) }) },
+                    isLocked: request.isLocked,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(86400),
+                    createdAt: Date(),
+                    updatedAt: Date()
+                )
+                mockVibes.insert(newVibe, at: 0)
+                
+                if let result = VibeResponse(vibe: newVibe) as? T {
+                    return result
+                }
+            }
+        }
+        
+        // Handle Interactions (View, Unlock)
+        if path.contains("/view") || path.contains("/unlock") {
+             // For simplicity, just return success if T is Void or similar response
+             // In a real mock we'd find the vibe and update it
+             // Let's assume the response expected is VibeResponse or just success
+             if T.self == VibeResponse.self, let vibe = mockVibes.first {
+                 return VibeResponse(vibe: vibe) as! T
+             }
+        }
+
+        throw APIError.invalidURL
     }
 }

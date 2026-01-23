@@ -11,17 +11,37 @@ struct RootView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        Group {
-            switch appState.currentDestination {
-            case .feed:
-                FeedView()
-            case .viewer(let startIndex):
-                VibeViewerView(startIndex: startIndex)
-            case .composer:
-                ComposerView()
+        ZStack {
+            // Main content
+            Group {
+                switch appState.currentDestination {
+                case .feed:
+                    FeedView()
+                case .viewer(let startIndex):
+                    VibeViewerView(startIndex: startIndex)
+                case .composer:
+                    ComposerView()
+                case .unlockComposer:
+                    UnlockCameraView()
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: appState.currentDestination)
+
+            // Unlock prompt overlay
+            if appState.showUnlockPrompt {
+                UnlockPromptView(
+                    senderName: appState.lockedMessageParams?.senderName ?? "Someone",
+                    onOpenCamera: {
+                        appState.startUnlockRecording()
+                    },
+                    onDismiss: {
+                        appState.dismissUnlockPrompt()
+                    }
+                )
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: appState.showUnlockPrompt)
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: appState.currentDestination)
     }
 }
 

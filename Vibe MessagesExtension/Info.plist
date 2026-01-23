@@ -15,5 +15,12 @@
 	<string>Vibe needs access to your microphone to record audio for your vibes.</string>
 	<key>NSAppleMusicUsageDescription</key>
 	<string>Vibe needs access to Apple Music to share songs.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Vibe needs access to save videos to your photo library.</string>
 </dict>
 </plist>

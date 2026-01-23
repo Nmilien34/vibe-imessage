@@ -32,23 +32,29 @@ struct PollComposerView: View {
                     Text("Options")
                         .font(.headline)
                     
-                    ForEach(0..<options.count, id: \.self) { index in
-                        HStack {
-                            TextField("Option \(index + 1)", text: $options[index])
-                                .textFieldStyle(.roundedBorder)
-                                .focused($focusedField, equals: index)
-                            
-                            if options.count > 2 {
-                                Button {
-                                    withAnimation {
+                    ForEach(Array(options.indices), id: \.self) { index in
+                        PollOptionRow(
+                            text: Binding<String>(
+                                get: {
+                                    guard options.indices.contains(index) else { return "" }
+                                    return options[index]
+                                },
+                                set: { newValue in
+                                    guard options.indices.contains(index) else { return }
+                                    options[index] = newValue
+                                }
+                            ),
+                            index: index,
+                            showRemove: options.count > 2,
+                            onRemove: {
+                                withAnimation {
+                                    if options.indices.contains(index) {
                                         options.remove(at: index)
                                     }
-                                } label: {
-                                    Image(systemName: "minus.circle.fill")
-                                        .foregroundColor(.red)
                                 }
                             }
-                        }
+                        )
+                        .focused($focusedField, equals: index)
                     }
                     
                     if options.count < 4 {

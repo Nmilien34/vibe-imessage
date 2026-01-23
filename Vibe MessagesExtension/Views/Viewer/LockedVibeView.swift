@@ -173,7 +173,7 @@ private struct MockDecoder: Decoder {
 }
 
 extension Vibe {
-    init?(from decoder: MockDecoder) {
+    fileprivate init?(from decoder: MockDecoder) {
         return nil
     }
 }

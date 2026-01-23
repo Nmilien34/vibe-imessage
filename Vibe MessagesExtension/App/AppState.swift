@@ -8,6 +8,7 @@
 import Foundation
 import Messages
 import SwiftUI
+import Combine
 
 enum PresentationMode {
     case compact
@@ -18,6 +19,15 @@ enum NavigationDestination: Equatable {
     case feed
     case viewer(startIndex: Int)
     case composer
+    case unlockComposer  // Special composer mode for unlock flow
+}
+
+/// Parameters for a locked message that was tapped
+struct LockedMessageParams: Equatable {
+    let vibeId: String
+    let senderName: String
+    let videoUrl: String?
+    let userId: String?
 }
 
 @MainActor
@@ -43,8 +53,15 @@ class AppState: ObservableObject {
     // MARK: - Viewer State
     @Published var currentViewerIndex = 0
 
+    // MARK: - Unlock Flow State
+    @Published var showUnlockPrompt = false
+    @Published var lockedMessageParams: LockedMessageParams?
+    @Published var pendingUnlockVibeId: String?
+
     // MARK: - Callbacks
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
+    var sendStory: ((VideoRecording, Bool) -> Void)?
+    var onUnlockComplete: (() -> Void)?
 
     private let vibeService = VibeService.shared
 
@@ -209,6 +226,59 @@ class AppState: ObservableObject {
         isComposerPresented = false
         selectedVibeType = nil
         currentDestination = .feed
+    }
+
+    // MARK: - Unlock Flow
+
+    /// Called when a locked message bubble is tapped
+    func handleLockedMessageTap(params: LockedMessageParams) {
+        lockedMessageParams = params
+        pendingUnlockVibeId = params.vibeId
+        showUnlockPrompt = true
+        requestExpand()
+    }
+
+    /// Called when user taps "Open Camera" on unlock prompt
+    func startUnlockRecording() {
+        showUnlockPrompt = false
+        currentDestination = .unlockComposer
+    }
+
+    /// Called when user dismisses the unlock prompt
+    func dismissUnlockPrompt() {
+        showUnlockPrompt = false
+        lockedMessageParams = nil
+        pendingUnlockVibeId = nil
+    }
+
+    /// Called after recording is complete during unlock flow
+    func completeUnlockFlow(video: VideoRecording) {
+        // Send the story (this will also unlock the original)
+        sendStory?(video, false)
+
+        // Mark the pending vibe as unlocked locally
+        if let vibeId = pendingUnlockVibeId,
+           let index = vibes.firstIndex(where: { $0.id == vibeId }) {
+            var updatedVibe = vibes[index]
+            // Add current user to unlockedBy (local update, server would do this too)
+            if !updatedVibe.unlockedBy.contains(userId) {
+                updatedVibe.unlockedBy.append(userId)
+            }
+            vibes[index] = updatedVibe
+        }
+
+        // Notify completion
+        onUnlockComplete?()
+
+        // Reset state
+        pendingUnlockVibeId = nil
+        lockedMessageParams = nil
+        currentDestination = .feed
+    }
+
+    /// Check if we're in unlock flow mode
+    var isInUnlockFlow: Bool {
+        pendingUnlockVibeId != nil
     }
 
     // MARK: - Helpers
