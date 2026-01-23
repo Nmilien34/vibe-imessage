@@ -249,11 +249,11 @@ actor APIClient {
                     mediaUrl: nil,
                     thumbnailUrl: nil,
                     songData: SongData(
-                        id: "song_1",
                         title: "Midnight City",
                         artist: "M83",
                         albumArt: "https://upload.wikimedia.org/wikipedia/en/7/7b/M83_-_Midnight_City.jpg",
-                        previewUrl: nil
+                        previewUrl: nil,
+                        spotifyId: "song_1"
                     ),
                     batteryLevel: nil,
                     mood: nil,
