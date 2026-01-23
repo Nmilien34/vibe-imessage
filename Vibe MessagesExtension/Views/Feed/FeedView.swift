@@ -335,7 +335,8 @@ struct ExpandedFeedView: View {
                         GridItem(.flexible(), spacing: 8),
                         GridItem(.flexible(), spacing: 8)
                     ], spacing: 8) {
-                        ForEach(Array(appState.vibes.enumerated()), id: \.element.id) { index, vibe in
+                        let userVibes = appState.vibes.filter { $0.userId == appState.userId }
+                        ForEach(userVibes) { vibe in
                             VibeGridCell(vibe: vibe, userId: appState.userId) {
                                 appState.navigateToViewer(opening: vibe.id)
                             }

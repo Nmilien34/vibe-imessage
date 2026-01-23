@@ -191,6 +191,102 @@ actor APIClient {
                     expiresAt: Date().addingTimeInterval(90000),
                     createdAt: Date().addingTimeInterval(-100),
                     updatedAt: Date().addingTimeInterval(-100)
+                ),
+                
+                // --- PROFIlE / RECENT VIBES (user_me) ---
+                
+                // 6. My Past Mood
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_me",
+                    conversationId: "conv_1",
+                    type: .mood,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: Mood(emoji: "😴", text: "Need coffee..."),
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [Reaction(userId: "user_friend_1", emoji: "☕️")],
+                    viewedBy: ["user_friend_1", "user_friend_2"],
+                    expiresAt: Date().addingTimeInterval(10000),
+                    createdAt: Date().addingTimeInterval(-40000),
+                    updatedAt: Date().addingTimeInterval(-40000)
+                ),
+                
+                // 7. My Past Photo
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_me",
+                    conversationId: "conv_1",
+                    type: .photo,
+                    mediaUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop",
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [Reaction(userId: "user_friend_2", emoji: "⛰️")],
+                    viewedBy: ["user_friend_2"],
+                    expiresAt: Date().addingTimeInterval(20000),
+                    createdAt: Date().addingTimeInterval(-50000),
+                    updatedAt: Date().addingTimeInterval(-50000)
+                ),
+                
+                // 8. My Past Song
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_me",
+                    conversationId: "conv_1",
+                    type: .song,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: SongData(
+                        id: "song_1",
+                        title: "Midnight City",
+                        artist: "M83",
+                        albumArt: "https://upload.wikimedia.org/wikipedia/en/7/7b/M83_-_Midnight_City.jpg",
+                        previewUrl: nil
+                    ),
+                    batteryLevel: nil,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(5000),
+                    createdAt: Date().addingTimeInterval(-80000),
+                    updatedAt: Date().addingTimeInterval(-80000)
+                ),
+                
+                // 9. My Past Battery
+                Vibe(
+                    id: UUID().uuidString,
+                    oderId: nil,
+                    userId: "user_me",
+                    conversationId: "conv_1",
+                    type: .battery,
+                    mediaUrl: nil,
+                    thumbnailUrl: nil,
+                    songData: nil,
+                    batteryLevel: 95,
+                    mood: nil,
+                    poll: nil,
+                    isLocked: false,
+                    unlockedBy: [],
+                    reactions: [],
+                    viewedBy: [],
+                    expiresAt: Date().addingTimeInterval(2000),
+                    createdAt: Date().addingTimeInterval(-85000),
+                    updatedAt: Date().addingTimeInterval(-85000)
                 )
             ]
         }

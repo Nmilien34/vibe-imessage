@@ -69,7 +69,11 @@ class AppState: ObservableObject {
     private let vibeService = VibeService.shared
 
     init() {
-        // Generate a persistent user ID for this device
+        // Fixed ID for mock/testing consistency so "Recent Vibes" shows data
+        self.userId = "user_me"
+        
+        // In production/real app, you would use:
+        /*
         if let storedUserId = UserDefaults.standard.string(forKey: "vibeUserId") {
             self.userId = storedUserId
         } else {
@@ -77,6 +81,7 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(newUserId, forKey: "vibeUserId")
             self.userId = newUserId
         }
+        */
     }
 
     // MARK: - Conversation Handling
