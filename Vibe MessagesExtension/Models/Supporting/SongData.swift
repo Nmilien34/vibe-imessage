@@ -7,7 +7,10 @@
 
 import Foundation
 
-struct SongData: Codable, Equatable {
+struct SongData: Codable, Equatable, Identifiable {
+    var id: String {
+        return spotifyId ?? (title + artist)
+    }
     let title: String
     let artist: String
     let albumArt: String?

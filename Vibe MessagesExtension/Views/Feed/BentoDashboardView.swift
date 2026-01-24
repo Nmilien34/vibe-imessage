@@ -513,7 +513,7 @@ struct BentoDashboardView: View {
     private func avatarForUser(_ id: String, size: CGFloat, desaturated: Bool = false) -> some View {
         let userVibes = appState.vibes.filter { $0.userId == id }
         return Group {
-            if let firstVibe = userVibes.first {
+            if !userVibes.isEmpty {
                 VibeRingView(vibes: userVibes, userId: id, isCurrentUser: id == appState.userId, size: size, onTap: {})
                     .grayscale(desaturated ? 1.0 : 0.0)
                     .allowsHitTesting(false)

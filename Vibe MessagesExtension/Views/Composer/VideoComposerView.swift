@@ -23,89 +23,22 @@ struct VideoComposerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let thumbnail = thumbnailImage {
-                // Preview
-                VStack(spacing: 24) {
-                    ZStack {
-                        Image(uiImage: thumbnail)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .cornerRadius(16)
-                            .frame(maxHeight: 300)
-
-                        // Play icon overlay (only for video)
-                        if mediaType == .video {
-                            Image(systemName: "play.circle.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.white.opacity(0.8))
-                        }
-
-                        // Change media button
-                        VStack {
-                            HStack {
-                                Spacer()
-                                Button {
-                                    mediaData = nil
-                                    thumbnailImage = nil
-                                    selectedItem = nil
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .shadow(radius: 5)
-                                }
-                                .padding()
-                            }
-                            Spacer()
-                        }
+            if let data = mediaData {
+                // Media Editor replaces static preview
+                MediaEditorView(
+                    mediaType: mediaType,
+                    mediaData: data,
+                    thumbnail: thumbnailImage,
+                    isLocked: isLocked,
+                    onShare: { overlayText, songData in
+                        await shareMedia(overlayText: overlayText, song: songData)
+                    },
+                    onCancel: {
+                        mediaData = nil
+                        thumbnailImage = nil
+                        selectedItem = nil
                     }
-                    .padding(.horizontal)
-                    
-                    // Error message
-                    if let error = error {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .padding(.horizontal)
-                    }
-
-                    // Upload progress or share button
-                    if isUploading {
-                        VStack(spacing: 8) {
-                            ProgressView(value: uploadProgress)
-                                .progressViewStyle(.linear)
-                            Text("Uploading...")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .padding(.horizontal)
-                    } else if mediaData != nil {
-                         Button {
-                            Task {
-                                await shareMedia()
-                            }
-                        } label: {
-                            HStack {
-                                Image(systemName: "paperplane.fill")
-                                Text("Share Vibez")
-                            }
-                            .font(.headline)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(
-                                LinearGradient(
-                                    colors: [.pink, .purple],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-                .padding(.vertical)
+                )
             } else {
                 // Creator Camera View (Default State)
                 CreatorCameraView(initialLocked: isLocked, selectedItem: $selectedItem)
@@ -166,7 +99,7 @@ struct VideoComposerView: View {
         }
     }
 
-    private func shareMedia() async {
+    private func shareMedia(overlayText: String? = nil, song: SongData? = nil) async {
         guard let data = mediaData else { return }
 
         isUploading = true
@@ -185,8 +118,6 @@ struct VideoComposerView: View {
             )
 
             // Upload thumbnail if available (and if video)
-            // For photos, the mediaURL itself is the image, but we might want a smaller thumb?
-            // For simplicity, for photos we use mediaUrl as thumbnail too or upload same data if needed.
             uploadProgress = 0.6
             var thumbnailUrl: String?
             
@@ -199,17 +130,17 @@ struct VideoComposerView: View {
                     folder: "thumbnails"
                 )
             } else if mediaType == .photo {
-                // For photos, thumbnail is just the photo itself or a resized version.
-                // We'll just define the main image as the mediaUrl.
                 thumbnailUrl = mediaUrl
             }
 
-            // Create vibe
+            // Create vibe with text overlay and song
             uploadProgress = 0.9
             try await appState.createVibe(
                 type: mediaType,
                 mediaUrl: mediaUrl,
                 thumbnailUrl: thumbnailUrl,
+                songData: song,
+                textStatus: overlayText,
                 isLocked: isLocked
             )
 

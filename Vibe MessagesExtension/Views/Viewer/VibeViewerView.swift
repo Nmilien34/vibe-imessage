@@ -110,37 +110,70 @@ struct VibeViewerView: View {
         }
     }
 
-    @ViewBuilder
+    @State private var musicPlayer: AVPlayer?
+
     private func vibeContent(_ vibe: Vibe, geometry: GeometryProxy) -> some View {
-        if vibe.isLocked && !vibe.isUnlocked(for: appState.userId) {
-            LockedVibeView(vibe: vibe) {
-                appState.navigateToComposer()
+        ZStack {
+            if vibe.isLocked && !vibe.isUnlocked(for: appState.userId) {
+                LockedVibeView(vibe: vibe) {
+                    appState.navigateToComposer()
+                }
+            } else {
+                Group {
+                    switch vibe.type {
+                    case .photo:
+                        PhotoVibeContent(vibe: vibe)
+                    case .video:
+                        VideoVibeContent(vibe: vibe)
+                    case .song:
+                        SongVibeContent(vibe: vibe)
+                    case .battery:
+                        BatteryVibeContent(vibe: vibe)
+                    case .mood:
+                        MoodVibeContent(vibe: vibe)
+                    case .poll:
+                        PollVibeContent(vibe: vibe)
+                    case .dailyDrop:
+                        PhotoVibeContent(vibe: vibe)
+                    case .tea:
+                        TeaVibeContent(vibe: vibe)
+                    case .leak:
+                        PhotoVibeContent(vibe: vibe)
+                    case .sketch:
+                        SketchVibeContent(vibe: vibe)
+                    case .eta:
+                        ETAVibeContent(vibe: vibe)
+                    }
+                }
+                
+                // Text Overlay (Instagram Style)
+                if let text = vibe.textStatus, !text.isEmpty {
+                    VStack {
+                        Spacer()
+                        Text(text)
+                            .font(.system(.title2, design: .rounded))
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(12)
+                            .shadow(radius: 4)
+                        Spacer()
+                    }
+                    .padding(.bottom, 100)
+                }
             }
-        } else {
-            switch vibe.type {
-            case .photo:
-                PhotoVibeContent(vibe: vibe)
-            case .video:
-                VideoVibeContent(vibe: vibe)
-            case .song:
-                SongVibeContent(vibe: vibe)
-            case .battery:
-                BatteryVibeContent(vibe: vibe)
-            case .mood:
-                MoodVibeContent(vibe: vibe)
-            case .poll:
-                PollVibeContent(vibe: vibe)
-            case .dailyDrop:
-                PhotoVibeContent(vibe: vibe)
-            case .tea:
-                TeaVibeContent(vibe: vibe)
-            case .leak:
-                PhotoVibeContent(vibe: vibe)
-            case .sketch:
-                SketchVibeContent(vibe: vibe)
-            case .eta:
-                ETAVibeContent(vibe: vibe)
+        }
+        .onAppear {
+            if let song = vibe.songData, let previewUrl = song.previewUrl, let url = URL(string: previewUrl) {
+                musicPlayer = AVPlayer(url: url)
+                musicPlayer?.play()
             }
+        }
+        .onDisappear {
+            musicPlayer?.pause()
+            musicPlayer = nil
         }
     }
 

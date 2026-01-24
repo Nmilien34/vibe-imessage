@@ -149,7 +149,14 @@ class AppState: ObservableObject {
         }
 
         // Use localParticipantIdentifier as a unique conversation ID
-        conversationId = conversation.localParticipantIdentifier.uuidString
+        let identifier = conversation.localParticipantIdentifier.uuidString
+        if identifier.isEmpty || identifier == "00000000-0000-0000-0000-000000000000" {
+            print("AppState Warning: Received invalid localParticipantIdentifier")
+            // We might want to keep the old ID or use a session-based one
+            // For now, let's just log it.
+        }
+        conversationId = identifier
+        print("AppState Debug: Set Conversation ID to: \(conversationId ?? "nil")")
     }
 
     func setPresentationStyle(_ style: MSMessagesAppPresentationStyle) {

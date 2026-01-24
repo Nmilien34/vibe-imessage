@@ -1,11 +1,13 @@
 import SwiftUI
 import AVFoundation
+import Combine
 
 struct PermissionRequestView: View {
     @EnvironmentObject var appState: AppState
     
     @State private var cameraStatus: AVAuthorizationStatus = .notDetermined
     @State private var audioStatus: AVAuthorizationStatus = .notDetermined
+    @State private var timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 40) {
@@ -45,51 +47,84 @@ struct PermissionRequestView: View {
             
             Spacer()
             
-            Button {
-                appState.setPermissionsGranted()
-            } label: {
-                Text("Continue to Vibe")
-                    .font(.system(.title3, design: .rounded))
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 60)
-                    .background(
-                        allGranted ? Color.blue : Color.gray
-                    )
-                    .cornerRadius(20)
-                    .padding(.horizontal, 40)
+            VStack(spacing: 16) {
+                Button {
+                    appState.setPermissionsGranted()
+                } label: {
+                    Text("Continue to Vibe")
+                        .font(.system(.title3, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 60)
+                        .background(
+                            allGranted ? Color.blue : Color.gray
+                        )
+                        .cornerRadius(20)
+                        .padding(.horizontal, 40)
+                }
+                .disabled(!allGranted)
+                .opacity(allGranted ? 1.0 : 0.6)
+                
+                #if DEBUG
+                Button {
+                    appState.setPermissionsGranted()
+                } label: {
+                    Text("Dev: Skip Permissions")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.gray)
+                }
+                #endif
             }
-            .disabled(!allGranted)
-            .opacity(allGranted ? 1.0 : 0.6)
             
             Spacer()
         }
         .onAppear(perform: updateStatuses)
+        .onReceive(timer) { _ in
+            updateStatuses()
+        }
     }
     
     private var allGranted: Bool {
+        // In a real app, we want both. In some environments, we might want to accept .authorized or .prohibited/etc if we can't change it.
+        // For Vibe, we really need .authorized for the core features.
         cameraStatus == .authorized && audioStatus == .authorized
     }
     
     private func updateStatuses() {
-        cameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
-        audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        let newCameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
+        let newAudioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        
+        // Only update if changed to avoid unnecessary re-renders
+        if newCameraStatus != cameraStatus { cameraStatus = newCameraStatus }
+        if newAudioStatus != audioStatus { audioStatus = newAudioStatus }
     }
     
     private func requestCamera() {
-        AVCaptureDevice.requestAccess(for: .video) { granted in
-            DispatchQueue.main.async {
-                updateStatuses()
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        if status == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .video) { _ in
+                DispatchQueue.main.async {
+                    updateStatuses()
+                }
             }
+        } else {
+            // If already denied/restricted, the user must go to settings.
+            // But for now, just refresh to show the current state.
+            updateStatuses()
         }
     }
     
     private func requestAudio() {
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            DispatchQueue.main.async {
-                updateStatuses()
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        if status == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                DispatchQueue.main.async {
+                    updateStatuses()
+                }
             }
+        } else {
+            updateStatuses()
         }
     }
 }
