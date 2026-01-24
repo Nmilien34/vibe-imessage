@@ -37,6 +37,11 @@ class AppState: ObservableObject {
     @Published var userId: String
     @Published var isAuthenticated: Bool = false
     @Published var presentationMode: PresentationMode = .compact
+    
+    // MARK: - Onboarding & Permissions
+    @Published var isOnboardingCompleted: Bool = false
+    @Published var hasRequiredPermissions: Bool = false
+    @Published var userFirstName: String?
 
     // MARK: - Navigation
     @Published var currentDestination: NavigationDestination = .feed
@@ -119,6 +124,11 @@ class AppState: ObservableObject {
     private let vibeService = VibeService.shared
 
     init() {
+        // Load onboarding state
+        self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
+        self.userFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
+        self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
+
         // Check for existing session
         if let storedUserId = UserDefaults.standard.string(forKey: "vibeUserId") {
             self.userId = storedUserId
@@ -215,11 +225,13 @@ class AppState: ObservableObject {
             ))
 
             self.userId = response.user.id
+            self.userFirstName = response.user.firstName
             self.isAuthenticated = true
             
             // Save to UserDefaults for persistence
             UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
             UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
+            UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
             
             print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
             
@@ -229,6 +241,16 @@ class AppState: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    func completeOnboarding() {
+        isOnboardingCompleted = true
+        UserDefaults.standard.set(true, forKey: "vibeOnboardingCompleted")
+    }
+
+    func setPermissionsGranted() {
+        hasRequiredPermissions = true
+        UserDefaults.standard.set(true, forKey: "vibePermissionsGranted")
     }
 
     func bypassLogin() {

@@ -14,8 +14,12 @@ struct RootView: View {
         ZStack {
             // Main content
             Group {
-                if !appState.isAuthenticated {
+                if !appState.isOnboardingCompleted {
+                    OnboardingSlideshowView()
+                } else if !appState.isAuthenticated {
                     LoginView()
+                } else if !appState.hasRequiredPermissions {
+                    PermissionRequestView()
                 } else {
                     switch appState.currentDestination {
                     case .feed:

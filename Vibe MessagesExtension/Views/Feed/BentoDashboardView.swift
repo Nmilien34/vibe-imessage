@@ -148,7 +148,7 @@ struct BentoDashboardView: View {
                 Text("Good Evening,")
                     .font(.system(.subheadline, design: .rounded))
                     .foregroundColor(.gray)
-                Text("Vibez User") // Placeholder, could use appState.userId or "You"
+                Text(appState.userFirstName != nil ? appState.userFirstName! : "Vibez User")
                     .font(.system(.largeTitle, design: .rounded))
                     .fontWeight(.bold)
                     .foregroundColor(.primary)
