@@ -85,9 +85,14 @@ struct ComposerView: View {
                 
                 Spacer()
                 
-                Text("New Vibez")
-                    .font(.headline)
-                    .fontWeight(.semibold)
+                VStack(spacing: 2) {
+                    Text("How are you feeling?")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    Text("choose a vibe")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 
                 Spacer()
                 

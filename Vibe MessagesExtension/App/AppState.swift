@@ -74,6 +74,47 @@ class AppState: ObservableObject {
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
     var sendStory: ((VideoRecording, Bool) -> Void)?
     var onUnlockComplete: (() -> Void)?
+    
+    // MARK: - Usage Analytics (for Dynamic Dashboard)
+    var topUserVibeTypes: [VibeType] {
+        let userVibes = vibes.filter { $0.userId == userId }
+        var counts: [VibeType: Int] = [:]
+        
+        for vibe in userVibes {
+            // photo/video are handled by "Post Vibe"
+            // dailyDrop is handled by its own card
+            if vibe.type != .photo && vibe.type != .video && vibe.type != .dailyDrop {
+                counts[vibe.type, default: 0] += 1
+            }
+        }
+        
+        // Sort by count descending
+        let sorted = counts.sorted { $0.value > $1.value }.map { $0.key }
+        
+        var results: [VibeType] = Array(sorted.prefix(2))
+        
+        // Fallback defaults if user hasn't used enough types
+        // Default 1: POV (Video + Locked) - we represent it as .video here
+        // Default 2: Battery
+        let fallbacks: [VibeType] = [.video, .battery]
+        
+        for fallback in fallbacks {
+            if results.count < 2 && !results.contains(fallback) {
+                results.append(fallback)
+            }
+        }
+        
+        // Ensure we always have exactly 2
+        while results.count < 2 {
+            if results.count == 0 {
+                results = [.video, .battery]
+            } else if results.count == 1 {
+                results.append(results[0] == .video ? .battery : .video)
+            }
+        }
+        
+        return results
+    }
 
     private let vibeService = VibeService.shared
 

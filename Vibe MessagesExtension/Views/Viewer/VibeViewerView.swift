@@ -33,8 +33,16 @@ struct VibeViewerView: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
-                        .onChange(of: currentIndex) { _, newIndex in
+                        .onChange(of: currentIndex) { oldIndex, newIndex in
                             markAsViewed(at: newIndex)
+                            
+                            // Haptic on user change
+                            if oldIndex < appState.viewerVibes.count && newIndex < appState.viewerVibes.count {
+                                if appState.viewerVibes[oldIndex].userId != appState.viewerVibes[newIndex].userId {
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                }
+                            }
                         }
                         
                         // Tap Navigation Overlay
@@ -137,49 +145,92 @@ struct VibeViewerView: View {
     }
 
     private var topBar: some View {
-        HStack {
-            // Close button
-            Button {
-                appState.navigateToFeed()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Color.white.opacity(0.2))
-                    .clipShape(Circle())
-            }
-
-            Spacer()
-
-            // Progress indicators
+        VStack(spacing: 12) {
+            // 1. Progress indicators (Full width at the very top)
             if !appState.viewerVibes.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(0..<appState.viewerVibes.count, id: \.self) { index in
                         Capsule()
                             .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
-                            .frame(width: index == currentIndex ? 20 : 8, height: 4)
+                            .frame(height: 3)
                             .animation(.spring(), value: currentIndex)
                     }
                 }
             }
 
-            Spacer()
+            // 2. User Info & Close Button
+            HStack(spacing: 12) {
+                if currentIndex < appState.viewerVibes.count {
+                    let vibe = appState.viewerVibes[currentIndex]
+                    
+                    // Profile Bubble (Simplified Avatar)
+                    Circle()
+                        .fill(vibe.type.color.opacity(0.3))
+                        .frame(width: 36, height: 36)
+                        .overlay {
+                            Text(String(nameForUser(vibe.userId).prefix(1)))
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                        }
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(nameForUser(vibe.userId))
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                        
+                        Text(timeAgo(from: vibe.createdAt))
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
 
-            // Timer
-            if currentIndex < appState.viewerVibes.count {
-                CountdownTimer(expiresAt: appState.viewerVibes[currentIndex].expiresAt)
+                Spacer()
+
+                // Timer (Now part of the user row)
+                if currentIndex < appState.viewerVibes.count {
+                    CountdownTimer(expiresAt: appState.viewerVibes[currentIndex].expiresAt)
+                        .scaleEffect(0.8)
+                }
+
+                // Close button (Moved to right)
+                Button {
+                    appState.navigateToFeed()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 28, height: 28)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Circle())
+                }
             }
         }
-        .padding()
+        .padding(.horizontal)
+        .padding(.top, 10)
         .background(
             LinearGradient(
-                colors: [.black.opacity(0.5), .clear],
+                colors: [.black.opacity(0.6), .clear],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
         )
+    }
+
+    private func nameForUser(_ id: String) -> String {
+        if id == appState.userId { return "You" }
+        if id.contains("friend_1") { return "Sarah" }
+        if id.contains("friend_2") { return "Mike" }
+        if id.contains("friend_3") { return "Alex" }
+        if id.contains("friend_4") { return "Sam" }
+        if id.contains("friend_5") { return "Jordan" }
+        return "Friend"
+    }
+
+    private func timeAgo(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     private var bottomBar: some View {

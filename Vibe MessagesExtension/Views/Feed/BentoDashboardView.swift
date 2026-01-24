@@ -55,61 +55,10 @@ struct BentoDashboardView: View {
                                 .shadow(color: Color.pink.opacity(0.3), radius: 8, x: 0, y: 4)
                             }
                             
-                            // Right Column (Stacked POV & Battery)
-                            VStack(spacing: 12) { // Reduced spacing from 16
-                                // Card B: POV
-                                Button {
-                                    openPOV()
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading) {
-                                            Image(systemName: "eye.fill")
-                                                .font(.title2) // Reduced font size
-                                                .foregroundColor(.white)
-                                            Spacer()
-                                            Text("POV")
-                                                .fontWeight(.semibold)
-                                                .foregroundColor(.white)
-                                        }
-                                        Spacer()
-                                        Image(systemName: "lock.fill")
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.7))
-                                    }
-                                    .padding()
-                                    .frame(height: 74) // Reduced from 82
-                                    .background(
-                                        LinearGradient(gradient: Gradient(colors: [Color.blue, Color.cyan]), startPoint: .topLeading, endPoint: .bottomTrailing)
-                                    )
-                                    .cornerRadius(20)
-                                    .shadow(color: Color.blue.opacity(0.2), radius: 5, x: 0, y: 2)
-                                }
-                                
-                                // Card C: Battery (Live Widget)
-                                Button {
-                                    openComposer(type: .battery)
-                                } label: {
-                                    HStack {
-                                        VStack(alignment: .leading) {
-                                            Text(batteryLevelString)
-                                                .font(.title2) // Reduced font size
-                                                .fontWeight(.heavy)
-                                                .foregroundColor(.green)
-                                            Spacer()
-                                            Text("Status")
-                                                .fontWeight(.semibold)
-                                                .font(.caption)
-                                                .foregroundColor(.gray)
-                                        }
-                                        Spacer()
-                                        Image(systemName: batteryIcon(for: currentBatteryLevel))
-                                            .foregroundColor(.gray.opacity(0.5))
-                                    }
-                                    .padding()
-                                    .frame(height: 74) // Reduced from 82
-                                    .background(Color.white)
-                                    .cornerRadius(20)
-                                    .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+                            // Right Column (Stacked Dynamic Cards)
+                            VStack(spacing: 12) {
+                                ForEach(appState.topUserVibeTypes, id: \.self) { type in
+                                    BentoActionCard(type: type)
                                 }
                             }
                             
@@ -619,6 +568,104 @@ struct BentoDashboardView: View {
     }
 }
 
+// MARK: - Bento Action Card
+struct BentoActionCard: View {
+    @EnvironmentObject var appState: AppState
+    let type: VibeType
+
+    private var currentBatteryLevel: Int {
+        Int(UIDevice.current.batteryLevel * 100)
+    }
+
+    private var batteryLevelString: String {
+        let level = currentBatteryLevel
+        return level < 0 ? "--%" : "\(level)%"
+    }
+
+    private func batteryIcon(for level: Int) -> String {
+        if level < 0 { return "battery.0" }
+        if level < 20 { return "battery.25" }
+        if level < 50 { return "battery.50" }
+        if level < 80 { return "battery.75" }
+        return "battery.100"
+    }
+
+    var body: some View {
+        Button {
+            if type == .video {
+                appState.navigateToComposer(type: .video, isLocked: true)
+            } else {
+                appState.navigateToComposer(type: type)
+            }
+        } label: {
+            HStack {
+                VStack(alignment: .leading) {
+                    if type == .battery {
+                        Text(batteryLevelString)
+                            .font(.title2)
+                            .fontWeight(.heavy)
+                            .foregroundColor(.green)
+                    } else if type == .video {
+                        Image(systemName: "eye.fill")
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    } else {
+                        Image(systemName: type.icon)
+                            .font(.title2)
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                    Text(title)
+                        .fontWeight(.semibold)
+                        .foregroundColor(type == .battery ? .secondary : .white)
+                        .font(type == .battery ? .caption : .body)
+                }
+                Spacer()
+                
+                if type == .video {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.7))
+                } else if type == .battery {
+                    Image(systemName: batteryIcon(for: currentBatteryLevel))
+                        .foregroundColor(.gray.opacity(0.5))
+                }
+            }
+            .padding()
+            .frame(height: 74)
+            .background(backgroundView)
+            .cornerRadius(20)
+            .shadow(color: shadowColor, radius: 5, x: 0, y: 2)
+        }
+    }
+
+    private var title: String {
+        switch type {
+        case .video: return "POV"
+        case .battery: return "Status"
+        default: return type.displayName
+        }
+    }
+
+    @ViewBuilder
+    private var backgroundView: some View {
+        if type == .battery {
+            Color.white
+        } else if type == .video {
+            LinearGradient(gradient: Gradient(colors: [Color.blue, Color.cyan]), startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            type.color
+        }
+    }
+
+    private var shadowColor: Color {
+        if type == .battery {
+            return Color.black.opacity(0.05)
+        } else {
+            return type.color.opacity(0.2)
+        }
+    }
+}
 #Preview {
     BentoDashboardView()
         .environmentObject(AppState())
