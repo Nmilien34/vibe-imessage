@@ -28,6 +28,7 @@ struct CreatorCameraView: View {
     @State private var showPrompter = false
     @State private var promptText = "Show us your fridge."
     @State private var timerString = "00:00 / 00:15"
+    @State private var isBoomerang = false
     
     // Binding for Media Picker
     @Binding var selectedItem: PhotosPickerItem?
@@ -134,6 +135,24 @@ struct CreatorCameraView: View {
                         .frame(width: 44, height: 44)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
+                }
+                
+                Button {
+                    isBoomerang.toggle()
+                    let generator = UIImpactFeedbackGenerator(style: .light)
+                    generator.impactOccurred()
+                } label: {
+                    Image(systemName: "infinity")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(isBoomerang ? .yellow : .white)
+                        .frame(width: 44, height: 44)
+                        .background(isBoomerang ? Color.yellow.opacity(0.2) : Color.black.opacity(0.3))
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(isBoomerang ? Color.yellow : Color.clear, lineWidth: 2)
+                        )
                 }
             }
             .shadow(radius: 4)

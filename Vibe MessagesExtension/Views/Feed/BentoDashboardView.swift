@@ -117,7 +117,7 @@ struct BentoDashboardView: View {
                             
                             // Card D: Daily Drop
                             Button {
-                                openComposer(type: .poll) 
+                                openComposer(type: .dailyDrop) 
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
@@ -172,7 +172,15 @@ struct BentoDashboardView: View {
                         activeSquadCarousel
                             .padding(.vertical, 8)
 
-                        // --- ROW 4: Past Vibes Section ---
+                        // --- ROW 3: Squad Stats ---
+                        squadStatsSection
+                            .padding(.vertical, 8)
+                        
+                        // --- ROW 4: Group Pulse ---
+                        groupPulseView
+                            .padding(.vertical, 8)
+
+                        // --- ROW 5: Past Vibes Section ---
                         pastVibesSection
                             .gridCellColumns(2)
                     }
@@ -303,99 +311,277 @@ struct BentoDashboardView: View {
         }
         .padding(.top, 8)
     }
+
+    private var groupPulseView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Group Pulse")
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(.gray)
+                Spacer()
+            }
+            .padding(.horizontal)
+            
+            HStack(spacing: 12) {
+                // Card 1: Time Capsule (Left - Wide)
+                Button {
+                    // Logic to play memory
+                } label: {
+                    ZStack(alignment: .bottomLeading) {
+                        // Background Blurred Memory
+                        AsyncImage(url: URL(string: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400")) { image in
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Color.gray.opacity(0.3)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 120)
+                        .blur(radius: 5)
+                        .overlay(Color.black.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        
+                        // Content
+                        VStack(alignment: .leading, spacing: 4) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text("On This Day")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                Text("1 Year Ago")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        }
+                        .padding(16)
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+                .frame(height: 120)
+                
+                // Card 2: Upcoming (Right - Fixed)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(Color(.systemGray6))
+                    
+                    VStack(spacing: 8) {
+                        Spacer()
+                        Text("🎂")
+                            .font(.system(size: 40))
+                        Spacer()
+                        VStack(spacing: 2) {
+                            Text("Sarah")
+                                .font(.system(size: 14, weight: .bold))
+                            Text("Fri")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.bottom, 12)
+                    }
+                }
+                .frame(width: 100, height: 120)
+            }
+            .padding(.horizontal)
+        }
+    }
     
     private var pastVibesSection: some View {
         let userVibes = appState.vibes.filter { $0.userId == appState.userId }
         
         return VStack(alignment: .leading, spacing: 20) {
-                // Headline
-                HStack {
-                    Text("Past Vibes")
-                        .font(.system(.headline, design: .rounded))
+            // Headline
+            HStack {
+                Text("Past Vibes")
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundColor(.gray)
+                Spacer()
+            }
+            .padding(.horizontal)
+
+            // History Grid
+            if !userVibes.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(userVibes) { vibe in
+                             VibeGridCell(vibe: vibe, userId: appState.userId) {
+                                 appState.navigateToViewer(opening: vibe.id)
+                             }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            } else {
+                // Placeholder if empty
+                VStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.largeTitle)
+                        .foregroundColor(.gray.opacity(0.3))
+                    Text("Your vibe history will appear here")
+                        .font(.caption)
                         .foregroundColor(.gray)
-                    Spacer()
                 }
-                .padding(.horizontal)
-
-                // 1. Most Used Row (Frequency based)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("MOST USED")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal)
-                    
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
-                            ForEach(mostUsedVibeTypes, id: \.self) { type in
-                                Button {
-                                    appState.navigateToComposer(type: type)
-                                } label: {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: type.icon)
-                                            .font(.system(size: 14, weight: .bold))
-                                        Text(type.displayName)
-                                            .font(.system(size: 12, weight: .bold))
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(type.color.opacity(0.1))
-                                    .foregroundColor(type.color)
-                                    .cornerRadius(12)
-                                }
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                }
-
-                // 2. Recent History Grid
-                if !userVibes.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("HISTORY")
-                            .font(.caption2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                        
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            ForEach(userVibes) { vibe in
-                                 VibeGridCell(vibe: vibe, userId: appState.userId) {
-                                     appState.navigateToViewer(opening: vibe.id)
-                                 }
-                            }
-                        }
-                        .padding(.horizontal)
-                    }
-                } else {
-                    // Placeholder if empty
-                    VStack(spacing: 12) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.largeTitle)
-                            .foregroundColor(.gray.opacity(0.3))
-                        Text("Your vibe history will appear here")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 40)
             }
-    }
-
-    private var mostUsedVibeTypes: [VibeType] {
-        let userVibes = appState.vibes.filter { $0.userId == appState.userId }
-        let counts = userVibes.reduce(into: [VibeType: Int]()) { $0[$1.type, default: 0] += 1 }
-
-        // Sort by frequency, then by display name for consistency
-        return VibeType.allCases.sorted { typeA, typeB in
-            let countA = counts[typeA, default: 0]
-            let countB = counts[typeB, default: 0]
-            if countA != countB {
-                return countA > countB
-            }
-            return typeA.displayName < typeB.displayName
         }
     }
+
+    private var squadStatsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Squad Stats")
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(.gray)
+                Spacer()
+            }
+            .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    // 1. The MVP
+                    if let (mvpId, count) = mvpData {
+                        SquadStatCard(
+                            title: "The MVP",
+                            icon: "👑",
+                            accentColor: .yellow,
+                            centerContent: {
+                                avatarForUser(mvpId, size: 40)
+                            },
+                            footerContent: {
+                                Text("\(nameForUser(mvpId)) (+\(count))")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.primary)
+                            }
+                        )
+                    }
+                    
+                    // 2. The Ghost
+                    if let ghostId = ghostUserId {
+                        SquadStatCard(
+                            title: "The Ghost",
+                            icon: "👻",
+                            accentColor: .gray,
+                            centerContent: {
+                                avatarForUser(ghostId, size: 40, desaturated: true)
+                            },
+                            footerContent: {
+                                Button {
+                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                    // Logic for nudge could go here
+                                } label: {
+                                    Text("Nudge")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.blue)
+                                        .foregroundColor(.white)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        )
+                    }
+                    
+                    // 3. Bestie Streak
+                    SquadStatCard(
+                        title: "Bestie Streak",
+                        icon: "🔥",
+                        accentColor: .orange,
+                        centerContent: {
+                            Text("\(bestieStreakCount)")
+                                .font(.system(size: 32, weight: .black, design: .rounded))
+                                .foregroundColor(.orange)
+                        },
+                        footerContent: {
+                            Text("Days w/ \(bestieName)")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.secondary)
+                        }
+                    )
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 4)
+            }
+        }
+    }
+
+    // MARK: - Squad Stats Logic
+    
+    private var mvpData: (String, Int)? {
+        let friendsVibes = appState.vibes.filter { $0.userId != appState.userId }
+        let counts = friendsVibes.reduce(into: [String: Int]()) { $0[$1.userId, default: 0] += 1 }
+        guard let topParticipant = counts.max(by: { $0.value < $1.value }) else { return nil }
+        return (topParticipant.key, topParticipant.value)
+    }
+    
+    private var ghostUserId: String? {
+        let friends = appState.vibesGroupedByUser()
+            .compactMap { $0.first?.userId }
+            .filter { $0 != appState.userId }
+        
+        // Find someone who hasn't posted in > 24h
+        let oneDayAgo = Date().addingTimeInterval(-86400)
+        return friends.first { friendId in
+            let lastVibeDate = appState.vibes.filter { $0.userId == friendId }
+                .map { $0.createdAt }
+                .max()
+            return lastVibeDate == nil || lastVibeDate! < oneDayAgo
+        }
+    }
+    
+    private var bestieStreakCount: Int {
+        // Mocking for now as we don't have per-relationship streaks yet
+        return 5
+    }
+    
+    private var bestieName: String {
+        // Find most frequent interactor or just use first friend
+        if let mvpId = mvpData?.0 {
+            return nameForUser(mvpId)
+        }
+        return "Mike"
+    }
+
+    private func nameForUser(_ id: String) -> String {
+        // Simplified lookup
+        if id == appState.userId { return "You" }
+        if id.contains("friend_1") { return "Sarah" }
+        if id.contains("friend_2") { return "Mike" }
+        if id.contains("friend_3") { return "Alex" }
+        if id.contains("friend_4") { return "Sam" }
+        if id.contains("friend_5") { return "Jordan" }
+        return "Friend"
+    }
+
+    private func avatarForUser(_ id: String, size: CGFloat, desaturated: Bool = false) -> some View {
+        let userVibes = appState.vibes.filter { $0.userId == id }
+        return Group {
+            if let firstVibe = userVibes.first {
+                VibeRingView(vibes: userVibes, userId: id, isCurrentUser: id == appState.userId, size: size, onTap: {})
+                    .grayscale(desaturated ? 1.0 : 0.0)
+                    .allowsHitTesting(false)
+            } else {
+                Circle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: size, height: size)
+                    .overlay {
+                        Text(String(nameForUser(id).prefix(1)))
+                            .font(.system(size: size * 0.4, weight: .bold))
+                            .foregroundColor(.gray)
+                    }
+                    .grayscale(desaturated ? 1.0 : 0.0)
+            }
+        }
+    }
+
 
     // MARK: - Helpers
     

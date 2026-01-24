@@ -235,6 +235,8 @@ final class MessageService: Sendable {
                 return "📊 \(poll.question)"
             }
             return "📊 Quick Poll"
+        case .dailyDrop:
+            return "🎲 Daily Drop"
         }
     }
 
@@ -259,6 +261,8 @@ final class MessageService: Sendable {
                 backgroundColor = UIColor.systemPurple
             case .poll:
                 backgroundColor = UIColor.systemBlue
+            case .dailyDrop:
+                backgroundColor = UIColor.black
             }
 
             backgroundColor.setFill()
@@ -279,6 +283,8 @@ final class MessageService: Sendable {
                 iconText = vibe.mood?.emoji ?? "😊"
             case .poll:
                 iconText = "📊"
+            case .dailyDrop:
+                iconText = "🎲"
             }
 
             let attributes: [NSAttributedString.Key: Any] = [

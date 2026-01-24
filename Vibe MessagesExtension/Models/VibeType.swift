@@ -15,6 +15,7 @@ enum VibeType: String, Codable, CaseIterable {
     case battery
     case mood
     case poll
+    case dailyDrop
 
     var displayName: String {
         switch self {
@@ -24,6 +25,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .battery: return "Battery"
         case .mood: return "Mood"
         case .poll: return "Poll"
+        case .dailyDrop: return "Daily Drop"
         }
     }
 
@@ -35,6 +37,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .battery: return "battery.100"
         case .mood: return "face.smiling"
         case .poll: return "chart.bar.fill"
+        case .dailyDrop: return "die.face.5"
         }
     }
 
@@ -46,6 +49,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .battery: return .yellow
         case .mood: return .purple
         case .poll: return .blue
+        case .dailyDrop: return .black
         }
     }
 }

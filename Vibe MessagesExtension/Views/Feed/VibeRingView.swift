@@ -107,6 +107,13 @@ struct VibeRingView: View {
                                 .font(.system(size: size * 0.35))
                                 .foregroundColor(.white)
                         }
+                case .dailyDrop:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "die.face.5")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
                 }
             } else {
                 Color.gray.opacity(0.3)

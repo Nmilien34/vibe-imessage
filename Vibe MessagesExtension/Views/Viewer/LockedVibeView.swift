@@ -162,6 +162,12 @@ struct LockedVibeView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        case .dailyDrop:
+            LinearGradient(
+                colors: [.black, .gray],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 }

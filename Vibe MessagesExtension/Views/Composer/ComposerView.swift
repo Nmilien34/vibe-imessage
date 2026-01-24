@@ -239,7 +239,14 @@ struct ComposerView: View {
                 HStack {
                     Button {
                         withAnimation {
-                            selectedType = nil
+                            if selectedType == nil && appState.selectedVibeType != nil {
+                                // User came directly from the Dashboard
+                                appState.dismissComposer()
+                            } else {
+                                // User navigated from the internal "New Vibez" menu
+                                selectedType = nil
+                                appState.selectedVibeType = nil
+                            }
                         }
                     } label: {
                         HStack(spacing: 4) {
@@ -282,6 +289,8 @@ struct ComposerView: View {
                 MoodComposerView(isLocked: isLocked)
             case .poll:
                 PollComposerView(isLocked: isLocked)
+            case .dailyDrop:
+                DailyDropComposerView(isLocked: isLocked)
             }
         }
     }
