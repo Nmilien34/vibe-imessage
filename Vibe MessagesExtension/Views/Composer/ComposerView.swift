@@ -154,6 +154,40 @@ struct ComposerView: View {
                         ) {
                             selectVibe(.poll)
                         }
+
+                        // Row 4
+                        MenuCard(
+                            title: "Tea",
+                            icon: "quote.bubble.fill",
+                            gradient: [.brown, .orange]
+                        ) {
+                            selectVibe(.tea)
+                        }
+
+                        MenuCard(
+                            title: "Leak",
+                            icon: "shutter.releaser",
+                            gradient: [.red, .pink]
+                        ) {
+                            selectVibe(.leak)
+                        }
+
+                        // Row 5
+                        MenuCard(
+                            title: "Sketch",
+                            icon: "hand.draw.fill",
+                            gradient: [.orange, .yellow]
+                        ) {
+                            selectVibe(.sketch)
+                        }
+
+                        MenuCard(
+                            title: "ETA",
+                            icon: "location.fill",
+                            gradient: [.blue, .teal]
+                        ) {
+                            selectVibe(.eta)
+                        }
                     }
                     .padding(.horizontal)
                     
@@ -223,7 +257,11 @@ struct ComposerView: View {
             (.video, true),  // POV
             (.battery, false),
             (.mood, false),
-            (.poll, false)
+            (.poll, false),
+            (.tea, false),
+            (.leak, false),
+            (.sketch, false),
+            (.eta, false)
         ]
         
         if let random = options.randomElement() {
@@ -291,6 +329,14 @@ struct ComposerView: View {
                 PollComposerView(isLocked: isLocked)
             case .dailyDrop:
                 DailyDropComposerView(isLocked: isLocked)
+            case .tea:
+                TeaComposerView(isLocked: isLocked)
+            case .leak:
+                LeakComposerView(isLocked: isLocked)
+            case .sketch:
+                SketchComposerView(isLocked: isLocked)
+            case .eta:
+                ETAComposerView(isLocked: isLocked)
             }
         }
     }

@@ -114,6 +114,34 @@ struct VibeRingView: View {
                                 .font(.system(size: size * 0.35))
                                 .foregroundColor(.white)
                         }
+                case .tea:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "quote.bubble.fill")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
+                case .leak:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "shutter.releaser")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
+                case .sketch:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "hand.draw.fill")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
+                case .eta:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
                 }
             } else {
                 Color.gray.opacity(0.3)

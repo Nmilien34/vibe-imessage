@@ -122,6 +122,16 @@ struct VibeViewerView: View {
                 MoodVibeContent(vibe: vibe)
             case .poll:
                 PollVibeContent(vibe: vibe)
+            case .dailyDrop:
+                PhotoVibeContent(vibe: vibe)
+            case .tea:
+                TeaVibeContent(vibe: vibe)
+            case .leak:
+                PhotoVibeContent(vibe: vibe)
+            case .sketch:
+                SketchVibeContent(vibe: vibe)
+            case .eta:
+                ETAVibeContent(vibe: vibe)
             }
         }
     }
@@ -599,6 +609,90 @@ struct PollVibeContent: View {
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Tea Vibe Content
+struct TeaVibeContent: View {
+    let vibe: Vibe
+    
+    var body: some View {
+        ZStack {
+            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .overlay(Color.black.opacity(0.3))
+                } placeholder: {
+                    backgroundGradient
+                }
+                .ignoresSafeArea()
+            } else {
+                backgroundGradient
+                    .ignoresSafeArea()
+            }
+            
+            Text(vibe.textStatus ?? "")
+                .font(.system(size: 40, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .padding(40)
+        }
+    }
+    
+    private var backgroundGradient: LinearGradient {
+        switch vibe.styleName {
+        case "Noir": return LinearGradient(colors: [.black, .gray], startPoint: .topLeading, endPoint: .bottomTrailing)
+        case "Fire": return LinearGradient(colors: [.orange, .red, .yellow], startPoint: .topLeading, endPoint: .bottomTrailing)
+        default: return LinearGradient(colors: [.purple, .blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
+    }
+}
+
+// MARK: - Sketch Vibe Content
+struct SketchVibeContent: View {
+    let vibe: Vibe
+    
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            
+            VStack {
+                Image(systemName: "hand.draw.fill")
+                    .font(.system(size: 80))
+                    .foregroundColor(.orange.opacity(0.3))
+                Text("Doodle incoming...")
+                    .foregroundColor(.white.opacity(0.5))
+            }
+        }
+    }
+}
+
+// MARK: - ETA Vibe Content
+struct ETAVibeContent: View {
+    let vibe: Vibe
+    
+    var body: some View {
+        ZStack {
+            Color(.systemGray6).ignoresSafeArea()
+            
+            VStack(spacing: 40) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.1))
+                        .frame(width: 300, height: 300)
+                    
+                    Image(systemName: "location.north.circle.fill")
+                        .font(.system(size: 150))
+                        .foregroundColor(.blue)
+                }
+                
+                Text(vibe.etaStatus ?? "On my way!")
+                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
             }
         }
     }

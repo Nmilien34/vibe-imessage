@@ -19,6 +19,9 @@ struct Vibe: Codable, Identifiable, Equatable {
     let batteryLevel: Int?
     let mood: Mood?
     var poll: Poll?
+    let textStatus: String?
+    let styleName: String?
+    let etaStatus: String?
     let isLocked: Bool
     var unlockedBy: [String]
     var reactions: [Reaction]
@@ -42,6 +45,9 @@ extension Vibe {
         case batteryLevel
         case mood
         case poll
+        case textStatus
+        case styleName
+        case etaStatus
         case isLocked
         case unlockedBy
         case reactions
@@ -64,6 +70,9 @@ extension Vibe {
         self.batteryLevel = try container.decodeIfPresent(Int.self, forKey: .batteryLevel)
         self.mood = try container.decodeIfPresent(Mood.self, forKey: .mood)
         self.poll = try container.decodeIfPresent(Poll.self, forKey: .poll)
+        self.textStatus = try container.decodeIfPresent(String.self, forKey: .textStatus)
+        self.styleName = try container.decodeIfPresent(String.self, forKey: .styleName)
+        self.etaStatus = try container.decodeIfPresent(String.self, forKey: .etaStatus)
         self.isLocked = try container.decodeIfPresent(Bool.self, forKey: .isLocked) ?? false
         self.unlockedBy = try container.decodeIfPresent([String].self, forKey: .unlockedBy) ?? []
         self.reactions = try container.decodeIfPresent([Reaction].self, forKey: .reactions) ?? []
@@ -117,6 +126,9 @@ struct CreateVibeRequest: Codable {
     var batteryLevel: Int?
     var mood: Mood?
     var poll: CreatePollRequest?
+    var textStatus: String?
+    var styleName: String?
+    var etaStatus: String?
     var isLocked: Bool = false
 }
 

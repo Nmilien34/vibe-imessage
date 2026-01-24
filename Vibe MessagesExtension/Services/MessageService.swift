@@ -237,6 +237,20 @@ final class MessageService: Sendable {
             return "📊 Quick Poll"
         case .dailyDrop:
             return "🎲 Daily Drop"
+        case .tea:
+            if let text = vibe.textStatus {
+                return "🫖 \(text)"
+            }
+            return "🫖 Spilling Tea"
+        case .leak:
+            return "📸 Camera Leak"
+        case .sketch:
+            return "✏️ Quick Sketch"
+        case .eta:
+            if let eta = vibe.etaStatus {
+                return "📍 \(eta)"
+            }
+            return "📍 ETA"
         }
     }
 
@@ -263,6 +277,14 @@ final class MessageService: Sendable {
                 backgroundColor = UIColor.systemBlue
             case .dailyDrop:
                 backgroundColor = UIColor.black
+            case .tea:
+                backgroundColor = UIColor.brown
+            case .leak:
+                backgroundColor = UIColor.systemRed
+            case .sketch:
+                backgroundColor = UIColor.systemOrange
+            case .eta:
+                backgroundColor = UIColor.systemBlue
             }
 
             backgroundColor.setFill()
@@ -285,6 +307,14 @@ final class MessageService: Sendable {
                 iconText = "📊"
             case .dailyDrop:
                 iconText = "🎲"
+            case .tea:
+                iconText = "🫖"
+            case .leak:
+                iconText = "📸"
+            case .sketch:
+                iconText = "✏️"
+            case .eta:
+                iconText = "📍"
             }
 
             let attributes: [NSAttributedString.Key: Any] = [

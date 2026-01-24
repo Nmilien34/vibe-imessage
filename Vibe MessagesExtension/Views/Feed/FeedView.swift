@@ -249,19 +249,39 @@ struct VibeGridCell: View {
         case .mood:
             Text(vibe.mood?.emoji ?? "😊")
                 .font(.largeTitle)
-        case .poll:
-            VStack(spacing: 4) {
-                Image(systemName: "chart.bar.fill")
+            case .poll:
+                VStack(spacing: 4) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.title)
+                        .foregroundColor(vibe.type.color)
+                    if let poll = vibe.poll {
+                        Text(poll.question)
+                            .font(.caption2)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+            case .dailyDrop:
+                Image(systemName: "die.face.5")
                     .font(.title)
                     .foregroundColor(vibe.type.color)
-                if let poll = vibe.poll {
-                    Text(poll.question)
-                        .font(.caption2)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                }
+            case .tea:
+                Image(systemName: "quote.bubble.fill")
+                    .font(.title)
+                    .foregroundColor(vibe.type.color)
+            case .leak:
+                Image(systemName: "shutter.releaser")
+                    .font(.title)
+                    .foregroundColor(vibe.type.color)
+            case .sketch:
+                Image(systemName: "hand.draw.fill")
+                    .font(.title)
+                    .foregroundColor(vibe.type.color)
+            case .eta:
+                Image(systemName: "location.fill")
+                    .font(.title)
+                    .foregroundColor(vibe.type.color)
             }
-        }
     }
 
     private var batteryIcon: String {

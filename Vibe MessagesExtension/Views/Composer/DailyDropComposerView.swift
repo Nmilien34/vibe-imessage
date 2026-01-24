@@ -38,11 +38,19 @@ struct DailyDropComposerView: View {
                             .animation(isShuffling ? .linear(duration: 0.5).repeatForever(autoreverses: false) : .default, value: isShuffling)
                         
                         Text(prompts[currentPromptIndex])
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                            .minimumScaleFactor(0.5)
+                            .lineLimit(3)
+                            .padding(.horizontal, 24)
+                            .id(currentPromptIndex)
+                            .transition(.asymmetric(
+                                insertion: .move(edge: .trailing).combined(with: .opacity),
+                                removal: .move(edge: .leading).combined(with: .opacity)
+                            ))
                     }
+                    .frame(width: 280, height: 280)
                 }
                 .offset(x: shakeOffset)
             }
@@ -69,7 +77,7 @@ struct DailyDropComposerView: View {
                 Button {
                     acceptChallenge()
                 } label: {
-                    Text("Accept Challenge")
+                    Text("Send Challenge")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

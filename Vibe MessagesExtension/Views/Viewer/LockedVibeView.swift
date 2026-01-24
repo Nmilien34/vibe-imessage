@@ -168,6 +168,30 @@ struct LockedVibeView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        case .tea:
+            LinearGradient(
+                colors: [.brown, .orange],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .leak:
+            LinearGradient(
+                colors: [.red, .pink],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .sketch:
+            LinearGradient(
+                colors: [.orange, .yellow],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        case .eta:
+            LinearGradient(
+                colors: [.blue, .green],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 }

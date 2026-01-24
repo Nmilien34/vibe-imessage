@@ -202,6 +202,8 @@ class AppState: ObservableObject {
     func createVibe(type: VibeType, mediaUrl: String? = nil, thumbnailUrl: String? = nil,
                     songData: SongData? = nil, batteryLevel: Int? = nil,
                     mood: Mood? = nil, poll: CreatePollRequest? = nil,
+                    textStatus: String? = nil, styleName: String? = nil,
+                    etaStatus: String? = nil,
                     isLocked: Bool = false) async throws {
         guard let conversationId = conversationId else {
             throw APIError.invalidURL
@@ -218,6 +220,9 @@ class AppState: ObservableObject {
         request.batteryLevel = batteryLevel
         request.mood = mood
         request.poll = poll
+        request.textStatus = textStatus
+        request.styleName = styleName
+        request.etaStatus = etaStatus
         request.isLocked = isLocked
 
         let newVibe = try await vibeService.createVibe(request)
