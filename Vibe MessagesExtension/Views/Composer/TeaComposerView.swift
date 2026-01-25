@@ -14,6 +14,8 @@ struct TeaComposerView: View {
     @State private var backgroundImage: UIImage?
     @State private var imageData: Data?
     @State private var isUploading = false
+    @State private var showUploadError = false
+    @State private var uploadError: String?
     
     enum TeaStyle: String, CaseIterable, Identifiable {
         case neon = "Neon"
@@ -132,22 +134,42 @@ struct TeaComposerView: View {
                     await shareTea()
                 }
             } label: {
-                if isUploading {
-                    ProgressView()
-                        .tint(.white)
-                } else {
-                    Text("Spill Tea ☕️")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.brown)
-                        .cornerRadius(12)
+                HStack {
+                    if isUploading {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Spilling...")
+                    } else {
+                        Text("Spill Tea ☕️")
+                    }
                 }
+                .font(.headline)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding()
+                .background(isUploading ? Color.brown.opacity(0.6) : Color.brown)
+                .cornerRadius(12)
             }
             .padding(.horizontal)
             .disabled(textStatus.isEmpty || isUploading)
-            .opacity(textStatus.isEmpty || isUploading ? 0.5 : 1.0)
+            .opacity(textStatus.isEmpty ? 0.5 : 1.0)
+
+            // Upload Error Overlay
+            if showUploadError {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                UploadErrorView(
+                    error: uploadError,
+                    onRetry: {
+                        showUploadError = false
+                        Task { await shareTea() }
+                    },
+                    onCancel: {
+                        showUploadError = false
+                        uploadError = nil
+                    }
+                )
+                .padding()
+            }
         }
         .padding(.top, 16)
         .onAppear {
@@ -166,24 +188,32 @@ struct TeaComposerView: View {
     
     private func shareTea() async {
         isUploading = true
+        showUploadError = false
+        uploadError = nil
         var mediaUrl: String?
-        
+        var mediaKey: String?
+
         do {
             if let data = imageData {
-                mediaUrl = try await VibeService.shared.uploadMedia(data: data, fileType: "jpg", folder: "tea")
+                let result = try await VibeService.shared.uploadMediaWithKey(data: data, fileType: "jpg", folder: "tea")
+                mediaUrl = result.url
+                mediaKey = result.key
             }
-            
+
             try await appState.createVibe(
                 type: .tea,
                 mediaUrl: mediaUrl,
+                mediaKey: mediaKey,
                 thumbnailUrl: mediaUrl,
+                thumbnailKey: mediaKey,
                 textStatus: textStatus,
                 styleName: selectedStyle.rawValue,
                 isLocked: isLocked
             )
             appState.dismissComposer()
         } catch {
-            print("Error sharing tea: \(error)")
+            uploadError = error.localizedDescription
+            showUploadError = true
         }
         isUploading = false
     }

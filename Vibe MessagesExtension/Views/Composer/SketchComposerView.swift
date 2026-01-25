@@ -13,6 +13,9 @@ struct SketchComposerView: View {
     @State private var lines: [Line] = []
     @State private var currentLine = Line(points: [], color: .cyan, lineWidth: 5)
     @State private var selectedColor: Color = .cyan
+    @State private var isUploading = false
+    @State private var showUploadError = false
+    @State private var uploadError: String?
     
     let colors: [Color] = [.cyan, .pink, .green, .yellow, .white]
     
@@ -86,17 +89,43 @@ struct SketchComposerView: View {
                     await shareSketch()
                 }
             } label: {
-                Text("Send Doodle 🎨")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(selectedColor)
-                    .cornerRadius(12)
+                if isUploading {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(selectedColor)
+                        .cornerRadius(12)
+                } else {
+                    Text("Send Doodle 🎨")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(selectedColor)
+                        .cornerRadius(12)
+                }
             }
             .padding(.horizontal)
-            .disabled(lines.isEmpty)
-            .opacity(lines.isEmpty ? 0.5 : 1.0)
+            .disabled(lines.isEmpty || isUploading)
+            .opacity(lines.isEmpty || isUploading ? 0.5 : 1.0)
+
+            // Upload Error Overlay
+            if showUploadError {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                UploadErrorView(
+                    error: uploadError,
+                    onRetry: {
+                        showUploadError = false
+                        Task { await shareSketch() }
+                    },
+                    onCancel: {
+                        showUploadError = false
+                        uploadError = nil
+                    }
+                )
+                .padding()
+            }
         }
         .padding(.top, 16)
     }
@@ -104,6 +133,10 @@ struct SketchComposerView: View {
     private func shareSketch() async {
         // In a real app, convert lines to JSON or render to image
         // For the MVP, we'll just simulate a successful upload
+        isUploading = true
+        showUploadError = false
+        uploadError = nil
+
         do {
             try await appState.createVibe(
                 type: .sketch,
@@ -111,7 +144,9 @@ struct SketchComposerView: View {
             )
             appState.dismissComposer()
         } catch {
-            print("Error sharing sketch: \(error)")
+            uploadError = error.localizedDescription
+            showUploadError = true
         }
+        isUploading = false
     }
 }

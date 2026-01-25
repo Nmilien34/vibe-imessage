@@ -3,7 +3,11 @@ const router = express.Router();
 const Vibe = require('../models/Vibe');
 const Streak = require('../models/Streak');
 
-// Get all vibes for a conversation (non-expired)
+// Retention periods (in days)
+const FEED_EXPIRATION_DAYS = 1;      // 24 hours - visible in feed
+const HISTORY_RETENTION_DAYS = 15;   // 15 days - viewable in history
+
+// Get all vibes for a conversation (non-expired - main feed)
 router.get('/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
@@ -40,6 +44,38 @@ router.get('/:conversationId', async (req, res) => {
   }
 });
 
+// Get vibe history for a user (up to 15 days)
+router.get('/:conversationId/history', async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const { userId, limit = 50 } = req.query;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'userId is required' });
+    }
+
+    // Get vibes that haven't been permanently deleted yet (up to 15 days old)
+    const vibes = await Vibe.find({
+      conversationId,
+      userId,
+      permanentDeleteAt: { $gt: new Date() },
+    })
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    // Mark expired vibes (past 24h) but still in history
+    const processedVibes = vibes.map(vibe => {
+      const vibeObj = vibe.toObject();
+      vibeObj.isExpiredFromFeed = vibe.expiresAt < new Date();
+      return vibeObj;
+    });
+
+    res.json(processedVibes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Create a new vibe
 router.post('/', async (req, res) => {
   try {
@@ -48,29 +84,45 @@ router.post('/', async (req, res) => {
       conversationId,
       type,
       mediaUrl,
+      mediaKey,
       thumbnailUrl,
+      thumbnailKey,
       songData,
       batteryLevel,
       mood,
       poll,
+      textStatus,
+      styleName,
+      etaStatus,
+      oderId,
       isLocked,
     } = req.body;
 
-    // Set expiration to 24 hours from now
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const now = new Date();
+    // Feed expiration: 24 hours
+    const expiresAt = new Date(now.getTime() + FEED_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
+    // Permanent deletion: 15 days
+    const permanentDeleteAt = new Date(now.getTime() + HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
 
     const vibe = new Vibe({
       userId,
       conversationId,
       type,
       mediaUrl,
+      mediaKey: mediaKey || extractS3Key(mediaUrl),
       thumbnailUrl,
+      thumbnailKey: thumbnailKey || extractS3Key(thumbnailUrl),
       songData,
       batteryLevel,
       mood,
       poll,
+      textStatus,
+      styleName,
+      etaStatus,
+      oderId,
       isLocked: isLocked || false,
       expiresAt,
+      permanentDeleteAt,
     });
 
     await vibe.save();
@@ -83,6 +135,17 @@ router.post('/', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Helper to extract S3 key from URL
+function extractS3Key(url) {
+  if (!url) return null;
+  try {
+    const urlObj = new URL(url);
+    return urlObj.pathname.substring(1); // Remove leading slash
+  } catch {
+    return null;
+  }
+}
 
 // Add reaction to a vibe
 router.post('/:vibeId/react', async (req, res) => {

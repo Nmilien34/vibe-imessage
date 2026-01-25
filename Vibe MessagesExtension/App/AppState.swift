@@ -51,6 +51,10 @@ class AppState: ObservableObject {
     @Published var streak: Streak?
     @Published var isLoading = false
     @Published var error: String?
+
+    // MARK: - Network Error State
+    @Published var networkError: VibeError?
+    @Published var showNetworkErrorBanner = false
     
     // MARK: - Seen Tracking (for "X New Updates" feature)
     @Published var seenVibeIds: Set<String> = []
@@ -208,6 +212,8 @@ class AppState: ObservableObject {
 
         isLoading = true
         error = nil
+        networkError = nil
+        showNetworkErrorBanner = false
 
         do {
             // Using the new APIService for live fetching
@@ -216,7 +222,11 @@ class AppState: ObservableObject {
         } catch {
             self.error = error.localizedDescription
             print("AppState Error: Loading vibes failed: \(error)")
-            
+
+            // Set network error for banner display with retry capability
+            self.networkError = .networkFailure(underlying: error)
+            self.showNetworkErrorBanner = true
+
             // Fallback to empty if error
             if vibes.isEmpty {
                  vibes = []
@@ -228,6 +238,17 @@ class AppState: ObservableObject {
 
     func refreshVibes() async {
         await loadVibes()
+    }
+
+    func retryLoadVibes() {
+        Task {
+            await loadVibes()
+        }
+    }
+
+    func dismissNetworkError() {
+        showNetworkErrorBanner = false
+        networkError = nil
     }
 
     // MARK: - Authentication
@@ -302,7 +323,8 @@ class AppState: ObservableObject {
 
     // MARK: - Vibe Actions
 
-    func createVibe(type: VibeType, mediaUrl: String? = nil, thumbnailUrl: String? = nil,
+    func createVibe(type: VibeType, mediaUrl: String? = nil, mediaKey: String? = nil,
+                    thumbnailUrl: String? = nil, thumbnailKey: String? = nil,
                     songData: SongData? = nil, batteryLevel: Int? = nil,
                     mood: Mood? = nil, poll: CreatePollRequest? = nil,
                     textStatus: String? = nil, styleName: String? = nil,
@@ -318,7 +340,9 @@ class AppState: ObservableObject {
             type: type
         )
         request.mediaUrl = mediaUrl
+        request.mediaKey = mediaKey
         request.thumbnailUrl = thumbnailUrl
+        request.thumbnailKey = thumbnailKey
         request.songData = songData
         request.batteryLevel = batteryLevel
         request.mood = mood

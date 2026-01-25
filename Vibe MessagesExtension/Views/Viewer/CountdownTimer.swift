@@ -11,23 +11,32 @@ import Combine
 struct CountdownTimer: View {
     let expiresAt: Date
     @State private var timeRemaining: TimeInterval = 0
+    @State private var isVisible = false
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "clock")
-                .font(.system(size: 12))
-            Text(formattedTime)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
+        Group {
+            if isVisible {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 12))
+                    Text(formattedTime)
+                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                }
+                .foregroundColor(urgencyColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
         }
-        .foregroundColor(urgencyColor)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial)
-        .clipShape(Capsule())
         .onAppear {
             updateTimeRemaining()
+            withAnimation(.easeIn(duration: 0.4)) {
+                isVisible = true
+            }
         }
         .onReceive(timer) { _ in
             updateTimeRemaining()

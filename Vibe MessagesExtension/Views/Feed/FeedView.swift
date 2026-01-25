@@ -11,12 +11,31 @@ struct FeedView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        Group {
-            switch appState.presentationMode {
-            case .compact:
-                CompactFeedView()
-            case .expanded:
-                BentoDashboardView()
+        ZStack(alignment: .top) {
+            Group {
+                switch appState.presentationMode {
+                case .compact:
+                    CompactFeedView()
+                case .expanded:
+                    BentoDashboardView()
+                }
+            }
+
+            // Network Error Banner
+            if appState.showNetworkErrorBanner {
+                NetworkErrorBanner(
+                    message: appState.networkError?.recoverySuggestion ?? "Connection failed",
+                    onRetry: {
+                        appState.retryLoadVibes()
+                    },
+                    onDismiss: {
+                        appState.dismissNetworkError()
+                    }
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.easeInOut(duration: 0.3), value: appState.showNetworkErrorBanner)
             }
         }
     }
@@ -44,6 +63,12 @@ struct CompactFeedView: View {
                 }
 
                 Spacer()
+
+                // Loading indicator
+                if appState.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                }
 
                 // New Updates Badge
                 if appState.newVibesCount > 0 {
@@ -79,67 +104,123 @@ struct CompactFeedView: View {
 
             // Horizontal scroll of vibe rings
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    // Add button (if user hasn't posted today)
-                    if !appState.hasUserPostedToday() {
-                        AddVibeButton(size: ringSize) {
-                            appState.shouldShowVibePicker = true
-                            appState.requestExpand()
+                if appState.isLoading && appState.vibes.isEmpty {
+                    // Skeleton loading state
+                    HStack(spacing: 12) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            SkeletonRingView(size: ringSize)
                         }
                     }
-
-                    // Current user's vibes first
-                    let groupedVibes = appState.vibesGroupedByUser()
-                    let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
-
-                    if !currentUserVibes.isEmpty {
-                        VibeRingView(
-                            vibes: currentUserVibes,
-                            userId: appState.userId,
-                            isCurrentUser: true,
-                            size: ringSize
-                        ) {
-                            // Find first vibe for current user (which is the one displayed in the ring typically, or just open the first one)
-                            if let firstVibe = currentUserVibes.first {
-                                appState.navigateToViewer(opening: firstVibe.id)
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                } else {
+                    HStack(spacing: 12) {
+                        // Add button (if user hasn't posted today)
+                        if !appState.hasUserPostedToday() {
+                            AddVibeButton(size: ringSize) {
+                                appState.shouldShowVibePicker = true
+                                appState.requestExpand()
                             }
                         }
-                    }
 
-                    // Other users' vibes
-                    ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                        if let firstVibe = userVibes.first,
-                           firstVibe.userId != appState.userId {
+                        // Current user's vibes first
+                        let groupedVibes = appState.vibesGroupedByUser()
+                        let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
+
+                        if !currentUserVibes.isEmpty {
                             VibeRingView(
-                                vibes: userVibes,
+                                vibes: currentUserVibes,
                                 userId: appState.userId,
-                                isCurrentUser: false,
+                                isCurrentUser: true,
                                 size: ringSize
                             ) {
-                                appState.navigateToViewer(opening: firstVibe.id)
+                                // Find first vibe for current user (which is the one displayed in the ring typically, or just open the first one)
+                                if let firstVibe = currentUserVibes.first {
+                                    appState.navigateToViewer(opening: firstVibe.id)
+                                }
+                            }
+                        }
+
+                        // Other users' vibes
+                        ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                            if let firstVibe = userVibes.first,
+                               firstVibe.userId != appState.userId {
+                                VibeRingView(
+                                    vibes: userVibes,
+                                    userId: appState.userId,
+                                    isCurrentUser: false,
+                                    size: ringSize
+                                ) {
+                                    appState.navigateToViewer(opening: firstVibe.id)
+                                }
                             }
                         }
                     }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
             }
 
-            // Tap to expand hint
+            // Swipe up hint
             Button {
                 appState.requestExpand()
             } label: {
-                HStack {
-                    Image(systemName: "chevron.up")
-                    Text("Tap to expand")
-                    Image(systemName: "chevron.up")
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.compact.up")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Swipe up to see the full app")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Image(systemName: "chevron.compact.up")
+                        .font(.system(size: 14, weight: .semibold))
                 }
-                .font(.caption2)
                 .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Color(.secondarySystemBackground))
+                .clipShape(Capsule())
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 8)
         }
         .background(Color(.systemBackground))
+    }
+}
+
+// MARK: - Skeleton Ring View (Loading Placeholder)
+struct SkeletonRingView: View {
+    let size: CGFloat
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Circle()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: size, height: size)
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                colors: [.gray.opacity(0.2), .gray.opacity(0.4)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 3
+                        )
+                )
+                .opacity(isAnimating ? 0.5 : 1.0)
+                .animation(
+                    .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                    value: isAnimating
+                )
+
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: size * 0.8, height: 10)
+                .opacity(isAnimating ? 0.5 : 1.0)
+        }
+        .onAppear {
+            isAnimating = true
+        }
     }
 }
 

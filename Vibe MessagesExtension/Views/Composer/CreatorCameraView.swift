@@ -7,6 +7,8 @@
 
 import SwiftUI
 import PhotosUI
+import AVFoundation
+import UIKit
 
 enum CameraMode: String, CaseIterable, Identifiable {
     case normal = "NORMAL"
@@ -29,6 +31,7 @@ struct CreatorCameraView: View {
     @State private var promptText = "Show us your fridge."
     @State private var timerString = "00:00 / 00:15"
     @State private var isBoomerang = false
+    @State private var pulseScale: CGFloat = 1.0
     
     // Bindings to parent (VideoComposerView)
     @Binding var selectedItem: PhotosPickerItem?
@@ -256,7 +259,15 @@ struct CreatorCameraView: View {
                             )
                         )
                         .frame(width: viewModel.isRecording ? 70 : 60, height: viewModel.isRecording ? 70 : 60)
+                        .scaleEffect(viewModel.isRecording ? 1.0 : pulseScale)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.isRecording)
+                        .onAppear {
+                            if !viewModel.isRecording {
+                                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                    pulseScale = 1.1
+                                }
+                            }
+                        }
                         .onLongPressGesture(minimumDuration: 0.1, pressing: { pressing in
                             if pressing {
                                 viewModel.startRecording()
@@ -299,17 +310,29 @@ struct CreatorCameraView: View {
 
 struct CameraPreview: UIViewRepresentable {
     let session: AVCaptureSession
-    
+
     func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.frame = view.frame
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
+        let view = VideoPreviewUIView()
+        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
         return view
     }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        if let previewView = uiView as? VideoPreviewUIView {
+            previewView.videoPreviewLayer.session = session
+        }
+    }
+}
+
+private class VideoPreviewUIView: UIView {
+    override class var layerClass: AnyClass {
+        AVCaptureVideoPreviewLayer.self
+    }
+
+    var videoPreviewLayer: AVCaptureVideoPreviewLayer {
+        layer as! AVCaptureVideoPreviewLayer
+    }
 }
 
 #Preview {

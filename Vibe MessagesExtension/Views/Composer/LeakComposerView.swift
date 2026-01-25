@@ -10,6 +10,8 @@ struct LeakComposerView: View {
     @State private var thumbnailImage: UIImage?
     @State private var isUploading = false
     @State private var showNoContextTag = true
+    @State private var showUploadError = false
+    @State private var uploadError: String?
     
     var body: some View {
         VStack(spacing: 24) {
@@ -59,14 +61,20 @@ struct LeakComposerView: View {
                         }
                     } label: {
                         HStack {
-                            Image(systemName: "paperplane.fill")
-                            Text("Leak It 🫣")
+                            if isUploading {
+                                ProgressView()
+                                    .tint(.white)
+                                Text("Uploading...")
+                            } else {
+                                Image(systemName: "paperplane.fill")
+                                Text("Leak It 🫣")
+                            }
                         }
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.red)
+                        .background(isUploading ? Color.red.opacity(0.6) : Color.red)
                         .cornerRadius(12)
                     }
                     .padding(.horizontal)
@@ -104,6 +112,23 @@ struct LeakComposerView: View {
             }
             
             Spacer()
+
+            // Upload Error Overlay
+            if showUploadError {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                UploadErrorView(
+                    error: uploadError,
+                    onRetry: {
+                        showUploadError = false
+                        Task { await shareLeak() }
+                    },
+                    onCancel: {
+                        showUploadError = false
+                        uploadError = nil
+                    }
+                )
+                .padding()
+            }
         }
         .padding(.top, 16)
         .onChange(of: selectedItem) { _, newValue in
@@ -119,19 +144,24 @@ struct LeakComposerView: View {
     private func shareLeak() async {
         guard let data = mediaData else { return }
         isUploading = true
-        
+        showUploadError = false
+        uploadError = nil
+
         do {
-            let url = try await VibeService.shared.uploadMedia(data: data, fileType: "jpg", folder: "leaks")
+            let result = try await VibeService.shared.uploadMediaWithKey(data: data, fileType: "jpg", folder: "leaks")
             try await appState.createVibe(
                 type: .leak,
-                mediaUrl: url,
-                thumbnailUrl: url,
+                mediaUrl: result.url,
+                mediaKey: result.key,
+                thumbnailUrl: result.url,
+                thumbnailKey: result.key,
                 textStatus: showNoContextTag ? "NO CONTEXT" : nil,
                 isLocked: isLocked
             )
             appState.dismissComposer()
         } catch {
-            print("Error sharing leak: \(error)")
+            uploadError = error.localizedDescription
+            showUploadError = true
         }
         isUploading = false
     }

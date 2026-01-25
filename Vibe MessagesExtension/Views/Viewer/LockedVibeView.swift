@@ -12,90 +12,98 @@ struct LockedVibeView: View {
     let onUnlock: () -> Void
 
     @State private var isAnimating = false
+    @State private var isVisible = false
 
     var body: some View {
         ZStack {
-            // Blurred background hint
-            blurredPreview
-                .blur(radius: 30)
-                .overlay(Color.black.opacity(0.5))
+            if isVisible {
+                // Blurred background hint
+                blurredPreview
+                    .blur(radius: 30)
+                    .overlay(Color.black.opacity(0.5))
+                    .transition(.opacity)
 
-            // Lock content
-            VStack(spacing: 24) {
-                // Animated lock icon
-                ZStack {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [.purple.opacity(0.3), .clear],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: 100
+                // Lock content
+                VStack(spacing: 24) {
+                    // Animated lock icon
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [.purple.opacity(0.3), .clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: 100
+                                )
                             )
-                        )
-                        .frame(width: 200, height: 200)
-                        .scaleEffect(isAnimating ? 1.2 : 1.0)
-                        .opacity(isAnimating ? 0.5 : 1.0)
+                            .frame(width: 200, height: 200)
+                            .scaleEffect(isAnimating ? 1.2 : 1.0)
+                            .opacity(isAnimating ? 0.5 : 1.0)
 
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.pink, .purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .scaleEffect(isAnimating ? 1.1 : 1.0)
+                    }
+
+                    VStack(spacing: 12) {
+                        Text("Locked Vibe")
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .foregroundColor(.white)
+
+                        Text("Post your own vibe to unlock\nthis content")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.8))
+                            .multilineTextAlignment(.center)
+                    }
+
+                    // Unlock button
+                    Button(action: onUnlock) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Share to Unlock")
+                        }
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 16)
+                        .background(
                             LinearGradient(
                                 colors: [.pink, .purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+                                startPoint: .leading,
+                                endPoint: .trailing
                             )
                         )
-                        .scaleEffect(isAnimating ? 1.1 : 1.0)
-                }
-
-                VStack(spacing: 12) {
-                    Text("Locked Vibe")
-                        .font(.title)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-
-                    Text("Post your own vibe to unlock\nthis content")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.8))
-                        .multilineTextAlignment(.center)
-                }
-
-                // Unlock button
-                Button(action: onUnlock) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Share to Unlock")
+                        .clipShape(Capsule())
+                        .shadow(color: .purple.opacity(0.5), radius: 10, y: 5)
                     }
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: [.pink, .purple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .clipShape(Capsule())
-                    .shadow(color: .purple.opacity(0.5), radius: 10, y: 5)
-                }
 
-                // Type hint
-                HStack(spacing: 8) {
-                    Image(systemName: vibe.type.icon)
-                    Text(vibe.type.displayName)
+                    // Type hint
+                    HStack(spacing: 8) {
+                        Image(systemName: vibe.type.icon)
+                        Text(vibe.type.displayName)
+                    }
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.6))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Capsule())
                 }
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.white.opacity(0.1))
-                .clipShape(Capsule())
+                .transition(.scale.combined(with: .opacity))
             }
         }
         .onAppear {
+            withAnimation(.easeOut(duration: 0.5)) {
+                isVisible = true
+            }
             withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
                 isAnimating = true
             }

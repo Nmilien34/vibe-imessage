@@ -20,6 +20,9 @@ struct VideoComposerView: View {
     @State private var isUploading = false
     @State private var uploadProgress: Double = 0
     @State private var error: String?
+    @State private var showUploadError = false
+    @State private var pendingOverlayText: String?
+    @State private var pendingSong: SongData?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -46,20 +49,29 @@ struct VideoComposerView: View {
             if isUploading {
                 uploadOverlay
             }
+
+            // Upload Error Overlay
+            if showUploadError {
+                Color.black.opacity(0.6).ignoresSafeArea()
+                UploadErrorView(
+                    error: error,
+                    onRetry: {
+                        showUploadError = false
+                        Task {
+                            await shareMedia(overlayText: pendingOverlayText, song: pendingSong)
+                        }
+                    },
+                    onCancel: {
+                        showUploadError = false
+                        error = nil
+                    }
+                )
+                .padding()
+            }
         }
         .onChange(of: selectedItem) { _, newValue in
             Task {
                 await loadMedia(from: newValue)
-            }
-        }
-        .alert("Upload Failed", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
-            Button("Retry") {
-                Task { await shareMedia() }
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            if let error = error {
-                Text(error)
             }
         }
     }
@@ -130,50 +142,58 @@ struct VideoComposerView: View {
         guard let data = mediaData else { return }
         guard let chatId = appState.conversationId else {
             self.error = "No active conversation"
+            self.showUploadError = true
             return
         }
 
+        // Store pending values for retry
+        pendingOverlayText = overlayText
+        pendingSong = song
+
         isUploading = true
         error = nil
+        showUploadError = false
 
         do {
             // 1. Upload Video (Multipart)
             uploadProgress = 0.2
-            
+
             let result = try await APIService.shared.uploadVideo(
                 videoData: data,
                 userId: appState.userId,
                 chatId: chatId,
                 isLocked: isLocked
             )
-            
+
             uploadProgress = 0.7
-            
-            // 2. Create the Vibe Record for Feed (Optional logic, since upload already created one in my backend implementation of /upload)
-            // Note: My backend implementation of /vibe/upload ALREADY creates the Vibe record.
-            // If we want to add extra data (song, text), we should update it or send it in the upload.
-            // Current /vibe/upload doesn't take song/text. Let's fix backend or just send them separately.
-            // FOR NOW: I'll assume we want the full record.
-            
-            // Actually, let's update AppState.createVibe to see if it can take existing URLs.
+
+            // 2. Create the Vibe Record for Feed
+            // Note: The upload endpoint creates a basic vibe, but we create another
+            // with full metadata (song, text overlay) for the feed
             try await appState.createVibe(
                 type: .video,
                 mediaUrl: result.videoUrl,
-                thumbnailUrl: nil, // Add thumbnail upload if we want, but S3 handles it
+                mediaKey: result.videoKey,
                 songData: song,
                 textStatus: overlayText,
                 isLocked: isLocked
             )
-            
+
             uploadProgress = 0.9
-            
+
             // 3. Send iMessage Bubble with real VideoId
             appState.sendStory?(result.videoId, result.videoUrl, isLocked, thumbnailImage)
-            
+
             uploadProgress = 1.0
+
+            // Clear pending values on success
+            pendingOverlayText = nil
+            pendingSong = nil
+
             appState.dismissComposer()
         } catch {
             self.error = error.localizedDescription
+            self.showUploadError = true
         }
 
         isUploading = false

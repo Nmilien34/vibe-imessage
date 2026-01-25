@@ -12,11 +12,15 @@ const upload = multer({
     },
 });
 
+// Retention periods (in days)
+const FEED_EXPIRATION_DAYS = 1;      // 24 hours - visible in feed
+const HISTORY_RETENTION_DAYS = 15;   // 15 days - viewable in history
+
 /**
  * @route   POST /api/vibe/upload
  * @desc    Upload a video vibe (Multipart)
  * @params  video (file), userId, chatId, isLocked
- * @returns videoId, videoUrl
+ * @returns videoId, videoUrl, videoKey
  */
 router.post('/upload', upload.single('video'), async (req, res) => {
     try {
@@ -35,26 +39,30 @@ router.post('/upload', upload.single('video'), async (req, res) => {
         const extension = file.originalname.split('.').pop() || 'mp4';
 
         // Upload to S3
-        const { publicUrl } = await uploadToS3(file.buffer, extension, 'vibes');
+        const { publicUrl, key } = await uploadToS3(file.buffer, extension, 'vibes');
 
-        // Create Vibe record
-        // Note: We use chatId as conversationId in the model
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h expiration
+        // Create Vibe record with proper retention dates
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + FEED_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
+        const permanentDeleteAt = new Date(now.getTime() + HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
 
         const vibe = new Vibe({
             userId,
             conversationId: chatId,
             type: 'video',
             mediaUrl: publicUrl,
+            mediaKey: key,
             isLocked: isLocked === 'true' || isLocked === true,
-            expiresAt
+            expiresAt,
+            permanentDeleteAt
         });
 
         await vibe.save();
 
         res.status(201).json({
             videoId: vibe._id,
-            videoUrl: publicUrl
+            videoUrl: publicUrl,
+            videoKey: key
         });
     } catch (error) {
         console.error('Upload error:', error);

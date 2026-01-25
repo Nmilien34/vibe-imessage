@@ -22,14 +22,14 @@ class CameraViewModel: NSObject, ObservableObject {
     
     // ...
     
-    func uploadVideo(userId: String, chatId: String, isLocked: Bool) async -> (videoId: String, videoUrl: String)? {
+    func uploadVideo(userId: String, chatId: String, isLocked: Bool) async -> APIService.VideoUploadResult? {
         guard let video = recordedVideo else { return nil }
-        
+
         await MainActor.run {
             self.isUploading = true
             self.uploadError = nil
         }
-        
+
         do {
             let data = try Data(contentsOf: video.url)
             let result = try await APIService.shared.uploadVideo(
@@ -38,11 +38,11 @@ class CameraViewModel: NSObject, ObservableObject {
                 chatId: chatId,
                 isLocked: isLocked
             )
-            
+
             await MainActor.run {
                 self.isUploading = false
             }
-            
+
             return result
         } catch {
             await MainActor.run {

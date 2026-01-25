@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVKit
+import Combine
 
 struct VibeViewerView: View {
     @EnvironmentObject var appState: AppState
@@ -15,13 +16,18 @@ struct VibeViewerView: View {
     @State private var currentIndex: Int = 0
     @State private var showReactions = false
     @State private var dragOffset: CGFloat = 0
+    @State private var streakScale: CGFloat = 1.0
+    @State private var isInitialLoading = true
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
 
-                if appState.viewerVibes.isEmpty {
+                if isInitialLoading {
+                    // Skeleton loading state
+                    ViewerSkeletonView()
+                } else if appState.viewerVibes.isEmpty {
                     emptyState
                 } else {
                     // Main content
@@ -75,6 +81,12 @@ struct VibeViewerView: View {
         .onAppear {
             currentIndex = startIndex
             markAsViewed(at: startIndex)
+            // Brief delay to ensure content is ready, then hide skeleton
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    isInitialLoading = false
+                }
+            }
         }
     }
     
@@ -121,52 +133,56 @@ struct VibeViewerView: View {
                     appState.navigateToComposer()
                 }
             } else {
-                Group {
-                    switch vibe.type {
-                    case .photo:
-                        PhotoVibeContent(vibe: vibe)
-                    case .video:
-                        VideoVibeContent(vibe: vibe)
-                    case .song:
-                        SongVibeContent(vibe: vibe)
-                    case .battery:
-                        BatteryVibeContent(vibe: vibe)
-                    case .mood:
-                        MoodVibeContent(vibe: vibe)
-                    case .poll:
-                        PollVibeContent(vibe: vibe)
-                    case .dailyDrop:
-                        PhotoVibeContent(vibe: vibe)
-                    case .tea:
-                        TeaVibeContent(vibe: vibe)
-                    case .leak:
-                        PhotoVibeContent(vibe: vibe)
-                    case .sketch:
-                        SketchVibeContent(vibe: vibe)
-                    case .eta:
-                        ETAVibeContent(vibe: vibe)
+                ZStack {
+                    Group {
+                        if vibe.type == .photo {
+                            PhotoVibeContent(vibe: vibe)
+                        } else if vibe.type == .video {
+                            VideoVibeContent(vibe: vibe)
+                        } else if vibe.type == .song {
+                            SongVibeContent(vibe: vibe)
+                        } else if vibe.type == .battery {
+                            BatteryVibeContent(vibe: vibe)
+                        } else if vibe.type == .mood {
+                            MoodVibeContent(vibe: vibe)
+                        } else if vibe.type == .poll {
+                            PollVibeContent(vibe: vibe)
+                        } else if vibe.type == .tea {
+                            TeaVibeContent(vibe: vibe)
+                        } else if vibe.type == .sketch {
+                            SketchVibeContent(vibe: vibe)
+                        } else if vibe.type == .eta {
+                            ETAVibeContent(vibe: vibe)
+                        } else {
+                            PhotoVibeContent(vibe: vibe)
+                        }
+                    }
+                    .transition(.opacity)
+                    
+                    // Text Overlay (Instagram Style)
+                    if let text = vibe.textStatus, !text.isEmpty {
+                        VStack {
+                            Spacer()
+                            Text(text)
+                                .font(.system(.title2, design: .rounded))
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(.ultraThinMaterial)
+                                .cornerRadius(12)
+                                .shadow(radius: 4)
+                            Spacer()
+                        }
+                        .padding(.bottom, 100)
                     }
                 }
-                
-                // Text Overlay (Instagram Style)
-                if let text = vibe.textStatus, !text.isEmpty {
-                    VStack {
-                        Spacer()
-                        Text(text)
-                            .font(.system(.title2, design: .rounded))
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(12)
-                            .shadow(radius: 4)
-                        Spacer()
-                    }
-                    .padding(.bottom, 100)
-                }
+                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: vibe.isUnlocked(for: appState.userId))
             }
         }
+        .scaleEffect(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.95)
+        .opacity(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.7)
+        .animation(.interactiveSpring(), value: currentIndex)
         .onAppear {
             if let song = vibe.songData, let previewUrl = song.previewUrl, let url = URL(string: previewUrl) {
                 musicPlayer = AVPlayer(url: url)
@@ -220,6 +236,43 @@ struct VibeViewerView: View {
                 }
 
                 Spacer()
+
+                // Streak (Task 9.2) - 🔥 count
+                if let streak = appState.streak, streak.currentStreak > 0 {
+                    HStack(spacing: 2) {
+                        Text("🔥")
+                            .font(.system(size: 16))
+                        Text("\(streak.currentStreak)")
+                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.orange.opacity(0.8))
+                    .clipShape(Capsule())
+                    .scaleEffect(streakScale)
+                    .onAppear {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.4, blendDuration: 0)) {
+                            streakScale = 1.2
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation {
+                                streakScale = 1.0
+                            }
+                        }
+                    }
+                    .onChange(of: streak.currentStreak) { _, _ in
+                        // Animate on increase
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.4, blendDuration: 0)) {
+                            streakScale = 1.4
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            withAnimation {
+                                streakScale = 1.0
+                            }
+                        }
+                    }
+                }
 
                 // Timer (Now part of the user row)
                 if currentIndex < appState.viewerVibes.count {
@@ -395,21 +448,43 @@ struct ReactionPicker: View {
 // MARK: - Photo Vibe Content
 struct PhotoVibeContent: View {
     let vibe: Vibe
+    @State private var loadFailed = false
+    @State private var retryId = UUID()
 
     var body: some View {
         ZStack {
             if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    ProgressView()
+                if loadFailed {
+                    ImageLoadErrorView {
+                        loadFailed = false
+                        retryId = UUID()
+                    }
+                } else {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                        case .failure:
+                            ImageLoadErrorView {
+                                loadFailed = false
+                                retryId = UUID()
+                            }
+                            .onAppear {
+                                loadFailed = true
+                            }
+                        @unknown default:
+                            ProgressView()
+                        }
+                    }
+                    .id(retryId)
                 }
             } else {
-                Image(systemName: "photo")
-                    .font(.largeTitle)
-                    .foregroundColor(.gray)
+                ImageLoadErrorView(onRetry: nil)
             }
         }
     }
@@ -419,34 +494,102 @@ struct PhotoVibeContent: View {
 struct VideoVibeContent: View {
     let vibe: Vibe
     @State private var player: AVPlayer?
+    @State private var playerError: Error?
+    @State private var isLoading = true
+    @State private var retryCount = 0
 
     var body: some View {
         ZStack {
             if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
-                VideoPlayer(player: player)
-                    .onAppear {
-                        player = AVPlayer(url: url)
-                        player?.play()
+                if playerError != nil {
+                    // Error state
+                    VideoPlaybackErrorView {
+                        retryPlayback(url: url)
                     }
-                    .onDisappear {
-                        player?.pause()
-                        player = nil
+                } else {
+                    VideoPlayer(player: player)
+                        .onAppear {
+                            setupPlayer(url: url)
+                        }
+                        .onDisappear {
+                            cleanupPlayer()
+                        }
+
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
+                }
             } else if let thumbnailUrl = vibe.thumbnailUrl, let url = URL(string: thumbnailUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                } placeholder: {
-                    ProgressView()
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    case .failure:
+                        ImageLoadErrorView()
+                    @unknown default:
+                        ProgressView()
+                    }
                 }
             } else {
-                Image(systemName: "video.slash")
-                    .font(.largeTitle)
-                    .foregroundColor(.gray)
+                VideoPlaybackErrorView(onRetry: nil)
             }
         }
     }
+
+    private func setupPlayer(url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+
+        // Observe player item status
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemFailedToPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { notification in
+            if let error = notification.userInfo?[AVPlayerItemFailedToPlayToEndTimeErrorKey] as? Error {
+                self.playerError = error
+            }
+        }
+
+        player = AVPlayer(playerItem: playerItem)
+
+        // Observe when player is ready
+        playerItem.publisher(for: \.status)
+            .receive(on: DispatchQueue.main)
+            .sink { status in
+                switch status {
+                case .readyToPlay:
+                    isLoading = false
+                    player?.play()
+                case .failed:
+                    isLoading = false
+                    playerError = playerItem.error
+                default:
+                    break
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func cleanupPlayer() {
+        player?.pause()
+        player = nil
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    private func retryPlayback(url: URL) {
+        playerError = nil
+        isLoading = true
+        retryCount += 1
+        cleanupPlayer()
+        setupPlayer(url: url)
+    }
+
+    @State private var cancellables = Set<AnyCancellable>()
 }
 
 // MARK: - Song Vibe Content
@@ -841,6 +984,112 @@ struct PollOptionView: View {
         }
         .buttonStyle(.plain)
         .disabled(hasVoted)
+    }
+}
+
+// MARK: - Viewer Skeleton View (Loading Placeholder)
+struct ViewerSkeletonView: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Top bar skeleton
+                VStack(spacing: 12) {
+                    // Progress indicators
+                    HStack(spacing: 4) {
+                        ForEach(0..<4, id: \.self) { _ in
+                            Capsule()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(height: 3)
+                        }
+                    }
+
+                    // User info skeleton
+                    HStack(spacing: 12) {
+                        Circle()
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 36, height: 36)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.2))
+                                .frame(width: 80, height: 12)
+
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.15))
+                                .frame(width: 50, height: 8)
+                        }
+
+                        Spacer()
+
+                        // Timer skeleton
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.2))
+                            .frame(width: 60, height: 24)
+
+                        // Close button skeleton
+                        Circle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 28, height: 28)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.top, 10)
+
+                Spacer()
+
+                // Content skeleton (center area)
+                VStack(spacing: 16) {
+                    // Main content placeholder
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.1))
+                        .frame(width: 200, height: 200)
+
+                    // Text placeholder
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white.opacity(0.15))
+                        .frame(width: 150, height: 20)
+                }
+
+                Spacer()
+
+                // Bottom bar skeleton
+                VStack(spacing: 16) {
+                    // Reaction buttons skeleton
+                    HStack(spacing: 32) {
+                        VStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(width: 32, height: 32)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.15))
+                                .frame(width: 40, height: 10)
+                        }
+
+                        VStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.white.opacity(0.2))
+                                .frame(width: 32, height: 32)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.15))
+                                .frame(width: 40, height: 10)
+                        }
+                    }
+                }
+                .padding()
+            }
+        }
+        .opacity(isAnimating ? 0.6 : 1.0)
+        .animation(
+            .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+            value: isAnimating
+        )
+        .onAppear {
+            isAnimating = true
+        }
     }
 }
 

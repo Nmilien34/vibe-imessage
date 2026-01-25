@@ -15,6 +15,7 @@ struct VibeRingView: View {
     let onTap: () -> Void
 
     @State private var animateGradient = false
+    @State private var isVisible = false
 
     private var hasUnviewed: Bool {
         vibes.contains { !$0.hasViewed(userId) && $0.userId != userId }
@@ -154,51 +155,59 @@ struct VibeRingView: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                // Ring
-                Circle()
-                    .strokeBorder(ringGradient, lineWidth: hasUnviewed ? 3 : 2)
-                    .frame(width: size, height: size)
+        Group {
+            if isVisible {
+                Button(action: onTap) {
+                    ZStack {
+                        // Ring
+                        Circle()
+                            .strokeBorder(ringGradient, lineWidth: hasUnviewed ? 3 : 2)
+                            .frame(width: size, height: size)
 
-                // Content circle
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: size - 8, height: size - 8)
-                    .overlay {
-                        previewContent
-                            .clipShape(Circle())
-                            .frame(width: size - 10, height: size - 10)
-                    }
+                        // Content circle
+                        Circle()
+                            .fill(Color.black)
+                            .frame(width: size - 8, height: size - 8)
+                            .overlay {
+                                previewContent
+                                    .clipShape(Circle())
+                                    .frame(width: size - 10, height: size - 10)
+                            }
 
-                // Add button for current user
-                if isCurrentUser {
-                    Circle()
-                        .fill(Color.blue)
-                        .frame(width: size * 0.3, height: size * 0.3)
-                        .overlay {
-                            Image(systemName: "plus")
-                                .font(.system(size: size * 0.15, weight: .bold))
-                                .foregroundColor(.white)
+                        // Add button for current user
+                        if isCurrentUser {
+                            Circle()
+                                .fill(Color.blue)
+                                .frame(width: size * 0.3, height: size * 0.3)
+                                .overlay {
+                                    Image(systemName: "plus")
+                                        .font(.system(size: size * 0.15, weight: .bold))
+                                        .foregroundColor(.white)
+                                }
+                                .offset(x: size * 0.35, y: size * 0.35)
                         }
-                        .offset(x: size * 0.35, y: size * 0.35)
-                }
 
-                // Vibe count badge
-                if vibes.count > 1 {
-                    Text("\(vibes.count)")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.black.opacity(0.7))
-                        .clipShape(Capsule())
-                        .offset(x: size * 0.3, y: -size * 0.35)
+                        // Vibe count badge
+                        if vibes.count > 1 {
+                            Text("\(vibes.count)")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.black.opacity(0.7))
+                                .clipShape(Capsule())
+                                .offset(x: size * 0.3, y: -size * 0.35)
+                        }
+                    }
                 }
+                .buttonStyle(.plain)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .buttonStyle(.plain)
         .onAppear {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                isVisible = true
+            }
             if hasUnviewed {
                 withAnimation(.linear(duration: 3).repeatForever(autoreverses: false)) {
                     animateGradient.toggle()

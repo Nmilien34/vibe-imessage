@@ -80,7 +80,18 @@ actor VibeService {
         )
     }
 
+    /// Upload result containing both URL and S3 key for cleanup tracking
+    struct UploadResult {
+        let url: String
+        let key: String
+    }
+
     func uploadMedia(data: Data, fileType: String, folder: String = "vibes") async throws -> String {
+        let result = try await uploadMediaWithKey(data: data, fileType: fileType, folder: folder)
+        return result.url
+    }
+
+    func uploadMediaWithKey(data: Data, fileType: String, folder: String = "vibes") async throws -> UploadResult {
         // Get presigned URL
         let presigned = try await getPresignedUrl(fileType: fileType, folder: folder)
 
@@ -102,6 +113,6 @@ actor VibeService {
         // Upload to S3
         try await api.uploadToS3(data: data, presignedUrl: presigned.uploadUrl, contentType: contentType)
 
-        return presigned.publicUrl
+        return UploadResult(url: presigned.publicUrl, key: presigned.key)
     }
 }

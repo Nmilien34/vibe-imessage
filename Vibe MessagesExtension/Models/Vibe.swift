@@ -30,6 +30,8 @@ struct Vibe: Codable, Identifiable, Equatable {
     let createdAt: Date
     let updatedAt: Date
 
+    // History support - indicates vibe is past 24h but still in 15-day history
+    var isExpiredFromFeed: Bool?
 }
 
 extension Vibe {
@@ -55,6 +57,7 @@ extension Vibe {
         case expiresAt
         case createdAt
         case updatedAt
+        case isExpiredFromFeed
     }
 
     init(from decoder: Decoder) throws {
@@ -80,6 +83,7 @@ extension Vibe {
         self.expiresAt = try container.decode(Date.self, forKey: .expiresAt)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        self.isExpiredFromFeed = try container.decodeIfPresent(Bool.self, forKey: .isExpiredFromFeed)
     }
 
     func isUnlocked(for userId: String) -> Bool {
@@ -121,7 +125,9 @@ struct CreateVibeRequest: Codable {
     let conversationId: String
     let type: VibeType
     var mediaUrl: String?
+    var mediaKey: String?      // S3 key for cleanup
     var thumbnailUrl: String?
+    var thumbnailKey: String?  // S3 key for cleanup
     var songData: SongData?
     var batteryLevel: Int?
     var mood: Mood?

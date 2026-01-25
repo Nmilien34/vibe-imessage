@@ -111,21 +111,18 @@ struct CameraView: View {
                     .padding(.bottom, 30)
                 }
             } else {
-                VStack {
-                    if model.isUnauthorized {
-                        Text("Camera access denied")
-                            .foregroundColor(.white)
-                        Button("Open Settings") {
-                            if let url = URL(string: UIApplication.openSettingsURLString) {
-                                openURL(url)
-                            }
-                        }
-                        .padding()
-                        .background(Color.white)
-                        .cornerRadius(8)
-                    } else {
+                if model.isUnauthorized {
+                    CameraPermissionDeniedView {
+                        dismiss()
+                    }
+                } else {
+                    VStack {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Text("Starting camera...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                            .padding(.top, 8)
                     }
                 }
             }

@@ -218,66 +218,83 @@ struct BentoDashboardView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.gray)
                 Spacer()
+
+                // Loading indicator
+                if appState.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                }
             }
             .padding(.horizontal)
-            
+
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    // Current user (if they posted recently)
-                    let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
-                    if !currentUserVibes.isEmpty {
-                        VibeRingView(
-                            vibes: currentUserVibes,
-                            userId: appState.userId,
-                            isCurrentUser: true,
-                            size: 60
-                        ) {
-                            if let firstVibe = currentUserVibes.first {
-                                appState.navigateToViewer(opening: firstVibe.id)
-                            }
+                if appState.isLoading && appState.vibes.isEmpty {
+                    // Skeleton loading state
+                    HStack(spacing: 16) {
+                        ForEach(0..<5, id: \.self) { _ in
+                            SkeletonRingView(size: 60)
                         }
                     }
-                    
-                    // All friends who posted (Grouped by user)
-                    let groupedVibes = appState.vibesGroupedByUser()
-                    
-                    if groupedVibes.count == 1 && groupedVibes.first?.first?.userId == "vibe_team" {
-                        // Only team vibe, show guide text
-                        VibeRingView(
-                            vibes: groupedVibes.first!,
-                            userId: "vibe_team",
-                            isCurrentUser: false,
-                            size: 60
-                        ) {
-                            appState.navigateToViewer(opening: "team_welcome")
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Welcome! Watch this guide")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                            Text("Your friends will appear here once they post.")
-                                .font(.system(size: 8))
-                                .foregroundColor(.gray)
-                        }
-                    } else {
-                        ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                            if let firstVibe = userVibes.first,
-                               firstVibe.userId != appState.userId {
-                                VibeRingView(
-                                    vibes: userVibes,
-                                    userId: firstVibe.userId,
-                                    isCurrentUser: false,
-                                    size: 60
-                                ) {
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                } else {
+                    HStack(spacing: 16) {
+                        // Current user (if they posted recently)
+                        let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
+                        if !currentUserVibes.isEmpty {
+                            VibeRingView(
+                                vibes: currentUserVibes,
+                                userId: appState.userId,
+                                isCurrentUser: true,
+                                size: 60
+                            ) {
+                                if let firstVibe = currentUserVibes.first {
                                     appState.navigateToViewer(opening: firstVibe.id)
                                 }
                             }
                         }
+
+                        // All friends who posted (Grouped by user)
+                        let groupedVibes = appState.vibesGroupedByUser()
+
+                        if groupedVibes.count == 1 && groupedVibes.first?.first?.userId == "vibe_team" {
+                            // Only team vibe, show guide text
+                            VibeRingView(
+                                vibes: groupedVibes.first!,
+                                userId: "vibe_team",
+                                isCurrentUser: false,
+                                size: 60
+                            ) {
+                                appState.navigateToViewer(opening: "team_welcome")
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Welcome! Watch this guide")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                Text("Your friends will appear here once they post.")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                                if let firstVibe = userVibes.first,
+                                   firstVibe.userId != appState.userId {
+                                    VibeRingView(
+                                        vibes: userVibes,
+                                        userId: firstVibe.userId,
+                                        isCurrentUser: false,
+                                        size: 60
+                                    ) {
+                                        appState.navigateToViewer(opening: firstVibe.id)
+                                    }
+                                }
+                            }
+                        }
                     }
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 4)
             }
         }
         .padding(.top, 8)

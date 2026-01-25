@@ -1,0 +1,54 @@
+{
+  "Rules": [
+    {
+      "ID": "DeleteVibesMediaAfter15Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "vibes/"
+      },
+      "Expiration": {
+        "Days": 15
+      }
+    },
+    {
+      "ID": "DeleteLeaksMediaAfter15Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "leaks/"
+      },
+      "Expiration": {
+        "Days": 15
+      }
+    },
+    {
+      "ID": "DeleteTeaMediaAfter15Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "tea/"
+      },
+      "Expiration": {
+        "Days": 15
+      }
+    },
+    {
+      "ID": "DeleteThumbnailsAfter15Days",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "thumbnails/"
+      },
+      "Expiration": {
+        "Days": 15
+      }
+    },
+    {
+      "ID": "CleanupIncompleteUploads",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 1
+      }
+    }
+  ]
+}
