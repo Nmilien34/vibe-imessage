@@ -17,6 +17,41 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var isRecording = false
     @Published var recordingTime: TimeInterval = 0
     @Published var recordedVideo: VideoRecording?
+    @Published var isUploading = false
+    @Published var uploadError: String?
+    
+    // ...
+    
+    func uploadVideo(userId: String, chatId: String, isLocked: Bool) async -> (videoId: String, videoUrl: String)? {
+        guard let video = recordedVideo else { return nil }
+        
+        await MainActor.run {
+            self.isUploading = true
+            self.uploadError = nil
+        }
+        
+        do {
+            let data = try Data(contentsOf: video.url)
+            let result = try await APIService.shared.uploadVideo(
+                videoData: data,
+                userId: userId,
+                chatId: chatId,
+                isLocked: isLocked
+            )
+            
+            await MainActor.run {
+                self.isUploading = false
+            }
+            
+            return result
+        } catch {
+            await MainActor.run {
+                self.isUploading = false
+                self.uploadError = error.localizedDescription
+            }
+            return nil
+        }
+    }
     
     private let sessionQueue = DispatchQueue(label: "com.vibe.cameraSession")
     private var videoOutput = AVCaptureMovieFileOutput()

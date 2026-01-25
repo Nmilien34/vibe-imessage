@@ -50,7 +50,7 @@ actor APIClient {
     private let encoder: JSONEncoder
 
     // MARK: - Mock Data Store
-    private var mockVibes: [Vibe] = []
+    private var mockVibes: [Vibe] = generateInitialMockVibes()
     private var mockUsers: [String: String] = ["user123": "You"]
 
     private init() {
@@ -80,13 +80,10 @@ actor APIClient {
 
         self.encoder = JSONEncoder()
         self.encoder.dateEncodingStrategy = .iso8601
-        
-        // Load mock data asynchronously or lazily
-        self.loadMockData()
     }
 
-    private func loadMockData() {
-        self.mockVibes = [
+    private static func generateInitialMockVibes() -> [Vibe] {
+        return [
             // 1. Unlocked Video (Story) - Friend 1
             Vibe(
                 id: UUID().uuidString,
@@ -305,7 +302,7 @@ actor APIClient {
                 songData: nil,
                 batteryLevel: nil,
                 mood: nil,
-                poll: pollPlaceholder(),
+                poll: nil,
                 textStatus: nil,
                 styleName: nil,
                 etaStatus: nil,

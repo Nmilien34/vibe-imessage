@@ -18,39 +18,53 @@ enum CameraMode: String, CaseIterable, Identifiable {
 
 struct CreatorCameraView: View {
     @EnvironmentObject var appState: AppState
+    @StateObject private var viewModel = CameraViewModel()
     
     // Config
     var initialMode: CameraMode = .normal
     
     // State
     @State private var selectedMode: CameraMode
-    @State private var isRecording = false
     @State private var showPrompter = false
     @State private var promptText = "Show us your fridge."
     @State private var timerString = "00:00 / 00:15"
     @State private var isBoomerang = false
     
-    // Binding for Media Picker
+    // Bindings to parent (VideoComposerView)
     @Binding var selectedItem: PhotosPickerItem?
+    @Binding var mediaData: Data?
+    @Binding var thumbnail: UIImage?
     
-    // Mock Data for "Upload" button (last photo)
-    @State private var lastPhoto: Image? = Image(systemName: "photo")
-    
-    init(initialLocked: Bool = false, selectedItem: Binding<PhotosPickerItem?>) {
+    init(initialLocked: Bool = false, selectedItem: Binding<PhotosPickerItem?>, mediaData: Binding<Data?>, thumbnail: Binding<UIImage?>) {
         _selectedMode = State(initialValue: initialLocked ? .locked : .normal)
         _selectedItem = selectedItem
+        _mediaData = mediaData
+        _thumbnail = thumbnail
     }
     
     var body: some View {
         ZStack {
-            // Layer 1: Camera Feed (Mock)
-            Color.black
-                .edgesIgnoringSafeArea(.all)
-                .overlay(
-                    Image(systemName: "camera.aperture")
-                        .font(.system(size: 80))
-                        .foregroundColor(.gray.opacity(0.3))
-                )
+            // Layer 1: Camera Feed
+            if let session = viewModel.session {
+                CameraPreview(session: session)
+                    .edgesIgnoringSafeArea(.all)
+            } else {
+                Color.black
+                    .edgesIgnoringSafeArea(.all)
+                    .overlay(
+                        VStack(spacing: 16) {
+                            Image(systemName: "camera.aperture")
+                                .font(.system(size: 80))
+                                .foregroundColor(.gray.opacity(0.3))
+                            
+                            if viewModel.isUnauthorized {
+                                Text("Camera access required")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
+                    )
+            }
             
             // Layer 2: UI Overlay
             VStack {
@@ -76,8 +90,26 @@ struct CreatorCameraView: View {
                 // C. Footer controls
                 footerView
             }
-            .padding(.top, 44) // approximate safe area if needed, or rely on SafeArea
+            .padding(.top, 44)
             .padding(.bottom, 20)
+            .opacity(viewModel.isRecording ? 0.3 : 1.0) // Dim UI while recording
+        }
+        .onAppear {
+            viewModel.checkPermissions()
+        }
+        .onDisappear {
+            viewModel.stopSession()
+        }
+        .onChange(of: viewModel.recordedVideo) { _, newValue in
+            if let video = newValue {
+                Task {
+                    // Load data and thumbnail
+                    if let data = try? Data(contentsOf: video.url) {
+                        self.mediaData = data
+                        self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
+                    }
+                }
+            }
         }
     }
     
@@ -101,33 +133,24 @@ struct CreatorCameraView: View {
             Spacer()
             
             // Timer Capsule
-            Text(timerString)
-                .font(.system(.subheadline, design: .rounded)) // Monospaced Digit not directly available in standard Font modifier easily without UIFont, trying standard first
-                .monospacedDigit()
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color.black.opacity(0.5))
-                .clipShape(Capsule())
+            if viewModel.isRecording {
+                Text(String(format: "%02d:%02d / 00:15", Int(viewModel.recordingTime) / 60, Int(viewModel.recordingTime) % 60))
+                    .font(.system(.subheadline, design: .rounded))
+                    .monospacedDigit()
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.red.opacity(0.8))
+                    .clipShape(Capsule())
+            }
             
             Spacer()
             
             // Camera Tools (Flash & Flip)
             VStack(spacing: 12) {
                 Button {
-                    // Toggle Flash
-                } label: {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 18))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                }
-                
-                Button {
-                    // Flip Camera
+                    viewModel.flipCamera()
                 } label: {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.system(size: 18))
@@ -171,10 +194,8 @@ struct CreatorCameraView: View {
                         withAnimation(.spring()) {
                             selectedMode = mode
                         }
-                        // Trigger haptic
                         let generator = UIImpactFeedbackGenerator(style: .soft)
                         generator.impactOccurred()
-                        
                     } label: {
                         VStack(spacing: 4) {
                             Text(mode.rawValue)
@@ -185,7 +206,7 @@ struct CreatorCameraView: View {
                             
                             if selectedMode == mode {
                                 Circle()
-                                    .fill(Color.yellow) // "glowing dot", maybe yellow or white with glow
+                                    .fill(Color.yellow)
                                     .frame(width: 4, height: 4)
                                     .shadow(color: .yellow, radius: 4)
                             } else {
@@ -200,6 +221,7 @@ struct CreatorCameraView: View {
             }
             .padding(.horizontal)
             .shadow(radius: 4)
+            .opacity(viewModel.isRecording ? 0 : 1)
             
             // 2. Action Row
             HStack(spacing: 40) {
@@ -207,7 +229,7 @@ struct CreatorCameraView: View {
                 Button {
                     withAnimation {
                         showPrompter.toggle()
-                        promptText = "Show us your fridge." // Logic to Randomize later
+                        promptText = "Show us your fridge."
                     }
                     let generator = UIImpactFeedbackGenerator(style: .medium)
                     generator.impactOccurred()
@@ -217,81 +239,80 @@ struct CreatorCameraView: View {
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                 }
+                .opacity(viewModel.isRecording ? 0 : 1)
                 
                 // Center: Shutter Button
                 ZStack {
-                    // Outer Ring
                     Circle()
                         .strokeBorder(Color.white, lineWidth: 4)
-                        .frame(width: 76, height: 76) // Slightly larger to contain 70px inner
-                        .shadow(radius: 4)
+                        .frame(width: 76, height: 76)
                     
-                    // Inner Circle (Shutter)
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [.red, .purple],
+                                colors: viewModel.isRecording ? [.red, .orange] : [.red, .purple],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: isRecording ? 70 : 60, height: isRecording ? 70 : 60)
-                        .scaleEffect(isRecording ? 1.0 : 0.9) // Additional scale visual
-                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isRecording)
+                        .frame(width: viewModel.isRecording ? 70 : 60, height: viewModel.isRecording ? 70 : 60)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.isRecording)
                         .onLongPressGesture(minimumDuration: 0.1, pressing: { pressing in
-                            withAnimation {
-                                isRecording = pressing
-                            }
                             if pressing {
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
+                                viewModel.startRecording()
+                            } else {
+                                viewModel.stopRecording()
                             }
-                        }) {
-                            // Action on release/complete
-                        }
+                        }) { }
                     
-                    // Progress Bar (Mock)
-                    if isRecording {
+                    if viewModel.isRecording {
                         Circle()
-                            .trim(from: 0, to: 0.33) // Mock progress
-                            .stroke(Color.red, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .trim(from: 0, to: viewModel.recordingTime / 15.0)
+                            .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                             .frame(width: 76, height: 76)
                             .rotationEffect(.degrees(-90))
-                            .animation(.linear(duration: 15), value: isRecording) // Mock timer
                     }
                 }
                 
-                // Right: Upload (Gallery)
+                // Right: Gallery
                 PhotosPicker(selection: $selectedItem, matching: .any(of: [.videos, .images])) {
-                    if let image = lastPhoto {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 44, height: 44)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white, lineWidth: 2)
-                            )
-                            .shadow(radius: 4)
-                    } else {
-                        // Fallback
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.gray.opacity(0.5))
-                            .frame(width: 44, height: 44)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.white, lineWidth: 2)
-                            )
-                    }
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.gray.opacity(0.5))
+                        .frame(width: 44, height: 44)
+                        .overlay(
+                            Image(systemName: "photo.on.rectangle")
+                                .foregroundColor(.white)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.white, lineWidth: 2)
+                        )
+                        .shadow(radius: 4)
                 }
+                .disabled(viewModel.isRecording)
+                .opacity(viewModel.isRecording ? 0 : 1)
             }
             .padding(.bottom, 20)
         }
     }
 }
 
+struct CameraPreview: UIViewRepresentable {
+    let session: AVCaptureSession
+    
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: UIScreen.main.bounds)
+        let previewLayer = AVCaptureVideoPreviewLayer(session: session)
+        previewLayer.frame = view.frame
+        previewLayer.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(previewLayer)
+        return view
+    }
+    
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
 #Preview {
-    CreatorCameraView(selectedItem: .constant(nil))
+    CreatorCameraView(selectedItem: .constant(nil), mediaData: .constant(nil), thumbnail: .constant(nil))
         .environmentObject(AppState())
 }

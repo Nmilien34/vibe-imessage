@@ -114,7 +114,9 @@ struct VibeViewerView: View {
 
     private func vibeContent(_ vibe: Vibe, geometry: GeometryProxy) -> some View {
         ZStack {
-            if vibe.isLocked && !vibe.isUnlocked(for: appState.userId) {
+            if vibe.isExpired {
+                ExpiredStoryView()
+            } else if vibe.isLocked && !vibe.isUnlocked(for: appState.userId) {
                 LockedVibeView(vibe: vibe) {
                     appState.navigateToComposer()
                 }

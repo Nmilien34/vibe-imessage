@@ -27,8 +27,8 @@ class MessagesViewController: MSMessagesAppViewController {
         }
         
         // Callback for sending a story
-        appState.sendStory = { [weak self] (video: VideoRecording, isLocked: Bool) in
-            self?.sendStory(video: video, isLocked: isLocked)
+        appState.sendStory = { [weak self] (videoId: String, videoUrl: String, isLocked: Bool, rawThumbnail: UIImage?) in
+            self?.sendStory(videoId: videoId, videoUrl: videoUrl, isLocked: isLocked, rawThumbnail: rawThumbnail)
         }
 
         // Callback when unlock flow completes
@@ -149,71 +149,46 @@ class MessagesViewController: MSMessagesAppViewController {
     
     // MARK: - Sending Stories
 
-    func sendStory(video: VideoRecording, isLocked: Bool) {
+    func sendStory(videoId: String, videoUrl: String, isLocked: Bool, rawThumbnail: UIImage?) {
         guard let conversation = activeConversation else { return }
 
-        // 1. Upload video (Mock for now)
-        // In a real app, you'd upload 'video.url' to your backend here
-        // and get back a remote URL and ID.
-        let videoId = video.id.uuidString
-        let mockRemoteUrl = "https://example.com/videos/\(videoId).mov"
-
-        // 2. Generate raw thumbnail from video
-        let rawThumbnail = video.thumbnail ?? generateThumbnail(for: video.url)
-
-        // 3. Create styled bubble with gradient border, play button, expiration
+        // 1. Create styled bubble
         let styledThumbnail = StoryBubbleRenderer.shared.renderStoryBubble(
-            thumbnail: rawThumbnail,
+            thumbnail: rawThumbnail ?? UIImage(systemName: "play.circle.fill")!,
             expiresIn: 24,
             isLocked: isLocked
         )
 
-        // 4. Create Layout
+        // 2. Create Layout
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
         layout.caption = isLocked ? "🔒 New Locked Vibe!" : "✨ New Vibe!"
-        layout.subcaption = "Tap to view • \(Int(video.duration))s"
+        layout.subcaption = "Tap to view" // We could pass duration here too if we want
 
-        // 5. Create Message
+        // 3. Create Message
         let message = MSMessage(session: conversation.selectedMessage?.session ?? MSSession())
         message.layout = layout
-        // This text appears in the conversation transcript/notification
         message.summaryText = isLocked ? "just posted a locked vibe 🔒" : "just posted a vibe ✨"
 
-        // 6. Encode data for the extension to read later
+        // 4. Encode data
         var components = URLComponents()
         components.scheme = "vibe"
         components.host = "story"
         components.queryItems = [
             URLQueryItem(name: "videoId", value: videoId),
             URLQueryItem(name: "locked", value: String(isLocked)),
-            URLQueryItem(name: "url", value: mockRemoteUrl),
+            URLQueryItem(name: "url", value: videoUrl),
             URLQueryItem(name: "userId", value: appState.userId),
             URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970)))
         ]
         message.url = components.url
 
-        // 7. Insert into Conversation
-        conversation.insert(message) { [weak self] error in
+        // 5. Insert into Conversation
+        conversation.insert(message) { error in
             if let error = error {
                 print("Error inserting message: \(error)")
             } else {
-                // SUCCESS! Now save to our backend (AppState) so it shows in the feed/story
-                Task { @MainActor [weak self] in
-                    do {
-                        try await self?.appState.createVibe(
-                            type: .video, // Assuming video for now, or derive from recording type
-                            mediaUrl: mockRemoteUrl,
-                            thumbnailUrl: nil, // Thumbnail usually generated on server or from mediaUrl
-                            isLocked: isLocked
-                        )
-                        // Dismiss after saving
-                        self?.dismiss(animated: true)
-                    } catch {
-                        print("Error saving vibe to backend: \(error)")
-                        self?.dismiss(animated: true)
-                    }
-                }
+                // Done - AppState handles the local vibe creation and dismiss if needed
             }
         }
     }

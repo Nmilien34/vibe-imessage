@@ -31,6 +31,24 @@ const deleteFile = async (key) => {
   await s3Client.send(command);
 };
 
+// Upload a buffer directly to S3
+const uploadToS3 = async (buffer, fileType, folder = 'vibes') => {
+  const key = `${folder}/${uuidv4()}.${fileType}`;
+  const contentType = getContentType(fileType);
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  });
+
+  await s3Client.send(command);
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+  return { publicUrl, key };
+};
+
 // Helper to get content type
 const getContentType = (fileType) => {
   const types = {
@@ -44,4 +62,4 @@ const getContentType = (fileType) => {
   return types[fileType.toLowerCase()] || 'application/octet-stream';
 };
 
-module.exports = { getUploadUrl, deleteFile };
+module.exports = { getUploadUrl, deleteFile, uploadToS3 };

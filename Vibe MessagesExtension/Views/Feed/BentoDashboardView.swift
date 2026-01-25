@@ -240,16 +240,38 @@ struct BentoDashboardView: View {
                     
                     // All friends who posted (Grouped by user)
                     let groupedVibes = appState.vibesGroupedByUser()
-                    ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                        if let firstVibe = userVibes.first,
-                           firstVibe.userId != appState.userId {
-                            VibeRingView(
-                                vibes: userVibes,
-                                userId: firstVibe.userId,
-                                isCurrentUser: false,
-                                size: 60
-                            ) {
-                                appState.navigateToViewer(opening: firstVibe.id)
+                    
+                    if groupedVibes.count == 1 && groupedVibes.first?.first?.userId == "vibe_team" {
+                        // Only team vibe, show guide text
+                        VibeRingView(
+                            vibes: groupedVibes.first!,
+                            userId: "vibe_team",
+                            isCurrentUser: false,
+                            size: 60
+                        ) {
+                            appState.navigateToViewer(opening: "team_welcome")
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Welcome! Watch this guide")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                            Text("Your friends will appear here once they post.")
+                                .font(.system(size: 8))
+                                .foregroundColor(.gray)
+                        }
+                    } else {
+                        ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                            if let firstVibe = userVibes.first,
+                               firstVibe.userId != appState.userId {
+                                VibeRingView(
+                                    vibes: userVibes,
+                                    userId: firstVibe.userId,
+                                    isCurrentUser: false,
+                                    size: 60
+                                ) {
+                                    appState.navigateToViewer(opening: firstVibe.id)
+                                }
                             }
                         }
                     }
@@ -394,70 +416,84 @@ struct BentoDashboardView: View {
             }
             .padding(.horizontal)
             
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    // 1. The MVP
-                    if let (mvpId, count) = mvpData {
-                        SquadStatCard(
-                            title: "The MVP",
-                            icon: "👑",
-                            accentColor: .yellow,
-                            centerContent: {
-                                avatarForUser(mvpId, size: 40)
-                            },
-                            footerContent: {
-                                Text("\(nameForUser(mvpId)) (+\(count))")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundColor(.primary)
-                            }
-                        )
-                    }
-                    
-                    // 2. The Ghost
-                    if let ghostId = ghostUserId {
-                        SquadStatCard(
-                            title: "The Ghost",
-                            icon: "👻",
-                            accentColor: .gray,
-                            centerContent: {
-                                avatarForUser(ghostId, size: 40, desaturated: true)
-                            },
-                            footerContent: {
-                                Button {
-                                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                    // Logic for nudge could go here
-                                } label: {
-                                    Text("Nudge")
+            if mvpData != nil || ghostUserId != nil {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        // 1. The MVP
+                        if let (mvpId, count) = mvpData {
+                            SquadStatCard(
+                                title: "The MVP",
+                                icon: "👑",
+                                accentColor: .yellow,
+                                centerContent: {
+                                    avatarForUser(mvpId, size: 40)
+                                },
+                                footerContent: {
+                                    Text("\(nameForUser(mvpId)) (+\(count))")
                                         .font(.system(size: 10, weight: .bold))
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background(Color.blue)
-                                        .foregroundColor(.white)
-                                        .clipShape(Capsule())
+                                        .foregroundColor(.primary)
                                 }
+                            )
+                        }
+                        
+                        // 2. The Ghost
+                        if let ghostId = ghostUserId {
+                            SquadStatCard(
+                                title: "The Ghost",
+                                icon: "👻",
+                                accentColor: .gray,
+                                centerContent: {
+                                    avatarForUser(ghostId, size: 40, desaturated: true)
+                                },
+                                footerContent: {
+                                    Button {
+                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                        // Logic for nudge could go here
+                                    } label: {
+                                        Text("Nudge")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue)
+                                            .foregroundColor(.white)
+                                            .clipShape(Capsule())
+                                    }
+                                }
+                            )
+                        }
+                        
+                        // 3. Bestie Streak
+                        SquadStatCard(
+                            title: "Bestie Streak",
+                            icon: "🔥",
+                            accentColor: .orange,
+                            centerContent: {
+                                Text("\(bestieStreakCount)")
+                                    .font(.system(size: 32, weight: .black, design: .rounded))
+                                    .foregroundColor(.orange)
+                            },
+                            footerContent: {
+                                Text("Days w/ \(bestieName)")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.secondary)
                             }
                         )
                     }
-                    
-                    // 3. Bestie Streak
-                    SquadStatCard(
-                        title: "Bestie Streak",
-                        icon: "🔥",
-                        accentColor: .orange,
-                        centerContent: {
-                            Text("\(bestieStreakCount)")
-                                .font(.system(size: 32, weight: .black, design: .rounded))
-                                .foregroundColor(.orange)
-                        },
-                        footerContent: {
-                            Text("Days w/ \(bestieName)")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.secondary)
-                        }
-                    )
+                    .padding(.horizontal)
+                    .padding(.vertical, 4)
+                }
+            } else {
+                // Empty state for stats
+                HStack {
+                    Image(systemName: "chart.bar.fill")
+                        .foregroundColor(.gray.opacity(0.3))
+                        .font(.title2)
+                    Text("Squad stats will unlock after more engagement.")
+                        .font(.caption)
+                        .foregroundColor(.gray)
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 4)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
