@@ -540,7 +540,7 @@ actor APIClient {
                 "token": "mock_jwt_token_123",
                 "user": {
                     "id": "user_me",
-                    "firstName": "Vibe",
+                    "firstName": "Vibes",
                     "lastName": "User",
                     "email": "user@example.com"
                 }

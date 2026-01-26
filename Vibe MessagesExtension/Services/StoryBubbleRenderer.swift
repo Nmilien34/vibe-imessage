@@ -97,7 +97,7 @@ struct StoryBubbleView: View {
                     
                     Spacer()
                     
-                    Text("Vibez")
+                    Text("Vibes")
                         .font(.caption)
                         .fontWeight(.bold)
                         .padding(.horizontal, 8)

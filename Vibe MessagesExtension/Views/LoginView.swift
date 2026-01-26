@@ -35,7 +35,7 @@ struct LoginView: View {
                         .foregroundColor(.white)
                 }
                 
-                Text("Vibe")
+                Text("Vibes")
                     .font(.system(size: 42, weight: .black, design: .rounded))
                     .tracking(-1)
             }

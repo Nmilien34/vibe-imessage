@@ -286,7 +286,7 @@ struct ComposerView: View {
                                 // User came directly from the Dashboard
                                 appState.dismissComposer()
                             } else {
-                                // User navigated from the internal "New Vibez" menu
+                                // User navigated from the internal "New Vibes" menu
                                 selectedType = nil
                                 appState.selectedVibeType = nil
                             }
