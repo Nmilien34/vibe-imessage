@@ -81,7 +81,8 @@ router.post('/', async (req, res) => {
   try {
     const {
       userId,
-      conversationId,
+      chatId,         // New: Our virtual chat ID
+      conversationId, // Legacy: iMessage conversation ID
       type,
       mediaUrl,
       mediaKey,
@@ -98,6 +99,13 @@ router.post('/', async (req, res) => {
       isLocked,
     } = req.body;
 
+    // Use chatId if provided, fall back to conversationId for legacy support
+    const effectiveChatId = chatId || conversationId;
+
+    if (!effectiveChatId) {
+      return res.status(400).json({ error: 'chatId or conversationId is required' });
+    }
+
     const now = new Date();
     // Feed expiration: 24 hours
     const expiresAt = new Date(now.getTime() + FEED_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
@@ -106,7 +114,8 @@ router.post('/', async (req, res) => {
 
     const vibe = new Vibe({
       userId,
-      conversationId,
+      chatId: effectiveChatId,
+      conversationId, // Keep for backwards compatibility
       type,
       mediaUrl,
       mediaKey: mediaKey || extractS3Key(mediaUrl),
@@ -127,11 +136,26 @@ router.post('/', async (req, res) => {
 
     await vibe.save();
 
+    // Ensure user is in this chat (for unified feed)
+    const User = require('../models/User');
+    let user = await User.findById(userId);
+    if (user) {
+      await user.joinChat(effectiveChatId);
+    }
+
+    // Update the chat's lastVibeId
+    const Chat = require('../models/Chat');
+    const chat = await Chat.findById(effectiveChatId);
+    if (chat) {
+      await chat.touch(vibe._id.toString());
+    }
+
     // Update streak
-    await updateStreak(conversationId, userId);
+    await updateStreak(effectiveChatId, userId);
 
     res.status(201).json(vibe);
   } catch (error) {
+    console.error('Create vibe error:', error);
     res.status(500).json({ error: error.message });
   }
 });

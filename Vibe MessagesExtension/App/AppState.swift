@@ -173,21 +173,43 @@ class AppState: ObservableObject {
 
     // MARK: - Conversation Handling
 
+    /// The current virtual chat ID (from our distributed ID system)
+    @Published var currentChatId: String?
+
+    /// Reference to the current MSConversation for message packing
+    var currentConversation: MSConversation?
+
     func setConversation(_ conversation: MSConversation?) {
         guard let conversation = conversation else {
             conversationId = nil
+            currentChatId = nil
+            currentConversation = nil
             return
         }
 
-        // Use localParticipantIdentifier as a unique conversation ID
+        currentConversation = conversation
+
+        // Legacy: Use localParticipantIdentifier
         let identifier = conversation.localParticipantIdentifier.uuidString
         if identifier.isEmpty || identifier == "00000000-0000-0000-0000-000000000000" {
             print("AppState Warning: Received invalid localParticipantIdentifier")
-            // We might want to keep the old ID or use a session-based one
-            // For now, let's just log it.
         }
         conversationId = identifier
         print("AppState Debug: Set Conversation ID to: \(conversationId ?? "nil")")
+
+        // Resolve the virtual chat ID using ConversationManager
+        Task {
+            let chatId = await ConversationManager.shared.resolveChatID(
+                conversation: conversation,
+                userId: userId
+            )
+            await MainActor.run {
+                self.currentChatId = chatId
+                print("AppState Debug: Resolved Chat ID to: \(chatId)")
+            }
+            // Load vibes after resolving chat ID
+            await loadVibes()
+        }
     }
 
     func setPresentationStyle(_ style: MSMessagesAppPresentationStyle) {
@@ -204,21 +226,28 @@ class AppState: ObservableObject {
 
     // MARK: - Data Loading
 
+    /**
+     * Loads the unified feed - vibes from ALL chats the user belongs to.
+     * This is the new architecture that shows vibes from individual friends
+     * and group chats in one feed, sorted by most recent.
+     */
     func loadVibes() async {
-        guard let conversationId = conversationId else {
-            error = "No conversation ID"
-            return
-        }
-
         isLoading = true
         error = nil
         networkError = nil
         showNetworkErrorBanner = false
 
         do {
-            // Using the new APIService for live fetching
-            self.vibes = try await APIService.shared.getFeed(chatId: conversationId)
-            self.streak = try await APIService.shared.fetchStreak(chatId: conversationId)
+            // Use the unified feed endpoint - gets vibes from ALL joined chats
+            let response = try await APIService.shared.getUnifiedFeed(userId: userId)
+            self.vibes = response.vibes
+
+            // Load streak for current chat if we have one
+            if let chatId = currentChatId {
+                self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
+            }
+
+            print("AppState: Loaded \(vibes.count) vibes from unified feed")
         } catch {
             self.error = error.localizedDescription
             print("AppState Error: Loading vibes failed: \(error)")
@@ -229,8 +258,26 @@ class AppState: ObservableObject {
 
             // Fallback to empty if error
             if vibes.isEmpty {
-                 vibes = []
+                vibes = []
             }
+        }
+
+        isLoading = false
+    }
+
+    /**
+     * Loads vibes for a specific chat only (used for chat-specific views).
+     */
+    func loadVibesForChat(_ chatId: String) async {
+        isLoading = true
+        error = nil
+
+        do {
+            self.vibes = try await APIService.shared.getChatFeed(chatId: chatId, userId: userId)
+            self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
+        } catch {
+            self.error = error.localizedDescription
+            print("AppState Error: Loading chat vibes failed: \(error)")
         }
 
         isLoading = false
@@ -330,13 +377,15 @@ class AppState: ObservableObject {
                     textStatus: String? = nil, styleName: String? = nil,
                     etaStatus: String? = nil,
                     isLocked: Bool = false) async throws {
-        guard let conversationId = conversationId else {
+        // Use the virtual chatId from our distributed ID system
+        guard let chatId = currentChatId else {
             throw APIError.invalidURL
         }
 
         var request = CreateVibeRequest(
             userId: userId,
-            conversationId: conversationId,
+            chatId: chatId,
+            conversationId: conversationId, // Keep for backwards compatibility
             type: type
         )
         request.mediaUrl = mediaUrl
@@ -358,7 +407,7 @@ class AppState: ObservableObject {
         vibes.insert(newVibe, at: 0)
 
         // Refresh streak
-        streak = try? await APIService.shared.fetchStreak(chatId: conversationId)
+        streak = try? await APIService.shared.fetchStreak(chatId: chatId)
     }
 
     func addReaction(to vibe: Vibe, emoji: String) async {

@@ -12,10 +12,17 @@ const vibeSchema = new mongoose.Schema({
     index: true,
   },
 
-  // Group chat identifier (from iMessage)
-  conversationId: {
+  // Our virtual Chat ID (from the distributed ID system)
+  chatId: {
     type: String,
     required: true,
+    index: true,
+    ref: 'Chat',
+  },
+
+  // Legacy: iMessage conversation identifier (deprecated, kept for migration)
+  conversationId: {
+    type: String,
     index: true,
   },
 
@@ -142,9 +149,12 @@ const vibeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Index for efficient queries
-vibeSchema.index({ conversationId: 1, expiresAt: 1 });
-vibeSchema.index({ conversationId: 1, createdAt: -1 }); // For history queries
+vibeSchema.index({ chatId: 1, expiresAt: 1 });
+vibeSchema.index({ chatId: 1, createdAt: -1 }); // For history queries
+vibeSchema.index({ userId: 1, createdAt: -1 }); // For user history
 vibeSchema.index({ permanentDeleteAt: 1 }); // For cleanup job queries
+// Legacy index (can be removed after migration)
+vibeSchema.index({ conversationId: 1, expiresAt: 1 });
 
 // TTL index - MongoDB will automatically delete documents 15 days after creation
 // This is a safety net; the cleanup job should handle S3 deletion first
