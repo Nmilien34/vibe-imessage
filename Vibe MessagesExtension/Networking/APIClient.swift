@@ -42,7 +42,7 @@ actor APIClient {
     #if DEBUG
     private let baseURL = "http://localhost:3000/api"
     #else
-    private let baseURL = "https://your-production-server.com/api"
+    private let baseURL = "https://vibe-imessage.onrender.com/api"
     #endif
 
     private let session: URLSession
@@ -540,7 +540,7 @@ actor APIClient {
                 "token": "mock_jwt_token_123",
                 "user": {
                     "id": "user_me",
-                    "firstName": "Vibe",
+                    "firstName": "Vibes",
                     "lastName": "User",
                     "email": "user@example.com"
                 }
