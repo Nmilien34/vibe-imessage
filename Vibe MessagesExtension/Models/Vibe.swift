@@ -122,12 +122,13 @@ extension Vibe {
 // MARK: - Create Vibe Request
 struct CreateVibeRequest: Codable {
     let userId: String
-    let conversationId: String
+    let chatId: String           // Our virtual chat ID (new system)
+    let conversationId: String?  // Legacy: iMessage conversation ID
     let type: VibeType
     var mediaUrl: String?
-    var mediaKey: String?      // S3 key for cleanup
+    var mediaKey: String?        // S3 key for cleanup
     var thumbnailUrl: String?
-    var thumbnailKey: String?  // S3 key for cleanup
+    var thumbnailKey: String?    // S3 key for cleanup
     var songData: SongData?
     var batteryLevel: Int?
     var mood: Mood?
@@ -136,6 +137,13 @@ struct CreateVibeRequest: Codable {
     var styleName: String?
     var etaStatus: String?
     var isLocked: Bool = false
+
+    init(userId: String, chatId: String, conversationId: String? = nil, type: VibeType) {
+        self.userId = userId
+        self.chatId = chatId
+        self.conversationId = conversationId
+        self.type = type
+    }
 }
 
 struct CreatePollRequest: Codable {
@@ -160,4 +168,17 @@ struct PresignedUrlResponse: Codable {
     let uploadUrl: String
     let publicUrl: String
     let key: String
+}
+
+// MARK: - Unified Feed Response
+struct UnifiedFeedResponse: Codable {
+    let vibes: [Vibe]
+    let hasMore: Bool
+}
+
+// MARK: - Feed Stats Response
+struct FeedStatsResponse: Codable {
+    let totalChats: Int
+    let totalVibes: Int
+    let unviewedCount: Int
 }

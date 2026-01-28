@@ -273,6 +273,78 @@ class APIService {
         return try decoder.decode([Vibe].self, from: data)
     }
 
+    // MARK: - Unified Feed (New Distributed ID System)
+
+    /**
+     * Returns the unified feed - all vibes from all chats the user belongs to.
+     * This is the main feed endpoint for the new architecture.
+     */
+    func getUnifiedFeed(userId: String, limit: Int = 50, offset: Int = 0) async throws -> UnifiedFeedResponse {
+        if useMockData {
+            try await Task.sleep(nanoseconds: 300_000_000)
+            return UnifiedFeedResponse(
+                vibes: mockVibes.sorted { $0.createdAt > $1.createdAt },
+                hasMore: false
+            )
+        }
+
+        guard var components = URLComponents(string: "\(baseURL)/feed/my-feed") else {
+            throw APIError.invalidURL
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "userId", value: userId),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset)),
+        ]
+
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        return try decoder.decode(UnifiedFeedResponse.self, from: data)
+    }
+
+    /**
+     * Returns vibes for a specific chat.
+     */
+    func getChatFeed(chatId: String, userId: String) async throws -> [Vibe] {
+        if useMockData {
+            try await Task.sleep(nanoseconds: 200_000_000)
+            return mockVibes.sorted { $0.createdAt > $1.createdAt }
+        }
+
+        guard var components = URLComponents(string: "\(baseURL)/feed/chat/\(chatId)") else {
+            throw APIError.invalidURL
+        }
+
+        components.queryItems = [URLQueryItem(name: "userId", value: userId)]
+
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        return try decoder.decode([Vibe].self, from: data)
+    }
+
     /**
      * Returns vibe history for a user (up to 15 days).
      * Includes vibes that are expired from the main feed but still within retention period.

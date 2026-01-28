@@ -2,140 +2,33 @@ import SwiftUI
 
 struct BentoDashboardView: View {
     @EnvironmentObject var appState: AppState
-    
-    // Columns for the Grid (1 flexible column, 1 flexible column)
-    let columns = [
-        GridItem(.flexible(), spacing: 16),
-        GridItem(.flexible(), spacing: 16)
-    ]
-    
+
+    // Theme Colors
+    let bgOffWhite = Color(red: 0.96, green: 0.96, blue: 0.97)
+
     var body: some View {
         ZStack {
-            // Background Color (Matches iMessage)
-            Color(.systemGroupedBackground)
-                .edgesIgnoringSafeArea(.all)
-            
-            VStack(spacing: 0) {
-                // 1. Header
-                headerView
-                
-                // 2. The Bento Grid & Carousel
-                ScrollView {
-                    VStack(spacing: 0) {
-                        LazyVGrid(columns: columns, spacing: 16) {
-                            
-                            // --- ROW 1: Hero Actions ---
-                            
-                            // Card A: Post A Vibe (Tall Card - Main Action)
-                            Button {
-                                openComposer(type: .video) // Opens generic camera (Photo/Video)
-                            } label: {
-                                VStack(alignment: .leading) {
-                                    HStack { 
-                                        Spacer()
-                                        Image(systemName: "camera.fill")
-                                            .foregroundColor(.white.opacity(0.6))
-                                    }
-                                    Spacer()
-                                    Image(systemName: "plus.circle.fill")
-                                        .font(.system(size: 36))
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Text("Post Vibe")
-                                        .font(.system(.title3, design: .rounded))
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                }
-                                .padding()
-                                .frame(height: 160) // Reduced from 180
-                                .background(
-                                    LinearGradient(gradient: Gradient(colors: [Color.pink, Color.purple]), startPoint: .topLeading, endPoint: .bottomTrailing)
-                                )
-                                .cornerRadius(20)
-                                .shadow(color: Color.pink.opacity(0.3), radius: 8, x: 0, y: 4)
-                            }
-                            
-                            // Right Column (Stacked Dynamic Cards)
-                            VStack(spacing: 12) {
-                                ForEach(appState.topUserVibeTypes, id: \.self) { type in
-                                    BentoActionCard(type: type)
-                                }
-                            }
-                            
-                            // --- ROW 2: The Daily Drop & See More ---
-                            
-                            // Card D: Daily Drop
-                            Button {
-                                openComposer(type: .dailyDrop) 
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("DAILY DROP 🎲")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white.opacity(0.7))
-                                        Text("Show us your fridge")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white)
-                                    }
-                                    Spacer()
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 74) 
-                                .background(Color.black) 
-                                .cornerRadius(20)
-                                .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
-                            }
+            // Background
+            bgOffWhite.edgesIgnoringSafeArea(.all)
 
-                            // Card E: See More Vibes
-                            Button {
-                                appState.navigateToComposer()
-                            } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("EXPLORE")
-                                            .font(.caption2)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.gray)
-                                        Text("More Vibes")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.primary)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "grid")
-                                        .foregroundColor(.gray.opacity(0.5))
-                                }
-                                .padding()
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 74) 
-                                .background(Color.white)
-                                .cornerRadius(20)
-                                .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-                            }
-                            
-                        }
-                        .padding()
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
 
-                        // --- Active Squad Carousel (Full Width) ---
-                        activeSquadCarousel
-                            .padding(.vertical, 8)
+                    // ============================================
+                    // MARK: PART 1 - THE UPPER SCREEN
+                    // ============================================
 
-                        // --- ROW 3: Squad Stats ---
-                        squadStatsSection
-                            .padding(.vertical, 8)
-                        
-                        // --- ROW 4: Group Pulse ---
-                        groupPulseView
-                            .padding(.vertical, 8)
+                    UpperSectionView()
 
-                        // --- ROW 5: Past Vibes Section ---
-                        pastVibesSection
-                            .gridCellColumns(2)
-                    }
+                    // ============================================
+                    // MARK: PART 2 - THE LOWER SCREEN
+                    // ============================================
+
+                    LowerSectionView()
+
+                    Spacer(minLength: 40)
                 }
-                
-                Spacer()
+                .padding(.bottom, 40)
             }
         }
     }
@@ -204,521 +97,738 @@ struct BentoDashboardView: View {
                     .shadow(color: Color.purple.opacity(0.3), radius: 5, x: 0, y: 2)
                 }
             }
+}
+
+// =====================================================================
+// MARK: - PART 1 VIEW (UPPER SCREEN)
+// =====================================================================
+
+struct UpperSectionView: View {
+    @EnvironmentObject var appState: AppState
+
+    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
+    let vibezPurple = Color(red: 0.6, green: 0.2, blue: 1.0)
+    let vibezCyan = Color(red: 0.2, green: 0.7, blue: 1.0)
+    let vibezBlue = Color(red: 0.1, green: 0.4, blue: 0.9)
+
+    private var greeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 5..<12: return "Good Morning"
+        case 12..<17: return "Good Afternoon"
+        case 17..<21: return "Good Evening"
+        default: return "Good Night"
         }
-        .padding(.horizontal)
-        .padding(.top, 20)
-        .padding(.bottom, 10)
     }
 
-    private var activeSquadCarousel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Recently Active")
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.bold)
-                    .foregroundColor(.gray)
-                Spacer()
-
-                // Loading indicator
-                if appState.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.7)
-                }
-            }
-            .padding(.horizontal)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                if appState.isLoading && appState.vibes.isEmpty {
-                    // Skeleton loading state
-                    HStack(spacing: 16) {
-                        ForEach(0..<5, id: \.self) { _ in
-                            SkeletonRingView(size: 60)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 4)
-                } else {
-                    HStack(spacing: 16) {
-                        // Current user (if they posted recently)
-                        let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
-                        if !currentUserVibes.isEmpty {
-                            VibeRingView(
-                                vibes: currentUserVibes,
-                                userId: appState.userId,
-                                isCurrentUser: true,
-                                size: 60
-                            ) {
-                                if let firstVibe = currentUserVibes.first {
-                                    appState.navigateToViewer(opening: firstVibe.id)
-                                }
-                            }
-                        }
-
-                        // All friends who posted (Grouped by user)
-                        let groupedVibes = appState.vibesGroupedByUser()
-
-                        if groupedVibes.count == 1 && groupedVibes.first?.first?.userId == "vibe_team" {
-                            // Only team vibe, show guide text
-                            VibeRingView(
-                                vibes: groupedVibes.first!,
-                                userId: "vibe_team",
-                                isCurrentUser: false,
-                                size: 60
-                            ) {
-                                appState.navigateToViewer(opening: "team_welcome")
-                            }
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Welcome! Watch this guide")
-                                    .font(.caption2)
-                                    .fontWeight(.bold)
-                                Text("Your friends will appear here once they post.")
-                                    .font(.system(size: 8))
-                                    .foregroundColor(.gray)
-                            }
-                        } else {
-                            ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                                if let firstVibe = userVibes.first,
-                                   firstVibe.userId != appState.userId {
-                                    VibeRingView(
-                                        vibes: userVibes,
-                                        userId: firstVibe.userId,
-                                        isCurrentUser: false,
-                                        size: 60
-                                    ) {
-                                        appState.navigateToViewer(opening: firstVibe.id)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 4)
-                }
-            }
-        }
-        .padding(.top, 8)
+    private var currentBatteryLevel: Int {
+        UIDevice.current.isBatteryMonitoringEnabled = true
+        let level = UIDevice.current.batteryLevel
+        return level < 0 ? 78 : Int(level * 100) // Default to 78 if unknown
     }
 
-    private var groupPulseView: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    var body: some View {
+        VStack(spacing: 24) {
+
+            // 1. HEADER
             HStack {
-                Text("Group Pulse")
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.bold)
-                    .foregroundColor(.gray)
-                Spacer()
-            }
-            .padding(.horizontal)
-            
-            HStack(spacing: 12) {
-                // Card 1: Time Capsule (Left - Wide)
-                Button {
-                    // Logic to play memory
-                } label: {
-                    ZStack(alignment: .bottomLeading) {
-                        // Background Blurred Memory
-                        AsyncImage(url: URL(string: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400")) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Color.gray.opacity(0.3)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 120)
-                        .blur(radius: 5)
-                        .overlay(Color.black.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                        
-                        // Content
-                        VStack(alignment: .leading, spacing: 4) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 16, weight: .bold))
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 40, height: 40)
+                        .overlay(
+                            Text(String(appState.userFirstName?.prefix(1) ?? "V"))
+                                .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
-                            
+                        )
+                    Text("Hi, \(appState.userFirstName ?? "Vibez")")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    // Streak Badge
+                    if let streak = appState.streak, streak.currentStreak > 0 {
+                        Text("🔥 \(streak.currentStreak)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white)
+                            .clipShape(Capsule())
+                            .shadow(color: .black.opacity(0.05), radius: 3)
+                    }
+
+                    // New Updates Badge
+                    if appState.newVibesCount > 0 {
+                        Button {
+                            if let firstUnseen = appState.vibes.first(where: {
+                                !appState.seenVibeIds.contains($0.id) && $0.userId != appState.userId
+                            }) {
+                                appState.navigateToViewer(opening: firstUnseen.id)
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "bell.fill")
+                                Text("\(appState.newVibesCount)")
+                            }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(
+                                LinearGradient(colors: [vibezPink, vibezPurple], startPoint: .leading, endPoint: .trailing)
+                            )
+                            .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 10)
+
+            // 2. STORY RAIL
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    // My Story (Add Button)
+                    VStack(spacing: 8) {
+                        ZStack(alignment: .bottomTrailing) {
+                            Circle()
+                                .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                                .foregroundColor(.gray.opacity(0.5))
+                                .frame(width: 68, height: 68)
+
+                            // Show user's latest vibe thumbnail if exists
+                            if let myVibe = appState.vibes.first(where: { $0.userId == appState.userId }),
+                               let thumbUrl = myVibe.thumbnailUrl ?? myVibe.mediaUrl,
+                               let url = URL(string: thumbUrl) {
+                                AsyncImage(url: url) { image in
+                                    image.resizable().aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Color.gray.opacity(0.2)
+                                }
+                                .frame(width: 62, height: 62)
+                                .clipShape(Circle())
+                            }
+
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(.white, .blue)
+                                .font(.system(size: 22))
+                        }
+                        .onTapGesture {
+                            appState.navigateToComposer(type: .video)
+                        }
+
+                        Text("My Story")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.leading)
+
+                    // Friends' Stories
+                    let groupedVibes = appState.vibesGroupedByUser()
+                    ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                        if let firstVibe = userVibes.first,
+                           firstVibe.userId != appState.userId {
+                            StoryRingItem(
+                                vibes: userVibes,
+                                name: nameForUser(firstVibe.userId),
+                                hasUnviewed: userVibes.contains { !$0.hasViewed(appState.userId) }
+                            ) {
+                                appState.navigateToViewer(opening: firstVibe.id)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. BENTO GRID (Hero Left + Triple Stack Right)
+            HStack(alignment: .top, spacing: 12) {
+                // Left: Post Vibe
+                Button {
+                    appState.navigateToComposer(type: .video)
+                } label: {
+                    VStack {
+                        Spacer()
+                        Image(systemName: "plus")
+                            .font(.system(size: 40, weight: .bold))
+                            .foregroundColor(.white)
+                        Spacer()
+                        HStack(alignment: .bottom) {
+                            Text("Post Vibe")
+                                .font(.system(size: 18, weight: .heavy, design: .rounded))
+                                .foregroundColor(.white)
                             Spacer()
-                            
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text("On This Day")
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                Text("1 Year Ago")
-                                    .font(.system(size: 12))
+                            if appState.newVibesCount > 0 {
+                                Text("\(appState.newVibesCount) waiting")
+                                    .font(.caption)
+                                    .bold()
                                     .foregroundColor(.white.opacity(0.8))
                             }
                         }
-                        .padding(16)
                     }
+                    .padding(20)
+                    .frame(height: 220)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        LinearGradient(colors: [vibezPink, vibezPurple], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .cornerRadius(24)
+                    .shadow(color: vibezPink.opacity(0.3), radius: 8, y: 4)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
-                .frame(height: 120)
-                
-                // Card 2: Upcoming (Right - Fixed)
-                ZStack {
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(Color(.systemGray6))
-                    
-                    VStack(spacing: 8) {
-                        Spacer()
-                        Text("🎂")
-                            .font(.system(size: 40))
-                        Spacer()
-                        VStack(spacing: 2) {
-                            Text("Sarah")
-                                .font(.system(size: 14, weight: .bold))
-                            Text("Fri")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                        }
-                        .padding(.bottom, 12)
-                    }
-                }
-                .frame(width: 100, height: 120)
-            }
-            .padding(.horizontal)
-        }
-    }
-    
-    private var pastVibesSection: some View {
-        let userVibes = appState.vibes.filter { $0.userId == appState.userId }
-        
-        return VStack(alignment: .leading, spacing: 20) {
-            // Headline
-            HStack {
-                Text("Past Vibes")
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundColor(.gray)
-                Spacer()
-            }
-            .padding(.horizontal)
 
-            // History Grid
-            if !userVibes.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(userVibes) { vibe in
-                             VibeGridCell(vibe: vibe, userId: appState.userId) {
-                                 appState.navigateToViewer(opening: vibe.id)
-                             }
-                        }
-                    }
-                    .padding(.horizontal)
-                }
-            } else {
-                // Placeholder if empty
+                // Right: Triple Stack
                 VStack(spacing: 12) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.largeTitle)
-                        .foregroundColor(.gray.opacity(0.3))
-                    Text("Your vibe history will appear here")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 40)
-            }
-        }
-    }
+                    // POV (Top)
+                    Button {
+                        appState.navigateToComposer(type: .video, isLocked: true)
+                    } label: {
+                        HStack {
+                            Image(systemName: "eye.fill")
+                            Text("POV").bold()
+                            Spacer()
+                            Image(systemName: "lock.fill").opacity(0.5)
+                        }
+                        .padding(.horizontal)
+                        .frame(height: 65)
+                        .background(
+                            LinearGradient(colors: [vibezCyan, vibezBlue], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .foregroundColor(.white)
+                        .cornerRadius(20)
+                    }
 
-    private var squadStatsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Squad Stats")
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.bold)
-                    .foregroundColor(.gray)
-                Spacer()
+                    // Battery (Middle)
+                    Button {
+                        appState.navigateToComposer(type: .battery)
+                    } label: {
+                        HStack {
+                            Text("Battery")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Spacer()
+                            Text("\(currentBatteryLevel)%")
+                                .bold()
+                                .foregroundColor(batteryColor)
+                            Image(systemName: batteryIcon)
+                                .foregroundColor(batteryColor)
+                        }
+                        .padding(.horizontal)
+                        .frame(height: 65)
+                        .background(Color.white)
+                        .cornerRadius(20)
+                        .shadow(color: .black.opacity(0.03), radius: 3)
+                    }
+
+                    // Explore (Bottom)
+                    Button {
+                        appState.shouldShowVibePicker = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "square.grid.2x2.fill")
+                            Text("Explore").bold()
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundColor(.gray)
+                        }
+                        .padding(.horizontal)
+                        .frame(height: 65)
+                        .background(Color.white)
+                        .cornerRadius(20)
+                        .shadow(color: .black.opacity(0.03), radius: 3)
+                    }
+                    .foregroundColor(.primary)
+                }
             }
             .padding(.horizontal)
-            
-            if mvpData != nil || ghostUserId != nil {
+
+            // 4. DAILY DROP
+            Button {
+                appState.navigateToComposer(type: .dailyDrop)
+            } label: {
+                HStack {
+                    VStack(alignment: .leading) {
+                        Text("DAILY DROP 🎲")
+                            .font(.caption)
+                            .bold()
+                            .foregroundColor(.gray)
+                        Text("Show us your fridge")
+                            .font(.title3)
+                            .bold()
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .padding(10)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .foregroundColor(.black)
+                }
+                .padding(24)
+                .background(Color.black)
+                .cornerRadius(24)
+            }
+            .padding(.horizontal)
+
+            // 5. LEADERBOARD
+            VStack(alignment: .leading) {
+                Text("LEADERBOARD")
+                    .font(.caption)
+                    .bold()
+                    .foregroundColor(.gray)
+                    .padding(.leading)
+
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        // 1. The MVP
+                    HStack(spacing: 12) {
+                        // MVP
                         if let (mvpId, count) = mvpData {
-                            SquadStatCard(
-                                title: "The MVP",
-                                icon: "👑",
-                                accentColor: .yellow,
-                                centerContent: {
-                                    avatarForUser(mvpId, size: 40)
-                                },
-                                footerContent: {
-                                    Text("\(nameForUser(mvpId)) (+\(count))")
-                                        .font(.system(size: 10, weight: .bold))
-                                        .foregroundColor(.primary)
-                                }
+                            LeaderboardCardView(
+                                emoji: "👑",
+                                name: nameForUser(mvpId),
+                                score: "+\(count)",
+                                isMVP: true
                             )
                         }
-                        
-                        // 2. The Ghost
+
+                        // Ghost (needs nudge)
                         if let ghostId = ghostUserId {
-                            SquadStatCard(
-                                title: "The Ghost",
-                                icon: "👻",
-                                accentColor: .gray,
-                                centerContent: {
-                                    avatarForUser(ghostId, size: 40, desaturated: true)
-                                },
-                                footerContent: {
-                                    Button {
-                                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                                        // Logic for nudge could go here
-                                    } label: {
-                                        Text("Nudge")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(Color.blue)
-                                            .foregroundColor(.white)
-                                            .clipShape(Capsule())
-                                    }
-                                }
+                            LeaderboardCardView(
+                                emoji: "👻",
+                                name: nameForUser(ghostId),
+                                score: "Nudge",
+                                isMVP: false
                             )
                         }
-                        
-                        // 3. Bestie Streak
-                        SquadStatCard(
-                            title: "Bestie Streak",
-                            icon: "🔥",
-                            accentColor: .orange,
-                            centerContent: {
-                                Text("\(bestieStreakCount)")
-                                    .font(.system(size: 32, weight: .black, design: .rounded))
-                                    .foregroundColor(.orange)
-                            },
-                            footerContent: {
-                                Text("Days w/ \(bestieName)")
-                                    .font(.system(size: 10, weight: .medium))
-                                    .foregroundColor(.secondary)
-                            }
-                        )
+
+                        // Third place or fallback
+                        let thirdPlace = appState.vibesGroupedByUser()
+                            .compactMap { $0.first }
+                            .filter { $0.userId != appState.userId && $0.userId != mvpData?.0 && $0.userId != ghostUserId }
+                            .first
+
+                        if let third = thirdPlace {
+                            let count = appState.vibes.filter { $0.userId == third.userId }.count
+                            LeaderboardCardView(
+                                emoji: "💅",
+                                name: nameForUser(third.userId),
+                                score: "+\(count)",
+                                isMVP: false
+                            )
+                        }
                     }
                     .padding(.horizontal)
-                    .padding(.vertical, 4)
                 }
-            } else {
-                // Empty state for stats
-                HStack {
-                    Image(systemName: "chart.bar.fill")
-                        .foregroundColor(.gray.opacity(0.3))
-                        .font(.title2)
-                    Text("Squad stats will unlock after more engagement.")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                .padding(.horizontal)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
 
-    // MARK: - Squad Stats Logic
-    
+    // MARK: - Helpers
+
+    private var batteryColor: Color {
+        switch currentBatteryLevel {
+        case 0..<20: return .red
+        case 20..<50: return .yellow
+        default: return .green
+        }
+    }
+
+    private var batteryIcon: String {
+        switch currentBatteryLevel {
+        case 0..<25: return "battery.25"
+        case 25..<50: return "battery.50"
+        case 50..<75: return "battery.75"
+        default: return "battery.100"
+        }
+    }
+
     private var mvpData: (String, Int)? {
         let friendsVibes = appState.vibes.filter { $0.userId != appState.userId }
         let counts = friendsVibes.reduce(into: [String: Int]()) { $0[$1.userId, default: 0] += 1 }
-        guard let topParticipant = counts.max(by: { $0.value < $1.value }) else { return nil }
-        return (topParticipant.key, topParticipant.value)
+        guard let top = counts.max(by: { $0.value < $1.value }) else { return nil }
+        return (top.key, top.value)
     }
-    
+
     private var ghostUserId: String? {
         let friends = appState.vibesGroupedByUser()
             .compactMap { $0.first?.userId }
             .filter { $0 != appState.userId }
-        
-        // Find someone who hasn't posted in > 24h
+
         let oneDayAgo = Date().addingTimeInterval(-86400)
         return friends.first { friendId in
-            let lastVibeDate = appState.vibes.filter { $0.userId == friendId }
-                .map { $0.createdAt }
-                .max()
-            return lastVibeDate == nil || lastVibeDate! < oneDayAgo
+            let lastDate = appState.vibes.filter { $0.userId == friendId }.map { $0.createdAt }.max()
+            return lastDate == nil || lastDate! < oneDayAgo
         }
-    }
-    
-    private var bestieStreakCount: Int {
-        // Mocking for now as we don't have per-relationship streaks yet
-        return 5
-    }
-    
-    private var bestieName: String {
-        // Find most frequent interactor or just use first friend
-        if let mvpId = mvpData?.0 {
-            return nameForUser(mvpId)
-        }
-        return "Mike"
     }
 
     private func nameForUser(_ id: String) -> String {
-        // Simplified lookup
         if id == appState.userId { return "You" }
+        if id == "vibe_team" { return "Vibez" }
         if id.contains("friend_1") { return "Sarah" }
         if id.contains("friend_2") { return "Mike" }
-        if id.contains("friend_3") { return "Alex" }
-        if id.contains("friend_4") { return "Sam" }
-        if id.contains("friend_5") { return "Jordan" }
-        return "Friend"
-    }
-
-    private func avatarForUser(_ id: String, size: CGFloat, desaturated: Bool = false) -> some View {
-        let userVibes = appState.vibes.filter { $0.userId == id }
-        return Group {
-            if !userVibes.isEmpty {
-                VibeRingView(vibes: userVibes, userId: id, isCurrentUser: id == appState.userId, size: size, onTap: {})
-                    .grayscale(desaturated ? 1.0 : 0.0)
-                    .allowsHitTesting(false)
-            } else {
-                Circle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: size, height: size)
-                    .overlay {
-                        Text(String(nameForUser(id).prefix(1)))
-                            .font(.system(size: size * 0.4, weight: .bold))
-                            .foregroundColor(.gray)
-                    }
-                    .grayscale(desaturated ? 1.0 : 0.0)
-            }
-        }
-    }
-
-
-    // MARK: - Helpers
-    
-    // Helper to open composer
-    private func openComposer(type: VibeType) {
-        // Navigate directly to the composer with the selected type pre-set
-        // POV is handled as a special case of Video in some contexts, but here we can pass type
-        // If it's "POV" (which isn't a VibeType, it's Video + Locked), we might need to handle that.
-        // For now, assuming VibeType maps directly.
-        // If we want "POV" button to open Video + Locked, we need to pass that arg.
-        // Let's check call sites.
-        appState.navigateToComposer(type: type)
-    }
-    
-    // POV Specific Helper (since POV is not a VibeType)
-    private func openPOV() {
-        appState.navigateToComposer(type: .video, isLocked: true)
-    }
-    
-    private var currentBatteryLevel: Int {
-        Int(UIDevice.current.batteryLevel * 100)
-    }
-    
-    private var batteryLevelString: String {
-        let level = currentBatteryLevel
-        return level < 0 ? "--%" : "\(level)%"
-    }
-    
-    private func batteryIcon(for level: Int) -> String {
-        if level < 0 { return "battery.0" }
-        if level < 20 { return "battery.25" }
-        if level < 50 { return "battery.50" }
-        if level < 80 { return "battery.75" }
-        return "battery.100"
+        if id.contains("friend_3") { return "Jess" }
+        if id.contains("friend_4") { return "Alex" }
+        if id.contains("friend_5") { return "Sam" }
+        // Generate a name from the ID
+        let names = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason"]
+        let index = abs(id.hashValue) % names.count
+        return names[index]
     }
 }
 
-// MARK: - Bento Action Card
-struct BentoActionCard: View {
+// =====================================================================
+// MARK: - PART 2 VIEW (LOWER SCREEN)
+// =====================================================================
+
+struct LowerSectionView: View {
     @EnvironmentObject var appState: AppState
-    let type: VibeType
-
-    private var currentBatteryLevel: Int {
-        Int(UIDevice.current.batteryLevel * 100)
-    }
-
-    private var batteryLevelString: String {
-        let level = currentBatteryLevel
-        return level < 0 ? "--%" : "\(level)%"
-    }
-
-    private func batteryIcon(for level: Int) -> String {
-        if level < 0 { return "battery.0" }
-        if level < 20 { return "battery.25" }
-        if level < 50 { return "battery.50" }
-        if level < 80 { return "battery.75" }
-        return "battery.100"
-    }
 
     var body: some View {
-        Button {
-            if type == .video {
-                appState.navigateToComposer(type: .video, isLocked: true)
-            } else {
-                appState.navigateToComposer(type: type)
-            }
-        } label: {
-            HStack {
-                VStack(alignment: .leading) {
-                    if type == .battery {
-                        Text(batteryLevelString)
-                            .font(.title2)
-                            .fontWeight(.heavy)
-                            .foregroundColor(.green)
-                    } else if type == .video {
-                        Image(systemName: "eye.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    } else {
-                        Image(systemName: type.icon)
-                            .font(.title2)
-                            .foregroundColor(.white)
-                    }
-                    Spacer()
-                    Text(title)
-                        .fontWeight(.semibold)
-                        .foregroundColor(type == .battery ? .secondary : .white)
-                        .font(type == .battery ? .caption : .body)
-                }
-                Spacer()
-                
-                if type == .video {
-                    Image(systemName: "lock.fill")
+        VStack(spacing: 24) {
+
+            // 6. VIBE WIRE (NEWS)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("VIBE WIRE")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.7))
-                } else if type == .battery {
-                    Image(systemName: batteryIcon(for: currentBatteryLevel))
-                        .foregroundColor(.gray.opacity(0.5))
+                        .bold()
+                        .foregroundColor(.gray)
+                    Spacer()
+                    HStack(spacing: 16) {
+                        Image(systemName: "arrow.left")
+                            .font(.caption2)
+                            .foregroundColor(.gray.opacity(0.5))
+                        Image(systemName: "arrow.right")
+                            .font(.caption2)
+                            .foregroundColor(.black)
+                    }
+                }
+                .padding(.horizontal)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        NewsCardView(
+                            tag: "VIRAL",
+                            headline: "New 'AirPods Max 2' colors just leaked",
+                            socialText: "Mike & Sarah commented",
+                            color: .blue
+                        )
+                        NewsCardView(
+                            tag: "MUSIC",
+                            headline: "The Weeknd drops new album",
+                            socialText: "3 friends shared this",
+                            color: .purple
+                        )
+                        NewsCardView(
+                            tag: "TECH",
+                            headline: "iPhone 17 Pro rumors heating up",
+                            socialText: "1 friend shared this",
+                            color: .gray
+                        )
+                    }
+                    .padding(.horizontal)
                 }
             }
-            .padding()
-            .frame(height: 74)
-            .background(backgroundView)
-            .cornerRadius(20)
-            .shadow(color: shadowColor, radius: 5, x: 0, y: 2)
-        }
-    }
 
-    private var title: String {
-        switch type {
-        case .video: return "POV"
-        case .battery: return "Status"
-        default: return type.displayName
-        }
-    }
+            // 7. UPCOMING REMINDERS
+            VStack(alignment: .leading, spacing: 12) {
+                Text("UPCOMING")
+                    .font(.caption)
+                    .bold()
+                    .foregroundColor(.gray)
+                    .padding(.leading)
 
-    @ViewBuilder
-    private var backgroundView: some View {
-        if type == .battery {
-            Color.white
-        } else if type == .video {
-            LinearGradient(gradient: Gradient(colors: [Color.blue, Color.cyan]), startPoint: .topLeading, endPoint: .bottomTrailing)
-        } else {
-            type.color
-        }
-    }
+                HStack(spacing: 12) {
+                    ReminderCardView(
+                        icon: "gift.fill",
+                        title: "Sarah's B-Day",
+                        subtitle: "In 2 days",
+                        iconColor: .pink
+                    )
+                    ReminderCardView(
+                        icon: "popcorn.fill",
+                        title: "Movie Night",
+                        subtitle: "Friday 8pm",
+                        iconColor: .orange
+                    )
+                }
+                .padding(.horizontal)
+            }
 
-    private var shadowColor: Color {
-        if type == .battery {
-            return Color.black.opacity(0.05)
-        } else {
-            return type.color.opacity(0.2)
+            // 8. PAST VIBES (HISTORY)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("PAST VIBES")
+                    .font(.caption)
+                    .bold()
+                    .foregroundColor(.gray)
+                    .padding(.leading)
+
+                let userVibes = appState.vibes.filter { $0.userId == appState.userId }
+
+                if userVibes.isEmpty {
+                    // Empty state
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 24)
+                                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                                    .foregroundColor(Color.gray.opacity(0.2))
+                            )
+
+                        VStack(spacing: 12) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 30))
+                                .foregroundColor(.gray.opacity(0.5))
+                            Text("Your past vibes will appear here")
+                                .font(.system(size: 16, weight: .medium, design: .rounded))
+                                .foregroundColor(.gray)
+                            Text("Post a vibe to start your history.")
+                                .font(.caption)
+                                .foregroundColor(.gray.opacity(0.6))
+                        }
+                        .padding(40)
+                    }
+                    .padding(.horizontal)
+                    .frame(height: 180)
+                } else {
+                    // Show user's vibes in a horizontal scroll
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 12) {
+                            ForEach(userVibes.prefix(6)) { vibe in
+                                PastVibeCard(vibe: vibe) {
+                                    appState.navigateToViewer(opening: vibe.id)
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
         }
     }
 }
+
+// =====================================================================
+// MARK: - COMPONENTS
+// =====================================================================
+
+struct StoryRingItem: View {
+    let vibes: [Vibe]
+    let name: String
+    let hasUnviewed: Bool
+    let onTap: () -> Void
+
+    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Button(action: onTap) {
+                ZStack {
+                    // Gradient ring
+                    Circle()
+                        .strokeBorder(
+                            hasUnviewed ?
+                            LinearGradient(colors: [vibezPink, .orange], startPoint: .topTrailing, endPoint: .bottomLeading) :
+                            LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .top, endPoint: .bottom),
+                            lineWidth: 3
+                        )
+                        .frame(width: 68, height: 68)
+
+                    // Content
+                    if let firstVibe = vibes.first,
+                       let thumbUrl = firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                       let url = URL(string: thumbUrl) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle().fill(Color.gray.opacity(0.1))
+                        }
+                        .frame(width: 60, height: 60)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(width: 60, height: 60)
+                    }
+
+                    // Count badge
+                    if vibes.count > 1 {
+                        Text("\(vibes.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.black.opacity(0.7))
+                            .clipShape(Capsule())
+                            .offset(x: 22, y: -22)
+                    }
+                }
+            }
+
+            Text(name)
+                .font(.caption)
+                .bold()
+        }
+    }
+}
+
+struct LeaderboardCardView: View {
+    var emoji: String
+    var name: String
+    var score: String
+    var isMVP: Bool
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(emoji)
+                .font(.title)
+            Spacer()
+            Text(name)
+                .font(.subheadline)
+                .bold()
+            Text(score)
+                .font(.caption)
+                .foregroundColor(isMVP ? .orange : .gray)
+        }
+        .padding(12)
+        .frame(width: 100, height: 100)
+        .background(Color.white)
+        .cornerRadius(16)
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(isMVP ? Color.orange.opacity(0.3) : .clear, lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.03), radius: 3)
+    }
+}
+
+struct NewsCardView: View {
+    var tag: String
+    var headline: String
+    var socialText: String
+    var color: Color
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                Text(tag)
+                    .font(.system(size: 9, weight: .heavy))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.white.opacity(0.25))
+                    .cornerRadius(4)
+                Spacer()
+                Image(systemName: "bubble.right.fill")
+                    .font(.caption2)
+                    .opacity(0.8)
+            }
+            Spacer()
+            Text(headline)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .lineLimit(3)
+            Spacer()
+            HStack(spacing: 4) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 10))
+                Text(socialText)
+                    .font(.system(size: 10, weight: .bold))
+            }
+            .opacity(0.9)
+        }
+        .padding(14)
+        .foregroundColor(.white)
+        .frame(width: 170, height: 125)
+        .background(color)
+        .cornerRadius(18)
+        .shadow(color: color.opacity(0.3), radius: 6, y: 3)
+    }
+}
+
+struct ReminderCardView: View {
+    var icon: String
+    var title: String
+    var subtitle: String
+    var iconColor: Color
+
+    var body: some View {
+        HStack {
+            Circle()
+                .fill(iconColor.opacity(0.1))
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Image(systemName: icon)
+                        .foregroundColor(iconColor)
+                )
+            VStack(alignment: .leading) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            Spacer()
+        }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.03), radius: 5, y: 2)
+    }
+}
+
+struct PastVibeCard: View {
+    let vibe: Vibe
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            ZStack(alignment: .bottomLeading) {
+                // Thumbnail
+                if let thumbUrl = vibe.thumbnailUrl ?? vibe.mediaUrl,
+                   let url = URL(string: thumbUrl) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.gray.opacity(0.2)
+                    }
+                } else {
+                    vibe.type.color.opacity(0.3)
+                        .overlay(
+                            Image(systemName: vibe.type.icon)
+                                .font(.title)
+                                .foregroundColor(.white)
+                        )
+                }
+
+                // Gradient overlay
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.6)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Time info
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(vibe.timeRemainingFormatted)
+                        .font(.caption2)
+                        .bold()
+                    if vibe.isExpiredFromFeed == true {
+                        Text("Expired")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                    }
+                }
+                .foregroundColor(.white)
+                .padding(8)
+            }
+            .frame(width: 100, height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+}
+
+// =====================================================================
+// MARK: - PREVIEW
+// =====================================================================
+
 #Preview {
     BentoDashboardView()
         .environmentObject(AppState())
