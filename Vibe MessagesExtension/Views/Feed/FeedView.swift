@@ -41,148 +41,229 @@ struct FeedView: View {
     }
 }
 
-// MARK: - Compact Feed View (Keyboard height)
+// MARK: - Compact Feed View (Drawer Style)
 struct CompactFeedView: View {
     @EnvironmentObject var appState: AppState
 
-    private let ringSize: CGFloat = 60
+    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
+    let vibezPurple = Color(red: 0.6, green: 0.2, blue: 1.0)
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Top row: Streak + New Updates
-            HStack {
-                // Streak indicator
-                if let streak = appState.streak, streak.currentStreak > 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .foregroundColor(.orange)
-                        Text("\(streak.currentStreak) day streak!")
-                            .font(.caption)
-                            .fontWeight(.medium)
+        ZStack {
+            // Background
+            Color.white
+                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .shadow(color: Color.black.opacity(0.1), radius: 10, y: -5)
+                .edgesIgnoringSafeArea(.bottom)
+
+            VStack(spacing: 16) {
+
+                // 1. THE HANDLE & LIVE STATUS
+                VStack(spacing: 8) {
+                    // Drag Handle
+                    Capsule()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 36, height: 5)
+                        .padding(.top, 10)
+
+                    // Live Status Text (The "Hook")
+                    HStack(spacing: 6) {
+                        if let streak = appState.streak, streak.currentStreak > 0 {
+                            Text("🔥 \(streak.currentStreak) Day Streak")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+
+                            Circle().fill(Color.gray.opacity(0.3)).frame(width: 3, height: 3)
+                        }
+
+                        Text(activeUsersText)
+                            .foregroundColor(.gray)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
                     }
                 }
+                .onTapGesture {
+                    appState.requestExpand()
+                }
+
+                // 2. THE ACTION RAIL
+                HStack(spacing: 16) {
+
+                    // A. The "Post Vibe" Button (Hero)
+                    Button {
+                        appState.shouldShowVibePicker = true
+                        appState.requestExpand()
+                    } label: {
+                        VStack(spacing: 4) {
+                            ZStack {
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [vibezPink, vibezPurple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 56, height: 56)
+                                    .shadow(color: vibezPink.opacity(0.4), radius: 8, x: 0, y: 4)
+
+                                Image(systemName: "plus")
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                            }
+                            Text("New Vibe")
+                                .font(.system(size: 11, weight: .bold, design: .rounded))
+                                .foregroundColor(.black)
+                        }
+                    }
+
+                    // Divider
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(width: 1, height: 40)
+
+                    // B. Friend Stories (Horizontal Scroll)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            if appState.isLoading && appState.vibes.isEmpty {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    CompactAvatarSkeleton()
+                                }
+                            } else {
+                                let groupedVibes = appState.vibesGroupedByUser()
+
+                                ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                                    if let firstVibe = userVibes.first {
+                                        let hasUnseen = userVibes.contains { !$0.hasViewed(appState.userId) }
+                                        let isMe = firstVibe.userId == appState.userId
+
+                                        CompactAvatar(
+                                            name: isMe ? "You" : nameForUser(firstVibe.userId),
+                                            thumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                                            vibeType: firstVibe.type,
+                                            hasUnseen: hasUnseen && !isMe
+                                        ) {
+                                            appState.navigateToViewer(opening: firstVibe.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 4)
+                    }
+                }
+                .padding(.horizontal, 20)
 
                 Spacer()
-
-                // Loading indicator
-                if appState.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                }
-
-                // New Updates Badge
-                if appState.newVibesCount > 0 {
-                    Button {
-                        if let firstUnseenVibe = appState.vibes.first(where: {
-                            !appState.seenVibeIds.contains($0.id) && $0.userId != appState.userId
-                        }) {
-                            appState.navigateToViewer(opening: firstUnseenVibe.id)
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("\(appState.newVibesCount) New")
-                                .fontWeight(.bold)
-                            Text("🥳")
-                        }
-                        .font(.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .foregroundColor(.white)
-                        .clipShape(Capsule())
-                    }
-                }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 4)
-
-            // Horizontal scroll of vibe rings
-            ScrollView(.horizontal, showsIndicators: false) {
-                if appState.isLoading && appState.vibes.isEmpty {
-                    // Skeleton loading state
-                    HStack(spacing: 12) {
-                        ForEach(0..<4, id: \.self) { _ in
-                            SkeletonRingView(size: ringSize)
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                } else {
-                    HStack(spacing: 12) {
-                        // Add button (if user hasn't posted today)
-                        if !appState.hasUserPostedToday() {
-                            AddVibeButton(size: ringSize) {
-                                appState.shouldShowVibePicker = true
-                                appState.requestExpand()
-                            }
-                        }
-
-                        // Current user's vibes first
-                        let groupedVibes = appState.vibesGroupedByUser()
-                        let currentUserVibes = appState.vibes.filter { $0.userId == appState.userId }
-
-                        if !currentUserVibes.isEmpty {
-                            VibeRingView(
-                                vibes: currentUserVibes,
-                                userId: appState.userId,
-                                isCurrentUser: true,
-                                size: ringSize
-                            ) {
-                                // Find first vibe for current user (which is the one displayed in the ring typically, or just open the first one)
-                                if let firstVibe = currentUserVibes.first {
-                                    appState.navigateToViewer(opening: firstVibe.id)
-                                }
-                            }
-                        }
-
-                        // Other users' vibes
-                        ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                            if let firstVibe = userVibes.first,
-                               firstVibe.userId != appState.userId {
-                                VibeRingView(
-                                    vibes: userVibes,
-                                    userId: appState.userId,
-                                    isCurrentUser: false,
-                                    size: ringSize
-                                ) {
-                                    appState.navigateToViewer(opening: firstVibe.id)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 8)
-                }
-            }
-
-            // Swipe up hint
-            Button {
-                appState.requestExpand()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "chevron.compact.up")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Swipe up to see the full app")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                    Image(systemName: "chevron.compact.up")
-                        .font(.system(size: 14, weight: .semibold))
-                }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(.secondarySystemBackground))
-                .clipShape(Capsule())
-            }
-            .padding(.bottom, 8)
+            .padding(.bottom, 20)
         }
-        .background(Color(.systemBackground))
+    }
+
+    private var activeUsersText: String {
+        let activeUsers = appState.vibesGroupedByUser()
+            .compactMap { $0.first }
+            .filter { $0.userId != appState.userId }
+            .prefix(2)
+            .map { nameForUser($0.userId) }
+
+        if activeUsers.isEmpty {
+            return "No one active yet"
+        } else if activeUsers.count == 1 {
+            return "\(activeUsers[0]) is active"
+        } else {
+            return "\(activeUsers[0]) & \(activeUsers[1]) are active"
+        }
+    }
+
+    private func nameForUser(_ id: String) -> String {
+        if id == appState.userId { return "You" }
+        let names = ["Sarah", "Mike", "Jess", "Alex", "Sam", "Emma", "Liam", "Olivia"]
+        let index = abs(id.hashValue) % names.count
+        return names[index]
+    }
+}
+
+// MARK: - Compact Avatar
+struct CompactAvatar: View {
+    var name: String
+    var thumbnailUrl: String?
+    var vibeType: VibeType
+    var hasUnseen: Bool
+    var onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(spacing: 4) {
+                ZStack {
+                    // Gradient Ring if Unseen
+                    if hasUnseen {
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [.pink, .orange],
+                                    startPoint: .topTrailing,
+                                    endPoint: .bottomLeading
+                                ),
+                                lineWidth: 2.5
+                            )
+                            .frame(width: 56, height: 56)
+                    } else {
+                        Circle()
+                            .strokeBorder(Color.gray.opacity(0.2), lineWidth: 1)
+                            .frame(width: 56, height: 56)
+                    }
+
+                    // Avatar content
+                    if let urlString = thumbnailUrl, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().aspectRatio(contentMode: .fill)
+                        } placeholder: {
+                            Circle().fill(vibeType.color.opacity(0.2))
+                        }
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(vibeType.color.opacity(0.15))
+                            .frame(width: 48, height: 48)
+                            .overlay(
+                                Image(systemName: vibeType.icon)
+                                    .font(.title3)
+                                    .foregroundColor(vibeType.color)
+                            )
+                    }
+                }
+
+                Text(name)
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(hasUnseen ? .black : .gray)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct CompactAvatarSkeleton: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Circle()
+                .fill(Color.gray.opacity(0.2))
+                .frame(width: 56, height: 56)
+                .opacity(isAnimating ? 0.5 : 1.0)
+
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.gray.opacity(0.2))
+                .frame(width: 40, height: 10)
+                .opacity(isAnimating ? 0.5 : 1.0)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
     }
 }
 
