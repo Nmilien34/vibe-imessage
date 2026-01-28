@@ -200,7 +200,7 @@ struct TeaComposerView: View {
                 mediaKey = result.key
             }
 
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .tea,
                 mediaUrl: mediaUrl,
                 mediaKey: mediaKey,
@@ -210,6 +210,7 @@ struct TeaComposerView: View {
                 styleName: selectedStyle.rawValue,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .tea, contextText: textStatus)
             appState.dismissComposer()
         } catch {
             uploadError = error.localizedDescription

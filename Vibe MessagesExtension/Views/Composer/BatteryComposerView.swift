@@ -106,11 +106,12 @@ struct BatteryComposerView: View {
     
     private func shareBattery() async {
         do {
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .battery,
                 batteryLevel: batteryLevel,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .battery, contextText: "\(batteryLevel)%")
             appState.dismissComposer()
         } catch {
             print("Error sharing battery: \(error)")

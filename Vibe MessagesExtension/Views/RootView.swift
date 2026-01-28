@@ -18,6 +18,8 @@ struct RootView: View {
                     OnboardingSlideshowView()
                 } else if !appState.isAuthenticated {
                     LoginView()
+                } else if !appState.isBirthdayCollected {
+                    BirthdayCollectionView()
                 } else if !appState.hasRequiredPermissions {
                     PermissionRequestView()
                 } else {

@@ -27,8 +27,8 @@ class MessagesViewController: MSMessagesAppViewController {
         }
         
         // Callback for sending a story
-        appState.sendStory = { [weak self] (videoId: String, videoUrl: String, isLocked: Bool, rawThumbnail: UIImage?) in
-            self?.sendStory(videoId: videoId, videoUrl: videoUrl, isLocked: isLocked, rawThumbnail: rawThumbnail)
+        appState.sendStory = { [weak self] (vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) in
+            self?.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
         }
 
         // Callback when unlock flow completes
@@ -113,7 +113,7 @@ class MessagesViewController: MSMessagesAppViewController {
         // This is how users get added to chats when receiving messages
         if let chatId = chatId {
             Task {
-                await ConversationManager.shared.resolveChatID(
+                _ = await ConversationManager.shared.resolveChatID(
                     conversation: conversation,
                     userId: appState.userId
                 )
@@ -165,20 +165,29 @@ class MessagesViewController: MSMessagesAppViewController {
     
     // MARK: - Sending Stories
 
-    func sendStory(videoId: String, videoUrl: String, isLocked: Bool, rawThumbnail: UIImage?) {
+    func sendStory(vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) {
         guard let conversation = activeConversation else { return }
 
-        // Get sender's name for personalized bubble
         let senderName = appState.userFirstName ?? "Someone"
+        let isMediaType = vibeType == .photo || vibeType == .video
 
-        // 1. Create styled bubble
-        let styledThumbnail = StoryBubbleRenderer.shared.renderStoryBubble(
-            thumbnail: rawThumbnail ?? UIImage(systemName: "play.circle.fill")!,
-            expiresIn: 24,
-            isLocked: isLocked
-        )
+        // 1. Render the appropriate bubble image
+        let styledThumbnail: UIImage
+        if isMediaType {
+            styledThumbnail = StoryBubbleRenderer.shared.renderStoryBubble(
+                thumbnail: rawThumbnail ?? UIImage(systemName: "play.circle.fill")!,
+                expiresIn: 24,
+                isLocked: isLocked
+            )
+        } else {
+            styledThumbnail = StoryBubbleRenderer.shared.renderVibeCard(
+                vibeType: vibeType,
+                contextText: contextText,
+                isLocked: isLocked
+            )
+        }
 
-        // 2. Create Layout with personalized text
+        // 2. Create Layout with type-specific text
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
 
@@ -186,32 +195,31 @@ class MessagesViewController: MSMessagesAppViewController {
             layout.caption = "🔒 \(senderName) posted a locked Vibe"
             layout.subcaption = "Post yours to unlock"
         } else {
-            layout.caption = "✨ \(senderName) just posted!"
+            layout.caption = captionForVibeType(vibeType, senderName: senderName)
             layout.subcaption = "Tap to see it"
         }
 
         // 3. Create Message
-        let message = MSMessage(session: conversation.selectedMessage?.session ?? MSSession())
+        let message = MSMessage()
         message.layout = layout
-        message.summaryText = isLocked ? "\(senderName) posted a locked vibe 🔒" : "\(senderName) just posted a vibe ✨"
+        message.summaryText = isLocked ? "\(senderName) posted a locked vibe 🔒" : "\(senderName) shared a \(vibeType.displayName) vibe"
 
         // 4. Encode data with chat_id for distributed ID system
         var components = URLComponents()
         components.scheme = "vibe"
         components.host = "story"
 
-        // Build query items - include sender name for recipient's UI
         var queryItems = [
-            URLQueryItem(name: "vibe_id", value: videoId),
-            URLQueryItem(name: "videoId", value: videoId), // Legacy support
+            URLQueryItem(name: "vibe_id", value: vibeId),
+            URLQueryItem(name: "videoId", value: vibeId), // Legacy support
             URLQueryItem(name: "locked", value: String(isLocked)),
-            URLQueryItem(name: "url", value: videoUrl),
+            URLQueryItem(name: "url", value: mediaUrl),
+            URLQueryItem(name: "type", value: vibeType.rawValue),
             URLQueryItem(name: "userId", value: appState.userId),
-            URLQueryItem(name: "sender", value: senderName), // For personalized UI
+            URLQueryItem(name: "sender", value: senderName),
             URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970)))
         ]
 
-        // CRITICAL: Include chat_id so recipients can join the chat
         if let chatId = appState.currentChatId {
             queryItems.append(URLQueryItem(name: "chat_id", value: chatId))
         }
@@ -223,9 +231,22 @@ class MessagesViewController: MSMessagesAppViewController {
         conversation.insert(message) { error in
             if let error = error {
                 print("Error inserting message: \(error)")
-            } else {
-                // Done - AppState handles the local vibe creation and dismiss if needed
             }
+        }
+    }
+
+    private func captionForVibeType(_ type: VibeType, senderName: String) -> String {
+        switch type {
+        case .battery:  return "🔋 \(senderName) shared their battery"
+        case .mood:     return "😊 \(senderName) shared their mood"
+        case .poll:     return "📊 \(senderName) created a poll"
+        case .tea:      return "☕️ \(senderName) spilled the tea"
+        case .leak:     return "🫣 \(senderName) leaked something"
+        case .sketch:   return "🎨 \(senderName) sent a doodle"
+        case .eta:      return "📍 \(senderName) shared their ETA"
+        case .song:     return "🎵 \(senderName) shared a song"
+        case .dailyDrop: return "🎲 \(senderName) sent a challenge"
+        default:        return "✨ \(senderName) just posted!"
         }
     }
 

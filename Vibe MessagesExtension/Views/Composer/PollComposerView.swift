@@ -104,11 +104,12 @@ struct PollComposerView: View {
         let request = CreatePollRequest(question: question, options: validOptions)
         
         do {
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .poll,
                 poll: request,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .poll, contextText: question)
             appState.dismissComposer()
         } catch {
             print("Error creating poll: \(error)")

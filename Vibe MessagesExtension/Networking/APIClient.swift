@@ -429,6 +429,27 @@ actor APIClient {
         return try await performRequest(request)
     }
 
+    func put<T: Decodable, B: Encodable>(_ path: String, body: B) async throws -> T {
+        print("API Debug: PUT request to \(path)")
+        if useMockData {
+            // For mock mode, just return a decoded empty object
+            let data = try encoder.encode(body)
+            return try decoder.decode(T.self, from: data)
+        }
+
+        let urlString = baseURL + path
+        guard let url = URL(string: urlString) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+
+        return try await performRequest(request)
+    }
+
     private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {
         do {
             let (data, response) = try await session.data(for: request)
@@ -560,7 +581,7 @@ actor APIClient {
                     id: UUID().uuidString,
                     oderId: nil,
                     userId: request.userId,
-                    conversationId: request.conversationId,
+                    conversationId: request.conversationId ?? request.chatId,
                     type: request.type,
                     mediaUrl: request.mediaUrl,
                     thumbnailUrl: request.thumbnailUrl,

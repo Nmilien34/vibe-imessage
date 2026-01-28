@@ -282,77 +282,8 @@ struct VideoPlayerView: UIViewRepresentable {
 struct MusicSelectorView: View {
     @Environment(\.dismiss) var dismiss
     @Binding var selectedSong: SongData?
-    @State private var searchText = ""
-    @State private var searchResults: [SongData] = []
-    @State private var isSearching = false
-    
+
     var body: some View {
-        NavigationView {
-            VStack {
-                TextField("Search songs...", text: $searchText)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-                    .padding()
-                    .onChange(of: searchText) { _, newValue in
-                        performSearch(newValue)
-                    }
-                
-                if isSearching {
-                    ProgressView()
-                    Spacer()
-                } else {
-                    List(searchResults) { song in
-                        Button {
-                            selectedSong = song
-                            dismiss()
-                        } label: {
-                            HStack {
-                                if let art = song.albumArt, let url = URL(string: art) {
-                                    AsyncImage(url: url) { img in
-                                        img.resizable().aspectRatio(contentMode: .fill)
-                                    } placeholder: {
-                                        Color.gray.opacity(0.3)
-                                    }
-                                    .frame(width: 50, height: 50)
-                                    .cornerRadius(8)
-                                }
-                                
-                                VStack(alignment: .leading) {
-                                    Text(song.title).font(.headline)
-                                    Text(song.artist).font(.subheadline).foregroundColor(.secondary)
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                }
-            }
-            .navigationTitle("Add Music")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-    }
-    
-    private func performSearch(_ query: String) {
-        guard !query.isEmpty else {
-            searchResults = []
-            return
-        }
-        
-        isSearching = true
-        // Mocking search for now, similar to SongComposerView
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            searchResults = [
-                SongData(title: "Vibe Check", artist: "The Vibes", albumArt: "https://picsum.photos/200", previewUrl: nil, spotifyId: "1"),
-                SongData(title: "Neon Nights", artist: "RetroWave", albumArt: "https://picsum.photos/201", previewUrl: nil, spotifyId: "2"),
-                SongData(title: "Moonlight", artist: "Lo-Fi Beats", albumArt: "https://picsum.photos/202", previewUrl: nil, spotifyId: "3")
-            ]
-            isSearching = false
-        }
+        MusicPickerView(selectedSong: $selectedSong)
     }
 }

@@ -122,10 +122,25 @@ struct DailyDropComposerView: View {
     }
     
     private func acceptChallenge() {
-        // Navigate to Camera with this prompt
-        // For now, we'll just open the normal video/photo composer
-        // Future: Pass the prompt to the CreatorCameraView
-        appState.navigateToComposer(type: .photo, isLocked: isLocked)
+        let prompt = prompts[currentPromptIndex]
+        Task {
+            do {
+                let vibe = try await appState.createVibe(
+                    type: .dailyDrop,
+                    textStatus: prompt,
+                    isLocked: isLocked
+                )
+                appState.sendVibeMessage(
+                    vibeId: vibe.id,
+                    isLocked: isLocked,
+                    vibeType: .dailyDrop,
+                    contextText: prompt
+                )
+                appState.dismissComposer()
+            } catch {
+                print("Error sending challenge: \(error)")
+            }
+        }
     }
 }
 

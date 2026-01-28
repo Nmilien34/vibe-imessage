@@ -529,29 +529,7 @@ struct LowerSectionView: View {
             }
 
             // 7. UPCOMING REMINDERS
-            VStack(alignment: .leading, spacing: 12) {
-                Text("UPCOMING")
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.gray)
-                    .padding(.leading)
-
-                HStack(spacing: 12) {
-                    ReminderCardView(
-                        icon: "gift.fill",
-                        title: "Sarah's B-Day",
-                        subtitle: "In 2 days",
-                        iconColor: .pink
-                    )
-                    ReminderCardView(
-                        icon: "popcorn.fill",
-                        title: "Movie Night",
-                        subtitle: "Friday 8pm",
-                        iconColor: .orange
-                    )
-                }
-                .padding(.horizontal)
-            }
+            UpcomingRemindersSection()
 
             // 8. PAST VIBES (HISTORY)
             VStack(alignment: .leading, spacing: 12) {
@@ -743,20 +721,82 @@ struct NewsCardView: View {
     }
 }
 
+struct UpcomingRemindersSection: View {
+    @EnvironmentObject var appState: AppState
+    @State private var showAddSheet = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("UPCOMING")
+                    .font(.caption)
+                    .bold()
+                    .foregroundColor(.gray)
+                Spacer()
+                Button {
+                    showAddSheet = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(.white, .blue)
+                }
+            }
+            .padding(.horizontal)
+
+            if appState.reminders.isEmpty {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 8) {
+                        Text("Nothing coming up")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.gray)
+                        Text("Tap + to add one")
+                            .font(.caption)
+                            .foregroundColor(.gray.opacity(0.6))
+                    }
+                    .padding(.vertical, 24)
+                    Spacer()
+                }
+                .background(Color.white)
+                .cornerRadius(16)
+                .padding(.horizontal)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(appState.reminders) { reminder in
+                            ReminderCardView(
+                                emoji: reminder.emoji,
+                                title: reminder.title,
+                                subtitle: reminder.relativeDate,
+                                accentColor: reminder.type.color
+                            )
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+            }
+        }
+        .sheet(isPresented: $showAddSheet) {
+            AddReminderSheet()
+                .environmentObject(appState)
+        }
+    }
+}
+
 struct ReminderCardView: View {
-    var icon: String
+    var emoji: String
     var title: String
     var subtitle: String
-    var iconColor: Color
+    var accentColor: Color
 
     var body: some View {
         HStack {
             Circle()
-                .fill(iconColor.opacity(0.1))
+                .fill(accentColor.opacity(0.1))
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Image(systemName: icon)
-                        .foregroundColor(iconColor)
+                    Text(emoji)
+                        .font(.system(size: 20))
                 )
             VStack(alignment: .leading) {
                 Text(title)

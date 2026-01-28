@@ -149,7 +149,7 @@ struct LeakComposerView: View {
 
         do {
             let result = try await VibeService.shared.uploadMediaWithKey(data: data, fileType: "jpg", folder: "leaks")
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .leak,
                 mediaUrl: result.url,
                 mediaKey: result.key,
@@ -158,6 +158,7 @@ struct LeakComposerView: View {
                 textStatus: showNoContextTag ? "NO CONTEXT" : nil,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, thumbnail: thumbnailImage, vibeType: .leak)
             appState.dismissComposer()
         } catch {
             uploadError = error.localizedDescription

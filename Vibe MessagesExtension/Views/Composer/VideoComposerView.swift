@@ -182,7 +182,7 @@ struct VideoComposerView: View {
             uploadProgress = 0.9
 
             // 3. Send iMessage Bubble with real VideoId
-            appState.sendStory?(result.videoId, result.videoUrl, isLocked, thumbnailImage)
+            appState.sendStory?(result.videoId, result.videoUrl, isLocked, thumbnailImage, mediaType, nil)
 
             uploadProgress = 1.0
 

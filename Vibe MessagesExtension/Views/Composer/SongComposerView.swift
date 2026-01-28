@@ -183,11 +183,12 @@ struct SongComposerView: View {
     
     private func shareSong(_ song: SongData) async {
         do {
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .song,
                 songData: song,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .song, contextText: "\(song.title) — \(song.artist)")
             appState.dismissComposer()
         } catch {
             self.error = error.localizedDescription

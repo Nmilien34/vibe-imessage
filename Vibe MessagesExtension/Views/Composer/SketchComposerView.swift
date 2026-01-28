@@ -138,10 +138,11 @@ struct SketchComposerView: View {
         uploadError = nil
 
         do {
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .sketch,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .sketch)
             appState.dismissComposer()
         } catch {
             uploadError = error.localizedDescription

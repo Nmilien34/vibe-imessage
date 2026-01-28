@@ -102,11 +102,13 @@ struct MoodComposerView: View {
         
         do {
             let mood = Mood(emoji: emoji, text: customText.isEmpty ? nil : customText)
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .mood,
                 mood: mood,
                 isLocked: isLocked
             )
+            let moodContext = customText.isEmpty ? emoji : "\(emoji)|\(customText)"
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .mood, contextText: moodContext)
             appState.dismissComposer()
         } catch {
             print("Error sharing mood: \(error)")

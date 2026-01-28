@@ -94,11 +94,12 @@ struct ETAComposerView: View {
     private func shareETA() async {
         guard let status = selectedStatus else { return }
         do {
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .eta,
                 etaStatus: status,
                 isLocked: isLocked
             )
+            appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .eta, contextText: status)
             appState.dismissComposer()
         } catch {
             print("Error sharing ETA: \(error)")

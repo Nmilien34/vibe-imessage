@@ -40,6 +40,7 @@ class AppState: ObservableObject {
     
     // MARK: - Onboarding & Permissions
     @Published var isOnboardingCompleted: Bool = false
+    @Published var isBirthdayCollected: Bool = false
     @Published var hasRequiredPermissions: Bool = false
     @Published var userFirstName: String?
 
@@ -48,6 +49,7 @@ class AppState: ObservableObject {
 
     // MARK: - Data
     @Published var vibes: [Vibe] = []
+    @Published var reminders: [Reminder] = []
     @Published var streak: Streak?
     @Published var isLoading = false
     @Published var error: String?
@@ -109,7 +111,7 @@ class AppState: ObservableObject {
 
     // MARK: - Callbacks
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
-    var sendStory: ((_ videoId: String, _ videoUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?) -> Void)?
+    var sendStory: ((_ vibeId: String, _ mediaUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?, _ vibeType: VibeType, _ contextText: String?) -> Void)?
     var onUnlockComplete: (() -> Void)?
     
     // MARK: - Usage Analytics (for Dynamic Dashboard)
@@ -157,6 +159,7 @@ class AppState: ObservableObject {
     init() {
         // Load onboarding state
         self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
+        self.isBirthdayCollected = UserDefaults.standard.bool(forKey: "vibeBirthdayCollected")
         self.userFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
         self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
 
@@ -207,8 +210,9 @@ class AppState: ObservableObject {
                 self.currentChatId = chatId
                 print("AppState Debug: Resolved Chat ID to: \(chatId)")
             }
-            // Load vibes after resolving chat ID
+            // Load vibes and reminders after resolving chat ID
             await loadVibes()
+            await loadReminders()
         }
     }
 
@@ -298,6 +302,40 @@ class AppState: ObservableObject {
         networkError = nil
     }
 
+    // MARK: - Reminders
+
+    func loadReminders() async {
+        guard let chatId = currentChatId else { return }
+        do {
+            let loaded = try await APIService.shared.getReminders(chatId: chatId)
+            self.reminders = loaded
+        } catch {
+            print("AppState Error: Loading reminders failed: \(error)")
+        }
+    }
+
+    func createReminder(type: ReminderType, emoji: String, title: String, date: Date) async {
+        guard let chatId = currentChatId else { return }
+        do {
+            let reminder = try await APIService.shared.createReminder(
+                chatId: chatId, userId: userId, type: type, emoji: emoji, title: title, date: date
+            )
+            reminders.append(reminder)
+            reminders.sort { $0.date < $1.date }
+        } catch {
+            print("AppState Error: Creating reminder failed: \(error)")
+        }
+    }
+
+    func deleteReminder(id: String) async {
+        do {
+            try await APIService.shared.deleteReminder(id: id, userId: userId)
+            reminders.removeAll { $0.id == id }
+        } catch {
+            print("AppState Error: Deleting reminder failed: \(error)")
+        }
+    }
+
     // MARK: - Authentication
 
     func handleAppleSignIn(identityToken: String, firstName: String?, lastName: String?) async {
@@ -356,6 +394,35 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(true, forKey: "vibeOnboardingCompleted")
     }
 
+    func saveBirthday(month: Int, day: Int) {
+        UserDefaults.standard.set(month, forKey: "vibeBirthdayMonth")
+        UserDefaults.standard.set(day, forKey: "vibeBirthdayDay")
+        UserDefaults.standard.set(true, forKey: "vibeBirthdayCollected")
+        isBirthdayCollected = true
+
+        // Fire backend API call
+        Task {
+            struct BirthdayRequest: Encodable {
+                let userId: String
+                let month: Int
+                let day: Int
+            }
+            do {
+                struct BirthdayResponse: Decodable {}
+                let _: BirthdayResponse = try await APIClient.shared.put("/auth/birthday", body: BirthdayRequest(
+                    userId: userId, month: month, day: day
+                ))
+            } catch {
+                print("Birthday save error: \(error)")
+            }
+        }
+    }
+
+    func skipBirthday() {
+        UserDefaults.standard.set(true, forKey: "vibeBirthdayCollected")
+        isBirthdayCollected = true
+    }
+
     func setPermissionsGranted() {
         hasRequiredPermissions = true
         UserDefaults.standard.set(true, forKey: "vibePermissionsGranted")
@@ -370,13 +437,14 @@ class AppState: ObservableObject {
 
     // MARK: - Vibe Actions
 
+    @discardableResult
     func createVibe(type: VibeType, mediaUrl: String? = nil, mediaKey: String? = nil,
                     thumbnailUrl: String? = nil, thumbnailKey: String? = nil,
                     songData: SongData? = nil, batteryLevel: Int? = nil,
                     mood: Mood? = nil, poll: CreatePollRequest? = nil,
                     textStatus: String? = nil, styleName: String? = nil,
                     etaStatus: String? = nil,
-                    isLocked: Bool = false) async throws {
+                    isLocked: Bool = false) async throws -> Vibe {
         // Use the virtual chatId from our distributed ID system
         guard let chatId = currentChatId else {
             throw APIError.invalidURL
@@ -408,6 +476,13 @@ class AppState: ObservableObject {
 
         // Refresh streak
         streak = try? await APIService.shared.fetchStreak(chatId: chatId)
+
+        return newVibe
+    }
+
+    /// Sends an iMessage bubble for any vibe type
+    func sendVibeMessage(vibeId: String, mediaUrl: String = "", isLocked: Bool, thumbnail: UIImage? = nil, vibeType: VibeType, contextText: String? = nil) {
+        sendStory?(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
     }
 
     func addReaction(to vibe: Vibe, emoji: String) async {
@@ -520,10 +595,10 @@ class AppState: ObservableObject {
 
     func dismissComposer() {
         isComposerPresented = false
-        isComposerPresented = false
         selectedVibeType = nil
         composerIsLocked = false
         currentDestination = .feed
+        requestCompact()
     }
 
     // MARK: - Unlock Flow
@@ -555,7 +630,7 @@ class AppState: ObservableObject {
         // For now, to fix the compiler error, I'll use placeholders.
         // The real upload happens in VideoComposerView.swift.
         // If we are here, we might need a separate upload step.
-        sendStory?("temp_id", video.url.absoluteString, false, nil)
+        sendStory?("temp_id", video.url.absoluteString, false, nil, .video, nil)
 
         // Mark the pending vibe as unlocked locally
         if let vibeId = pendingUnlockVibeId,

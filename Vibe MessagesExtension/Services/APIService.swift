@@ -415,7 +415,7 @@ class APIService {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: requestBody.userId,
-                conversationId: requestBody.conversationId,
+                conversationId: requestBody.conversationId ?? requestBody.chatId,
                 type: requestBody.type,
                 mediaUrl: requestBody.mediaUrl,
                 thumbnailUrl: requestBody.thumbnailUrl,
@@ -574,6 +574,106 @@ class APIService {
         }
         
         return try decoder.decode(Vibe.self, from: data)
+    }
+
+    // MARK: - Reminders
+
+    private var mockReminders: [Reminder] = []
+
+    func getReminders(chatId: String) async throws -> [Reminder] {
+        if useMockData {
+            try await Task.sleep(nanoseconds: 200_000_000)
+            return mockReminders
+                .filter { $0.chatId == chatId && $0.date >= Date().addingTimeInterval(-86400) }
+                .sorted { $0.date < $1.date }
+        }
+
+        guard let url = URL(string: "\(baseURL)/reminders/\(chatId)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        return try decoder.decode([Reminder].self, from: data)
+    }
+
+    func createReminder(chatId: String, userId: String, type: ReminderType, emoji: String, title: String, date: Date) async throws -> Reminder {
+        if useMockData {
+            try await Task.sleep(nanoseconds: 300_000_000)
+            let reminder = Reminder(
+                id: UUID().uuidString,
+                chatId: chatId,
+                userId: userId,
+                type: type,
+                emoji: emoji,
+                title: title,
+                date: date,
+                createdAt: Date()
+            )
+            mockReminders.append(reminder)
+            return reminder
+        }
+
+        guard let url = URL(string: "\(baseURL)/reminders") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        struct CreateReminderRequest: Encodable {
+            let chatId: String
+            let userId: String
+            let type: ReminderType
+            let emoji: String
+            let title: String
+            let date: Date
+        }
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        request.httpBody = try encoder.encode(CreateReminderRequest(
+            chatId: chatId, userId: userId, type: type, emoji: emoji, title: title, date: date
+        ))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        return try decoder.decode(Reminder.self, from: data)
+    }
+
+    func deleteReminder(id: String, userId: String) async throws {
+        if useMockData {
+            try await Task.sleep(nanoseconds: 200_000_000)
+            mockReminders.removeAll { $0.id == id }
+            return
+        }
+
+        guard let url = URL(string: "\(baseURL)/reminders/\(id)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["userId": userId])
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
     }
 
     // MARK: - Group Streaks (Section 9.1)

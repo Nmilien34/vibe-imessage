@@ -236,6 +236,18 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
     
+    func toggleFlash(_ on: Bool) {
+        if isSimulator { return }
+        guard let device = videoInput?.device, device.hasTorch else { return }
+        do {
+            try device.lockForConfiguration()
+            device.torchMode = on ? .on : .off
+            device.unlockForConfiguration()
+        } catch {
+            print("Flash toggle error: \(error)")
+        }
+    }
+
     private func startTimer() {
         startTime = Date()
         recordingTime = 0

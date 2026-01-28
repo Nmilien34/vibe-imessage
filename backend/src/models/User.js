@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
   profilePicture: {
     type: String,
   },
+  birthday: {
+    month: { type: Number },
+    day: { type: Number },
+  },
 
   // Array of Chat IDs this user belongs to (enables unified feed)
   joinedChatIds: [{
