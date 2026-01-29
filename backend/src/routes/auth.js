@@ -20,8 +20,7 @@ router.post('/apple', async (req, res) => {
         // 1. Verify the identity token with Apple
         // NOTE: In production, you should verify the 'aud' matches your App Bundle ID
         const appleData = await appleSignin.verifyIdToken(identityToken, {
-            // audience is optional but recommended
-            // audience: 'com.your.bundle.id', 
+            audience: 'nickmilien.com.vibes.MessagesExtension',
             ignoreExpiration: false,
         });
 

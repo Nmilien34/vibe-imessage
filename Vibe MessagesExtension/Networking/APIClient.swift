@@ -37,7 +37,7 @@ actor APIClient {
     static let shared = APIClient()
 
     // SET THIS TO TRUE TO ENABLE MOCK MODE (No Backend Required)
-    let useMockData = true
+    let useMockData = false
 
     #if DEBUG
     private let baseURL = "http://localhost:3000/api"
