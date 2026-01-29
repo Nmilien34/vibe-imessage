@@ -253,7 +253,7 @@ final class MessageService: Sendable {
             return "📍 ETA"
         case .parlay:
             if let parlay = vibe.parlay {
-                return "💸 \(parlay.title) - \(parlay.amount)"
+                return "💸 \(parlay.displayTitle) - \(parlay.displayAmount)"
             }
             return "💸 Parlay"
         }

@@ -73,6 +73,8 @@ class CameraViewModel: NSObject, ObservableObject {
         super.init()
     }
     
+    @Published var setupError: String?
+
     func checkPermissions() {
         if isSimulator {
             // Simulate authorized
@@ -80,23 +82,48 @@ class CameraViewModel: NSObject, ObservableObject {
             return
         }
 
+        // Check video permission first
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            setupSession()
+            // Also check/request audio permission
+            checkAudioPermissionAndSetup()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
                 if granted {
-                    self?.setupSession()
+                    self?.checkAudioPermissionAndSetup()
                 } else {
                     DispatchQueue.main.async {
                         self?.isUnauthorized = true
+                        self?.setupError = "Camera access is required to record videos"
                     }
                 }
             }
         case .denied, .restricted:
-            isUnauthorized = true
+            DispatchQueue.main.async {
+                self.isUnauthorized = true
+                self.setupError = "Camera access denied. Please enable in Settings."
+            }
         @unknown default:
-            isUnauthorized = true
+            DispatchQueue.main.async {
+                self.isUnauthorized = true
+            }
+        }
+    }
+
+    private func checkAudioPermissionAndSetup() {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            setupSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                // Proceed even if audio denied - video will still work
+                self?.setupSession()
+            }
+        case .denied, .restricted:
+            // Still setup session, just without audio
+            setupSession()
+        @unknown default:
+            setupSession()
         }
     }
     
@@ -114,9 +141,22 @@ class CameraViewModel: NSObject, ObservableObject {
             session.sessionPreset = .high
             
             // Add Input (Default to Back Camera)
-            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-                  let input = try? AVCaptureDeviceInput(device: device) else {
+            guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
                 print("Failed to get camera device")
+                DispatchQueue.main.async {
+                    self.setupError = "Could not access camera. Please try again."
+                    self.isUnauthorized = true
+                }
+                session.commitConfiguration()
+                return
+            }
+
+            guard let input = try? AVCaptureDeviceInput(device: device) else {
+                print("Failed to create camera input")
+                DispatchQueue.main.async {
+                    self.setupError = "Could not initialize camera. Please restart the app."
+                    self.isUnauthorized = true
+                }
                 session.commitConfiguration()
                 return
             }
@@ -161,14 +201,19 @@ class CameraViewModel: NSObject, ObservableObject {
     
     func startRecording() {
         guard !isRecording else { return }
-        
+
         if isSimulator {
             isRecording = true
             startTimer()
             return
         }
 
-        guard let session = session, session.isRunning else { return }
+        guard let session = session, session.isRunning else {
+            DispatchQueue.main.async {
+                self.uploadError = "Camera not ready. Please wait and try again."
+            }
+            return
+        }
         
         let outputPath = NSTemporaryDirectory() + UUID().uuidString + ".mov"
         let outputUrl = URL(fileURLWithPath: outputPath)

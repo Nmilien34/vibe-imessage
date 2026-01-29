@@ -11,7 +11,8 @@ struct Vibe: Codable, Identifiable, Equatable {
     let id: String
     let oderId: String?
     let userId: String
-    let conversationId: String
+    let chatId: String?          // Primary: Our virtual chat ID (new system)
+    let conversationId: String?  // Legacy: iMessage conversation UUID
     let type: VibeType
     let mediaUrl: String?
     let thumbnailUrl: String?
@@ -31,8 +32,9 @@ struct Vibe: Codable, Identifiable, Equatable {
     let createdAt: Date
     let updatedAt: Date
 
-    // History support - indicates vibe is past 24h but still in 15-day history
-    var isExpiredFromFeed: Bool?
+    // Feed response extras
+    var isExpiredFromFeed: Bool?  // History support - past 24h but still in 15-day history
+    var isBlurred: Bool?          // Feed response - indicates locked content should be blurred
 }
 
 extension Vibe {
@@ -40,6 +42,7 @@ extension Vibe {
         case id = "_id"
         case oderId
         case userId
+        case chatId
         case conversationId
         case type
         case mediaUrl
@@ -60,6 +63,62 @@ extension Vibe {
         case createdAt
         case updatedAt
         case isExpiredFromFeed
+        case isBlurred
+    }
+
+    // Memberwise initializer for creating Vibe instances directly
+    init(
+        id: String,
+        oderId: String? = nil,
+        userId: String,
+        chatId: String? = nil,
+        conversationId: String? = nil,
+        type: VibeType,
+        mediaUrl: String? = nil,
+        thumbnailUrl: String? = nil,
+        songData: SongData? = nil,
+        batteryLevel: Int? = nil,
+        mood: Mood? = nil,
+        poll: Poll? = nil,
+        parlay: Parlay? = nil,
+        textStatus: String? = nil,
+        styleName: String? = nil,
+        etaStatus: String? = nil,
+        isLocked: Bool = false,
+        unlockedBy: [String] = [],
+        reactions: [Reaction] = [],
+        viewedBy: [String] = [],
+        expiresAt: Date,
+        createdAt: Date,
+        updatedAt: Date,
+        isExpiredFromFeed: Bool? = nil,
+        isBlurred: Bool? = nil
+    ) {
+        self.id = id
+        self.oderId = oderId
+        self.userId = userId
+        self.chatId = chatId
+        self.conversationId = conversationId
+        self.type = type
+        self.mediaUrl = mediaUrl
+        self.thumbnailUrl = thumbnailUrl
+        self.songData = songData
+        self.batteryLevel = batteryLevel
+        self.mood = mood
+        self.poll = poll
+        self.parlay = parlay
+        self.textStatus = textStatus
+        self.styleName = styleName
+        self.etaStatus = etaStatus
+        self.isLocked = isLocked
+        self.unlockedBy = unlockedBy
+        self.reactions = reactions
+        self.viewedBy = viewedBy
+        self.expiresAt = expiresAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.isExpiredFromFeed = isExpiredFromFeed
+        self.isBlurred = isBlurred
     }
 
     init(from decoder: Decoder) throws {
@@ -67,7 +126,8 @@ extension Vibe {
         self.id = try container.decode(String.self, forKey: .id)
         self.oderId = try container.decodeIfPresent(String.self, forKey: .oderId)
         self.userId = try container.decode(String.self, forKey: .userId)
-        self.conversationId = try container.decode(String.self, forKey: .conversationId)
+        self.chatId = try container.decodeIfPresent(String.self, forKey: .chatId)
+        self.conversationId = try container.decodeIfPresent(String.self, forKey: .conversationId)
         self.type = try container.decode(VibeType.self, forKey: .type)
         self.mediaUrl = try container.decodeIfPresent(String.self, forKey: .mediaUrl)
         self.thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
@@ -87,6 +147,7 @@ extension Vibe {
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decode(Date.self, forKey: .updatedAt)
         self.isExpiredFromFeed = try container.decodeIfPresent(Bool.self, forKey: .isExpiredFromFeed)
+        self.isBlurred = try container.decodeIfPresent(Bool.self, forKey: .isBlurred)
     }
 
     func isUnlocked(for userId: String) -> Bool {

@@ -82,10 +82,16 @@ struct LoginView: View {
         switch result {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
-                let identityToken = String(data: appleIDCredential.identityToken!, encoding: .utf8)!
+                // Safely unwrap identity token - this is critical!
+                guard let tokenData = appleIDCredential.identityToken,
+                      let identityToken = String(data: tokenData, encoding: .utf8) else {
+                    print("Authentication failed: Could not get identity token")
+                    return
+                }
+
                 let firstName = appleIDCredential.fullName?.givenName
                 let lastName = appleIDCredential.fullName?.familyName
-                
+
                 Task {
                     await appState.handleAppleSignIn(
                         identityToken: identityToken,

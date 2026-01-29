@@ -449,7 +449,7 @@ struct VibeGridCell: View {
                         .font(.title)
                         .foregroundColor(vibe.type.color)
                     if let parlay = vibe.parlay {
-                        Text(parlay.amount)
+                        Text(parlay.displayAmount)
                             .font(.caption)
                             .fontWeight(.bold)
                     }

@@ -140,7 +140,8 @@ struct VideoComposerView: View {
 
     private func shareMedia(overlayText: String? = nil, song: SongData? = nil) async {
         guard let data = mediaData else { return }
-        guard let chatId = appState.conversationId else {
+        // Use currentChatId (our distributed ID system) instead of conversationId
+        guard let chatId = appState.currentChatId ?? appState.conversationId else {
             self.error = "No active conversation"
             self.showUploadError = true
             return

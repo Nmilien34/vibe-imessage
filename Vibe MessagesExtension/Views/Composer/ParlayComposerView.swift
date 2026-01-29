@@ -252,7 +252,10 @@ struct ParlayComposerView: View {
         do {
             let parlayRequest = CreateParlayRequest(
                 title: title,
+                question: nil,
+                options: nil,
                 amount: finalDisplayAmount,
+                wager: nil,
                 opponentId: nil,
                 opponentName: selectedFriend
             )

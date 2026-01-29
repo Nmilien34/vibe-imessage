@@ -16,6 +16,8 @@ struct SongData: Codable, Equatable, Identifiable {
     let albumArt: String?
     let previewUrl: String?
     let spotifyId: String?
+    let spotifyUrl: String?
+    let appleMusicUrl: String?
 
     enum CodingKeys: String, CodingKey {
         case title
@@ -23,5 +25,17 @@ struct SongData: Codable, Equatable, Identifiable {
         case albumArt
         case previewUrl
         case spotifyId
+        case spotifyUrl
+        case appleMusicUrl
+    }
+
+    init(title: String, artist: String, albumArt: String? = nil, previewUrl: String? = nil, spotifyId: String? = nil, spotifyUrl: String? = nil, appleMusicUrl: String? = nil) {
+        self.title = title
+        self.artist = artist
+        self.albumArt = albumArt
+        self.previewUrl = previewUrl
+        self.spotifyId = spotifyId
+        self.spotifyUrl = spotifyUrl
+        self.appleMusicUrl = appleMusicUrl
     }
 }

@@ -8,7 +8,8 @@ class APIService {
     static let shared = APIService()
 
     // SET THIS TO TRUE TO ENABLE MOCK MODE (No Backend Required)
-    private let useMockData = true
+    // IMPORTANT: Must be FALSE for production!
+    private let useMockData = false
 
     #if DEBUG
     private let baseURL = "http://localhost:3000/api"
