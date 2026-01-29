@@ -200,6 +200,12 @@ struct LockedVibeView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+        case .parlay:
+            LinearGradient(
+                colors: [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 }

@@ -251,6 +251,11 @@ final class MessageService: Sendable {
                 return "📍 \(eta)"
             }
             return "📍 ETA"
+        case .parlay:
+            if let parlay = vibe.parlay {
+                return "💸 \(parlay.title) - \(parlay.amount)"
+            }
+            return "💸 Parlay"
         }
     }
 
@@ -285,6 +290,8 @@ final class MessageService: Sendable {
                 backgroundColor = UIColor.systemOrange
             case .eta:
                 backgroundColor = UIColor.systemBlue
+            case .parlay:
+                backgroundColor = UIColor.systemPink
             }
 
             backgroundColor.setFill()
@@ -315,6 +322,8 @@ final class MessageService: Sendable {
                 iconText = "✏️"
             case .eta:
                 iconText = "📍"
+            case .parlay:
+                iconText = "💸"
             }
 
             let attributes: [NSAttributedString.Key: Any] = [

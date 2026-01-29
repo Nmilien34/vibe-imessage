@@ -324,6 +324,34 @@ struct VibeCardBubbleView: View {
                     .lineLimit(3)
             }
 
+        case .parlay:
+            // contextText is "title|amount|opponent" format
+            if let text = contextText {
+                let parts = text.split(separator: "|", maxSplits: 2)
+                VStack(spacing: 6) {
+                    Text("💸 Parlay")
+                        .font(.caption)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white.opacity(0.8))
+                    Text(String(parts.first ?? "Bet"))
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    if parts.count > 1 {
+                        Text(String(parts[1]))
+                            .font(.system(size: 28, weight: .black, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                }
+            } else {
+                Text("💸 New Parlay")
+                    .font(.title3)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+            }
+
         default:
             Text("New Vibe")
                 .font(.headline)
@@ -342,6 +370,7 @@ struct VibeCardBubbleView: View {
         case .eta:      return [.blue, .teal]
         case .song:     return [.green, .green.opacity(0.6)]
         case .dailyDrop: return [.black, Color(red: 0.2, green: 0.2, blue: 0.2)]
+        case .parlay:   return [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)]
         default:        return [.pink, .purple]
         }
     }

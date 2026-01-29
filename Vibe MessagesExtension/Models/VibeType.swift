@@ -20,6 +20,7 @@ enum VibeType: String, Codable, CaseIterable {
     case leak
     case sketch
     case eta
+    case parlay
 
     var displayName: String {
         switch self {
@@ -34,6 +35,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .leak: return "Leak"
         case .sketch: return "Sketch"
         case .eta: return "ETA"
+        case .parlay: return "Parlay"
         }
     }
 
@@ -50,6 +52,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .leak: return "shutter.releaser"
         case .sketch: return "hand.draw.fill"
         case .eta: return "location.fill"
+        case .parlay: return "dollarsign.circle.fill"
         }
     }
 
@@ -66,6 +69,7 @@ enum VibeType: String, Codable, CaseIterable {
         case .leak: return .red
         case .sketch: return .orange
         case .eta: return .blue
+        case .parlay: return Color(red: 1.0, green: 0.2, blue: 0.6)
         }
     }
 }

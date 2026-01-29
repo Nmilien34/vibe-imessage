@@ -443,6 +443,17 @@ struct VibeGridCell: View {
                 Image(systemName: "location.fill")
                     .font(.title)
                     .foregroundColor(vibe.type.color)
+            case .parlay:
+                VStack(spacing: 4) {
+                    Image(systemName: "dollarsign.circle.fill")
+                        .font(.title)
+                        .foregroundColor(vibe.type.color)
+                    if let parlay = vibe.parlay {
+                        Text(parlay.amount)
+                            .font(.caption)
+                            .fontWeight(.bold)
+                    }
+                }
             }
     }
 

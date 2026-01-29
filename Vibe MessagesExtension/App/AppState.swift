@@ -81,6 +81,7 @@ class AppState: ObservableObject {
             batteryLevel: nil,
             mood: Mood(emoji: "👋", text: "Welcome to Vibe! Watch this to learn how it works."),
             poll: nil,
+            parlay: nil,
             textStatus: nil,
             styleName: nil,
             etaStatus: nil,
@@ -442,6 +443,7 @@ class AppState: ObservableObject {
                     thumbnailUrl: String? = nil, thumbnailKey: String? = nil,
                     songData: SongData? = nil, batteryLevel: Int? = nil,
                     mood: Mood? = nil, poll: CreatePollRequest? = nil,
+                    parlay: CreateParlayRequest? = nil,
                     textStatus: String? = nil, styleName: String? = nil,
                     etaStatus: String? = nil,
                     isLocked: Bool = false) async throws -> Vibe {
@@ -464,6 +466,7 @@ class AppState: ObservableObject {
         request.batteryLevel = batteryLevel
         request.mood = mood
         request.poll = poll
+        request.parlay = parlay
         request.textStatus = textStatus
         request.styleName = styleName
         request.etaStatus = etaStatus

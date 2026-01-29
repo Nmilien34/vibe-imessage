@@ -35,7 +35,7 @@ const vibeSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ['video', 'photo', 'song', 'battery', 'mood', 'poll', 'dailyDrop', 'tea', 'leak', 'sketch', 'eta'],
+    enum: ['video', 'photo', 'song', 'battery', 'mood', 'poll', 'dailyDrop', 'tea', 'leak', 'sketch', 'eta', 'parlay'],
   },
 
   // Media URL (S3) for video content
@@ -88,6 +88,19 @@ const vibeSchema = new mongoose.Schema({
       userId: String,
       optionIndex: Number,
     }],
+  },
+
+  // For parlay type (bets/wagers)
+  parlay: {
+    title: String,
+    amount: String,
+    opponentId: String,
+    opponentName: String,
+    status: {
+      type: String,
+      enum: ['pending', 'accepted', 'declined', 'settled'],
+      default: 'pending',
+    },
   },
 
   // For tea type - text status/caption

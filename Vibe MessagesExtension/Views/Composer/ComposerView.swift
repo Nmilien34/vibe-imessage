@@ -193,9 +193,18 @@ struct ComposerView: View {
                         ) {
                             selectVibe(.eta)
                         }
+
+                        // Row 6
+                        MenuCard(
+                            title: "Parlay",
+                            icon: "dollarsign.circle.fill",
+                            gradient: [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)]
+                        ) {
+                            selectVibe(.parlay)
+                        }
                     }
                     .padding(.horizontal)
-                    
+
                     // 3. SQUAD ROW
                     VStack(alignment: .leading, spacing: 12) {
                         Text("Squad")
@@ -342,6 +351,8 @@ struct ComposerView: View {
                 SketchComposerView(isLocked: isLocked)
             case .eta:
                 ETAComposerView(isLocked: isLocked)
+            case .parlay:
+                ParlayComposerView(isLocked: isLocked)
             }
         }
     }

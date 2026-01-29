@@ -143,6 +143,13 @@ struct VibeRingView: View {
                                 .font(.system(size: size * 0.35))
                                 .foregroundColor(.white)
                         }
+                case .parlay:
+                    vibeTypeBackground(firstVibe.type)
+                        .overlay {
+                            Image(systemName: "dollarsign.circle.fill")
+                                .font(.system(size: size * 0.35))
+                                .foregroundColor(.white)
+                        }
                 }
             } else {
                 Color.gray.opacity(0.3)

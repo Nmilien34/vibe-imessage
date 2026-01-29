@@ -246,6 +246,7 @@ class MessagesViewController: MSMessagesAppViewController {
         case .eta:      return "📍 \(senderName) shared their ETA"
         case .song:     return "🎵 \(senderName) shared a song"
         case .dailyDrop: return "🎲 \(senderName) sent a challenge"
+        case .parlay:   return "💸 \(senderName) sent a parlay"
         default:        return "✨ \(senderName) just posted!"
         }
     }

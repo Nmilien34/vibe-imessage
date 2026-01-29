@@ -233,20 +233,18 @@ struct UpperSectionView: View {
                         .cornerRadius(20)
                     }
 
-                    // Battery (Middle)
+                    // Parlay (Middle)
                     Button {
-                        appState.navigateToComposer(type: .battery)
+                        appState.navigateToComposer(type: .parlay)
                     } label: {
                         HStack {
-                            Text("Battery")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Spacer()
-                            Text("\(currentBatteryLevel)%")
+                            Image(systemName: "dollarsign.circle.fill")
+                                .foregroundColor(vibezPink)
+                            Text("Parlay")
                                 .bold()
-                                .foregroundColor(batteryColor)
-                            Image(systemName: batteryIcon)
-                                .foregroundColor(batteryColor)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text("💸")
                         }
                         .padding(.horizontal)
                         .frame(height: 65)
