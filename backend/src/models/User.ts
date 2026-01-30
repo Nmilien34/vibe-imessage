@@ -16,7 +16,6 @@ const userSchema = new Schema<IUserDocument, UserModel, IUserMethods>(
     },
     appleId: {
       type: String,
-      unique: true,
       sparse: true,
       index: true,
     },

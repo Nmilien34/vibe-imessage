@@ -73,6 +73,61 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
 });
 
 /**
+ * @route POST /api/auth/dev-login
+ * @desc Development-only login for simulator testing (bypasses Apple Sign In)
+ * @access Public (only available in non-production)
+ */
+router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: Response) => {
+  // Only allow in development
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: 'userId is required' });
+  }
+
+  try {
+    let user = await User.findById(userId);
+
+    if (!user) {
+      // Create the user if they don't exist (for first-time dev testing)
+      user = new User({
+        _id: userId,
+        firstName: 'Test',
+        lastName: 'User',
+        email: 'test@vibe.app',
+      });
+      await user.save();
+      console.log(`Dev login: Created new test user ${userId}`);
+    }
+
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET || 'dev_secret',
+      { expiresIn: '30d' }
+    );
+
+    console.log(`Dev login: User ${userId} authenticated`);
+
+    res.json({
+      token,
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+      },
+    });
+  } catch (err) {
+    console.error('Dev login error:', err);
+    res.status(500).json({ error: 'Dev login failed' });
+  }
+});
+
+/**
  * @route PUT /api/auth/birthday
  * @desc Save user's birthday (month + day)
  * @access Private

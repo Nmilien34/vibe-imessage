@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import connectDB from './config/db';
+import { initScheduler } from './config/scheduler';
 
 // Route imports
 import authRoutes from './routes/auth';
@@ -13,15 +14,39 @@ import uploadRoutes from './routes/upload';
 import chatRoutes from './routes/chat';
 import feedRoutes from './routes/feed';
 import remindersRoutes from './routes/reminders';
+import vibeWireRoutes from './routes/vibewire';
 
 const app = express();
 
 // Connect to MongoDB
 connectDB();
 
+// Initialize Vibe Wire Scheduler
+initScheduler();
+
 // Middleware
 app.use(helmet());
-app.use(cors());
+
+// CORS Configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://vibe-imessage.onrender.com'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Routes
@@ -33,6 +58,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/reminders', remindersRoutes);
+app.use('/api/vibewire', vibeWireRoutes);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
