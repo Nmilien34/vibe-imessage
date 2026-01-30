@@ -11,80 +11,108 @@ import AuthenticationServices
 struct LoginView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
+    @State private var isAuthenticating = false
+    @State private var authError: String?
 
     var body: some View {
-        VStack(spacing: 30) {
-            Spacer()
-            
-            // App Logo or Icon
-            VStack(spacing: 16) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(
-                            colors: [Color(hex: "FF4D4D"), Color(hex: "FF9E4D")],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ))
-                        .frame(width: 100, height: 100)
-                        .shadow(color: Color(hex: "FF4D4D").opacity(0.3), radius: 15, x: 0, y: 10)
-                    
-                    Image(systemName: "v.circle.fill")
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 60, height: 60)
-                        .foregroundColor(.white)
+        ZStack {
+            // Background that receives touches
+            Color(UIColor.systemBackground)
+                .ignoresSafeArea()
+
+            VStack(spacing: 30) {
+                Spacer()
+
+                // App Logo or Icon
+                VStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [Color(hex: "FF4D4D"), Color(hex: "FF9E4D")],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 100, height: 100)
+                            .shadow(color: Color(hex: "FF4D4D").opacity(0.3), radius: 15, x: 0, y: 10)
+
+                        Image(systemName: "v.circle.fill")
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(.white)
+                    }
+
+                    Text("Vibes")
+                        .font(.system(size: 42, weight: .black, design: .rounded))
+                        .tracking(-1)
                 }
-                
-                Text("Vibes")
-                    .font(.system(size: 42, weight: .black, design: .rounded))
-                    .tracking(-1)
-            }
-            
-            Text("See what your friends are up to.\nShare your vibe.")
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .multilineTextAlignment(.center)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 40)
-            
-            Spacer()
-            
-            // Sign in with Apple Button
-            SignInWithAppleButton(
-                .signIn,
-                onRequest: { request in
-                    request.requestedScopes = [.fullName, .email]
-                },
-                onCompletion: { result in
-                    handleSignInResult(result)
+
+                Text("See what your friends are up to.\nShare your vibe.")
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 40)
+
+                // Error message
+                if let error = authError {
+                    Text(error)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                        .transition(.opacity)
                 }
-            )
-            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-            .frame(height: 56)
-            .padding(.horizontal, 40)
-            
-            #if DEBUG
-            Button {
-                appState.bypassLogin()
-            } label: {
-                Text("Dev: Skip Login")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.gray)
+
+                Spacer()
+
+                // Sign in with Apple Button
+                if isAuthenticating {
+                    ProgressView()
+                        .frame(height: 56)
+                        .padding(.horizontal, 40)
+                } else {
+                    SignInWithAppleButton(
+                        .signIn,
+                        onRequest: { request in
+                            request.requestedScopes = [.fullName, .email]
+                        },
+                        onCompletion: { result in
+                            handleSignInResult(result)
+                        }
+                    )
+                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                    .frame(height: 56)
+                    .padding(.horizontal, 40)
+                }
+
+                #if DEBUG
+                Button {
+                    appState.bypassLogin()
+                } label: {
+                    Text("Dev: Skip Login")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.gray)
+                }
+                .padding(.top, 10)
+                #endif
+
+                Spacer()
             }
-            .padding(.top, 10)
-            #endif
-            
-            Spacer()
         }
-        .background(Color(UIColor.systemBackground))
+        .animation(.easeInOut(duration: 0.2), value: isAuthenticating)
+        .animation(.easeInOut(duration: 0.2), value: authError)
     }
 
     private func handleSignInResult(_ result: Result<ASAuthorization, Error>) {
+        authError = nil
+
         switch result {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
                 // Safely unwrap identity token - this is critical!
                 guard let tokenData = appleIDCredential.identityToken,
                       let identityToken = String(data: tokenData, encoding: .utf8) else {
+                    authError = "Could not get identity token. Please try again."
                     print("Authentication failed: Could not get identity token")
                     return
                 }
@@ -92,15 +120,31 @@ struct LoginView: View {
                 let firstName = appleIDCredential.fullName?.givenName
                 let lastName = appleIDCredential.fullName?.familyName
 
+                isAuthenticating = true
+
                 Task {
                     await appState.handleAppleSignIn(
                         identityToken: identityToken,
                         firstName: firstName,
                         lastName: lastName
                     )
+
+                    await MainActor.run {
+                        isAuthenticating = false
+                        // Check if there was an error from the API
+                        if !appState.isAuthenticated {
+                            authError = appState.error ?? "Sign in failed. Please try again."
+                        }
+                    }
                 }
             }
         case .failure(let error):
+            // User cancelled or other Apple Sign In error
+            let nsError = error as NSError
+            if nsError.code != ASAuthorizationError.canceled.rawValue {
+                // Only show error if not user-cancelled
+                authError = "Sign in failed: \(error.localizedDescription)"
+            }
             print("Authentication failed: \(error.localizedDescription)")
         }
     }

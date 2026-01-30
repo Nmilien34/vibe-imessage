@@ -19,6 +19,10 @@ struct VibeViewerView: View {
     @State private var streakScale: CGFloat = 1.0
     @State private var isInitialLoading = true
 
+    // Auto-advance timer states
+    @State private var progress: Double = 0.0
+    @State private var timer: Timer?
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -41,7 +45,10 @@ struct VibeViewerView: View {
                         .tabViewStyle(.page(indexDisplayMode: .never))
                         .onChange(of: currentIndex) { oldIndex, newIndex in
                             markAsViewed(at: newIndex)
-                            
+
+                            // Restart timer for new vibe
+                            startTimer()
+
                             // Haptic on user change
                             if oldIndex < appState.viewerVibes.count && newIndex < appState.viewerVibes.count {
                                 if appState.viewerVibes[oldIndex].userId != appState.viewerVibes[newIndex].userId {
@@ -50,7 +57,7 @@ struct VibeViewerView: View {
                                 }
                             }
                         }
-                        
+
                         // Tap Navigation Overlay
                         HStack(spacing: 0) {
                             // Left side (Previous)
@@ -59,7 +66,7 @@ struct VibeViewerView: View {
                                 .onTapGesture {
                                     goToPrevious()
                                 }
-                            
+
                             // Right side (Next)
                             Color.clear
                                 .contentShape(Rectangle())
@@ -70,7 +77,7 @@ struct VibeViewerView: View {
                     }
 
                     // Overlay UI
-                    VStack {
+                    VStack(spacing: 0) {
                         topBar
                         Spacer()
                         bottomBar
@@ -81,12 +88,18 @@ struct VibeViewerView: View {
         .onAppear {
             currentIndex = startIndex
             markAsViewed(at: startIndex)
+            appState.requestExpand()
             // Brief delay to ensure content is ready, then hide skeleton
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     isInitialLoading = false
                 }
+                // Start auto-advance timer after loading
+                startTimer()
             }
+        }
+        .onDisappear {
+            stopTimer()
         }
     }
     
@@ -108,6 +121,48 @@ struct VibeViewerView: View {
             }
         } else {
             // At start, maybe just stay or close? Instagram stays.
+        }
+    }
+
+    // MARK: - Auto-Advance Timer Functions
+
+    private func startTimer() {
+        stopTimer()
+        progress = 0.0
+
+        guard currentIndex < appState.viewerVibes.count else { return }
+        let vibe = appState.viewerVibes[currentIndex]
+
+        // Determine duration based on vibe type
+        let duration: Double = vibe.type == .photo ? 5.0 : 10.0
+        let interval = 0.05 // Update every 50ms for smooth animation
+
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            progress += (interval / duration)
+
+            if progress >= 1.0 {
+                stopTimer()
+                // Auto-advance to next vibe
+                goToNext()
+            }
+        }
+    }
+
+    private func stopTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func progressWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
+        if index < currentIndex {
+            // Already viewed - full width
+            return totalWidth
+        } else if index == currentIndex {
+            // Currently viewing - animated progress
+            return totalWidth * progress
+        } else {
+            // Not yet viewed - empty
+            return 0
         }
     }
 
@@ -197,14 +252,23 @@ struct VibeViewerView: View {
 
     private var topBar: some View {
         VStack(spacing: 12) {
-            // 1. Progress indicators (Full width at the very top)
+            // 1. Progress indicators (Full width at the very top) - Instagram style
             if !appState.viewerVibes.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(0..<appState.viewerVibes.count, id: \.self) { index in
-                        Capsule()
-                            .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
-                            .frame(height: 3)
-                            .animation(.spring(), value: currentIndex)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                // Background
+                                Capsule()
+                                    .fill(Color.white.opacity(0.3))
+
+                                // Progress fill
+                                Capsule()
+                                    .fill(Color.white)
+                                    .frame(width: progressWidth(for: index, totalWidth: geo.size.width))
+                            }
+                        }
+                        .frame(height: 3)
                     }
                 }
             }
@@ -293,15 +357,17 @@ struct VibeViewerView: View {
                 }
             }
         }
-        .padding(.horizontal)
-        .padding(.top, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
         .background(
             LinearGradient(
                 colors: [.black.opacity(0.6), .clear],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .ignoresSafeArea()
+            .frame(height: 150)
+            .ignoresSafeArea(edges: .top)
         )
     }
 
@@ -395,14 +461,16 @@ struct VibeViewerView: View {
                 }
             }
         }
-        .padding()
+        .padding(.horizontal, 16)
+        .padding(.bottom, 20)
         .background(
             LinearGradient(
                 colors: [.clear, .black.opacity(0.5)],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .ignoresSafeArea()
+            .frame(height: 200)
+            .ignoresSafeArea(edges: .bottom)
         )
     }
 
@@ -809,7 +877,7 @@ struct PollVibeContent: View {
             if let poll = vibe.poll {
                 VStack(spacing: 24) {
                     // Question
-                    Text(poll.question)
+                    Text(poll.question ?? "Vote")
                         .font(.title2)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
@@ -818,9 +886,10 @@ struct PollVibeContent: View {
 
                     // Options
                     VStack(spacing: 12) {
-                        ForEach(poll.options) { option in
+                        ForEach(Array(poll.options.enumerated()), id: \.element.id) { index, option in
                             PollOptionView(
                                 option: option,
+                                optionIndex: index,
                                 poll: poll,
                                 userId: appState.userId,
                                 hasVoted: poll.hasVoted(userId: appState.userId)
@@ -929,17 +998,18 @@ struct ETAVibeContent: View {
 
 struct PollOptionView: View {
     let option: PollOption
+    let optionIndex: Int
     let poll: Poll
     let userId: String
     let hasVoted: Bool
     let onVote: () -> Void
 
     private var percentage: Double {
-        poll.votePercentage(for: option.id)
+        poll.votePercentage(for: optionIndex)
     }
 
     private var isSelected: Bool {
-        option.votes.contains(userId)
+        poll.votedOptionIndex(userId: userId) == optionIndex
     }
 
     var body: some View {

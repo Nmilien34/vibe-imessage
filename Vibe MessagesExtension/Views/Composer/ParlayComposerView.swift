@@ -41,36 +41,40 @@ struct ParlayComposerView: View {
 
     var body: some View {
         ZStack {
-            bgOffWhite.edgesIgnoringSafeArea(.all)
+            bgOffWhite.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-
-                    // Header
-                    HStack {
-                        Button {
-                            appState.dismissComposer()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.black)
-                                .padding(10)
-                                .background(Color.white)
-                                .clipShape(Circle())
-                        }
-
-                        Spacer()
-
-                        Text("New Parlay")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-
-                        Spacer()
-
-                        Text("💸")
-                            .font(.title2)
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button {
+                        appState.dismissComposer()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.black)
                             .padding(10)
+                            .background(Color.white)
+                            .clipShape(Circle())
                     }
-                    .padding(.horizontal)
+
+                    Spacer()
+
+                    Text("New Parlay")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+
+                    Spacer()
+
+                    Text("💸")
+                        .font(.title2)
+                        .padding(10)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 20)
+                .padding(.bottom, 12)
+                .background(bgOffWhite)
+
+                ScrollView(showsIndicators: false) {
+                VStack(spacing: 24) {
 
                     // MARK: 1. The Bet Input
                     VStack(alignment: .leading, spacing: 12) {
@@ -234,12 +238,16 @@ struct ParlayComposerView: View {
                     .padding(.horizontal)
                     .padding(.bottom, 30)
                 }
-                .padding(.top, 20)
+                .padding(.top, 8)
+            }
             }
         }
         .sheet(isPresented: $showCustomAmountSheet) {
             CustomAmountSheet(amount: $customAmount, vibezPink: vibezPink, vibezPurple: vibezPurple)
                 .presentationDetents([.medium])
+        }
+        .onAppear {
+            appState.requestExpand()
         }
     }
 

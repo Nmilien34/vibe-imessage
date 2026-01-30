@@ -9,6 +9,8 @@ import SwiftUI
 
 struct RootView: View {
     @EnvironmentObject var appState: AppState
+    @State private var hasRendered = false
+    @State private var showResetOption = false
 
     var body: some View {
         ZStack {
@@ -51,7 +53,82 @@ struct RootView: View {
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: appState.showUnlockPrompt)
             }
+
+            // Emergency reset option (appears after long press anywhere)
+            if showResetOption {
+                Color.black.opacity(0.8)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        showResetOption = false
+                    }
+
+                VStack(spacing: 20) {
+                    Text("Having trouble?")
+                        .font(.headline)
+                        .foregroundColor(.white)
+
+                    Button {
+                        resetAppState()
+                        showResetOption = false
+                    } label: {
+                        Text("Reset App")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(Color.red)
+                            .cornerRadius(12)
+                    }
+
+                    Button {
+                        showResetOption = false
+                    } label: {
+                        Text("Cancel")
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                }
+            }
         }
+        .onAppear {
+            hasRendered = true
+            print("RootView Debug: Rendered. Onboarding=\(appState.isOnboardingCompleted), Auth=\(appState.isAuthenticated), Birthday=\(appState.isBirthdayCollected), Perms=\(appState.hasRequiredPermissions)")
+        }
+        // Use simultaneousGesture so it doesn't block button taps
+        // REMOVED: LongPressGesture was causing "System gesture gate timed out" issues
+        // .simultaneousGesture(
+        //     LongPressGesture(minimumDuration: 3.0)
+        //         .onEnded { _ in
+        //             showResetOption = true
+        //         }
+        // )
+    }
+
+    private func resetAppState() {
+        // Clear all UserDefaults related to the app
+        let keys = [
+            "vibeOnboardingCompleted",
+            "vibeUserId",
+            "vibeAuthToken",
+            "vibeUserFirstName",
+            "vibeBirthdayCollected",
+            "vibeBirthdayMonth",
+            "vibeBirthdayDay",
+            "vibePermissionsGranted"
+        ]
+
+        for key in keys {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+
+        // Reset app state to initial values
+        appState.isOnboardingCompleted = false
+        appState.isAuthenticated = false
+        appState.isBirthdayCollected = false
+        appState.hasRequiredPermissions = false
+        appState.userId = "anonymous"
+        appState.userFirstName = nil
+
+        print("RootView Debug: App state has been reset")
     }
 }
 

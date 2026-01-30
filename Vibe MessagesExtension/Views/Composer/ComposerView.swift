@@ -66,6 +66,9 @@ struct ComposerView: View {
             }
             .navigationBarHidden(true) // We building a custom header
         }
+        .onAppear {
+            appState.requestExpand()
+        }
     }
 
     private var dashboardContent: some View {

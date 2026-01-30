@@ -35,9 +35,7 @@ struct Vibe: Codable, Identifiable, Equatable {
     // Feed response extras
     var isExpiredFromFeed: Bool?  // History support - past 24h but still in 15-day history
     var isBlurred: Bool?          // Feed response - indicates locked content should be blurred
-}
 
-extension Vibe {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case oderId
@@ -149,6 +147,9 @@ extension Vibe {
         self.isExpiredFromFeed = try container.decodeIfPresent(Bool.self, forKey: .isExpiredFromFeed)
         self.isBlurred = try container.decodeIfPresent(Bool.self, forKey: .isBlurred)
     }
+}
+
+extension Vibe {
 
     func isUnlocked(for userId: String) -> Bool {
         !isLocked || unlockedBy.contains(userId) || self.userId == userId

@@ -31,6 +31,9 @@ struct BentoDashboardView: View {
                 .padding(.bottom, 40)
             }
         }
+        .fullScreenCover(isPresented: $appState.shouldShowVibePicker) {
+            ExploreAllVibesView()
+        }
     }
 }
 
@@ -125,16 +128,34 @@ struct UpperSectionView: View {
             // 2. STORY RAIL
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 16) {
-                    // My Story (Add Button)
+                    // My Story (Add Button or View My Vibes)
                     VStack(spacing: 8) {
+                        let myVibes = appState.vibes.filter { $0.userId == appState.userId }
+                        let hasMyVibes = !myVibes.isEmpty
+
                         ZStack(alignment: .bottomTrailing) {
-                            Circle()
-                                .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                                .foregroundColor(.gray.opacity(0.5))
-                                .frame(width: 68, height: 68)
+                            if hasMyVibes {
+                                // Show story ring if user has vibes
+                                Circle()
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [vibezPink, vibezPurple],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 3
+                                    )
+                                    .frame(width: 68, height: 68)
+                            } else {
+                                // Show dashed circle if no vibes
+                                Circle()
+                                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                    .frame(width: 68, height: 68)
+                            }
 
                             // Show user's latest vibe thumbnail if exists
-                            if let myVibe = appState.vibes.first(where: { $0.userId == appState.userId }),
+                            if let myVibe = myVibes.first,
                                let thumbUrl = myVibe.thumbnailUrl ?? myVibe.mediaUrl,
                                let url = URL(string: thumbUrl) {
                                 AsyncImage(url: url) { image in
@@ -146,17 +167,23 @@ struct UpperSectionView: View {
                                 .clipShape(Circle())
                             }
 
-                            Image(systemName: "plus.circle.fill")
-                                .foregroundStyle(.white, .blue)
+                            Image(systemName: hasMyVibes ? "plus.circle.fill" : "plus.circle.fill")
+                                .foregroundStyle(.white, hasMyVibes ? vibezPink : .blue)
                                 .font(.system(size: 22))
                         }
                         .onTapGesture {
-                            appState.navigateToComposer(type: .video)
+                            if hasMyVibes, let firstVibe = myVibes.first {
+                                // If user has vibes, open viewer to show them
+                                appState.navigateToViewer(opening: firstVibe.id)
+                            } else {
+                                // If no vibes, open composer
+                                appState.navigateToComposer(type: .video)
+                            }
                         }
 
-                        Text("My Story")
+                        Text("My Vibes")
                             .font(.caption)
-                            .foregroundColor(.gray)
+                            .foregroundColor(hasMyVibes ? .primary : .gray)
                     }
                     .padding(.leading)
 
@@ -167,7 +194,7 @@ struct UpperSectionView: View {
                            firstVibe.userId != appState.userId {
                             StoryRingItem(
                                 vibes: userVibes,
-                                name: nameForUser(firstVibe.userId),
+                                name: appState.nameForUser(firstVibe.userId),
                                 hasUnviewed: userVibes.contains { !$0.hasViewed(appState.userId) }
                             ) {
                                 appState.navigateToViewer(opening: firstVibe.id)
@@ -281,13 +308,13 @@ struct UpperSectionView: View {
                 HStack {
                     VStack(alignment: .leading) {
                         Text("DAILY DROP 🎲")
-                            .font(.caption)
-                            .bold()
-                            .foregroundColor(.gray)
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.gray)
                         Text("Show us your fridge")
-                            .font(.title3)
-                            .bold()
-                            .foregroundColor(.white)
+                        .font(.title3)
+                        .bold()
+                        .foregroundColor(.white)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
@@ -316,7 +343,7 @@ struct UpperSectionView: View {
                         if let (mvpId, count) = mvpData {
                             LeaderboardCardView(
                                 emoji: "👑",
-                                name: nameForUser(mvpId),
+                                name: appState.nameForUser(mvpId),
                                 score: "+\(count)",
                                 isMVP: true
                             )
@@ -326,7 +353,7 @@ struct UpperSectionView: View {
                         if let ghostId = ghostUserId {
                             LeaderboardCardView(
                                 emoji: "👻",
-                                name: nameForUser(ghostId),
+                                name: appState.nameForUser(ghostId),
                                 score: "Nudge",
                                 isMVP: false
                             )
@@ -342,7 +369,7 @@ struct UpperSectionView: View {
                             let count = appState.vibes.filter { $0.userId == third.userId }.count
                             LeaderboardCardView(
                                 emoji: "💅",
-                                name: nameForUser(third.userId),
+                                name: appState.nameForUser(third.userId),
                                 score: "+\(count)",
                                 isMVP: false
                             )
@@ -391,20 +418,6 @@ struct UpperSectionView: View {
             return lastDate == nil || lastDate! < oneDayAgo
         }
     }
-
-    private func nameForUser(_ id: String) -> String {
-        if id == appState.userId { return "You" }
-        if id == "vibe_team" { return "Vibez" }
-        if id.contains("friend_1") { return "Sarah" }
-        if id.contains("friend_2") { return "Mike" }
-        if id.contains("friend_3") { return "Jess" }
-        if id.contains("friend_4") { return "Alex" }
-        if id.contains("friend_5") { return "Sam" }
-        // Generate a name from the ID
-        let names = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason"]
-        let index = abs(id.hashValue) % names.count
-        return names[index]
-    }
 }
 
 // =====================================================================
@@ -413,6 +426,10 @@ struct UpperSectionView: View {
 
 struct LowerSectionView: View {
     @EnvironmentObject var appState: AppState
+    @State private var newsItems: [NewsItem] = []
+    @State private var isLoadingNews = false
+    @State private var selectedNewsItem: NewsItem? = nil
+    @State private var showAllNews = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -425,39 +442,92 @@ struct LowerSectionView: View {
                         .bold()
                         .foregroundColor(.gray)
                     Spacer()
-                    HStack(spacing: 16) {
-                        Image(systemName: "arrow.left")
-                            .font(.caption2)
-                            .foregroundColor(.gray.opacity(0.5))
-                        Image(systemName: "arrow.right")
-                            .font(.caption2)
-                            .foregroundColor(.black)
+                    if isLoadingNews {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                    }
+
+                    // See More Button
+                    if !newsItems.isEmpty {
+                        Button {
+                            withAnimation(.spring()) {
+                                showAllNews.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(showAllNews ? "Show Less" : "See More")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                Image(systemName: showAllNews ? "chevron.up" : "chevron.down")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundColor(.blue)
+                        }
                     }
                 }
                 .padding(.horizontal)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 16) {
-                        NewsCardView(
-                            tag: "VIRAL",
-                            headline: "New 'AirPods Max 2' colors just leaked",
-                            socialText: "Mike & Sarah commented",
-                            color: .blue
-                        )
-                        NewsCardView(
-                            tag: "MUSIC",
-                            headline: "The Weeknd drops new album",
-                            socialText: "3 friends shared this",
-                            color: .purple
-                        )
-                        NewsCardView(
-                            tag: "TECH",
-                            headline: "iPhone 17 Pro rumors heating up",
-                            socialText: "1 friend shared this",
-                            color: .gray
-                        )
+                if showAllNews {
+                    // Grid View for all news
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 12),
+                        GridItem(.flexible(), spacing: 12)
+                    ], spacing: 12) {
+                        ForEach(newsItems) { item in
+                            NewsCardView(newsItem: item)
+                                .onTapGesture {
+                                    selectedNewsItem = item
+                                }
+                        }
                     }
                     .padding(.horizontal)
+                } else {
+                    // Horizontal Scroll View (Original)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            if newsItems.isEmpty && !isLoadingNews {
+                                // Fallback placeholder cards
+                                NewsCardView(
+                                    tag: "VIRAL",
+                                    headline: "New 'AirPods Max 2' colors just leaked",
+                                    socialText: "Mike & Sarah commented",
+                                    color: .blue
+                                )
+                                NewsCardView(
+                                    tag: "MUSIC",
+                                    headline: "The Weeknd drops new album",
+                                    socialText: "3 friends shared this",
+                                    color: .purple
+                                )
+                            } else {
+                                ForEach(newsItems) { item in
+                                    NewsCardView(newsItem: item)
+                                        .onTapGesture {
+                                            selectedNewsItem = item
+                                        }
+                                }
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+            }
+            .onAppear {
+                loadNews()
+            }
+            .fullScreenCover(item: $selectedNewsItem) { item in
+                NewsDetailView(
+                    newsItem: item,
+                    onBack: {
+                        selectedNewsItem = nil
+                    },
+                    onShare: {
+                        shareNewsInChat(item)
+                    }
+                )
+                .onAppear {
+                    appState.requestExpand()
                 }
             }
 
@@ -515,6 +585,32 @@ struct LowerSectionView: View {
                 }
             }
         }
+    }
+    
+    private func loadNews() {
+        guard newsItems.isEmpty else { return }
+        isLoadingNews = true
+        
+        Task {
+            do {
+                let items: [NewsItem] = try await APIClient.shared.get("/vibewire")
+                await MainActor.run {
+                    self.newsItems = items
+                    self.isLoadingNews = false
+                }
+            } catch {
+                print("Failed to load Vibe Wire: \(error)")
+                await MainActor.run {
+                    self.isLoadingNews = false
+                }
+            }
+        }
+    }
+    
+    private func shareNewsInChat(_ item: NewsItem) {
+        // Dismiss the detail view
+        selectedNewsItem = nil
+        print("Sharing news in chat: \(item.headline)")
     }
 }
 
@@ -617,38 +713,94 @@ struct NewsCardView: View {
     var headline: String
     var socialText: String
     var color: Color
+    var imageUrl: String?
+    var isJustIn: Bool
+    
+    // Original initializer for fallback/placeholder cards
+    init(tag: String, headline: String, socialText: String, color: Color) {
+        self.tag = tag
+        self.headline = headline
+        self.socialText = socialText
+        self.color = color
+        self.imageUrl = nil
+        self.isJustIn = false
+    }
+    
+    // New initializer for NewsItem
+    init(newsItem: NewsItem) {
+        self.tag = newsItem.source.uppercased().prefix(8).description
+        self.headline = newsItem.headline
+        self.socialText = newsItem.timeAgo
+        self.color = NewsCardView.colorForBatch(newsItem.batch)
+        self.imageUrl = newsItem.imageUrl
+        self.isJustIn = newsItem.isJustIn
+    }
+    
+    private static func colorForBatch(_ batch: String) -> Color {
+        switch batch {
+        case "morning": return .orange
+        case "noon": return .blue
+        case "evening": return .purple
+        default: return .gray
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Text(tag)
-                    .font(.system(size: 9, weight: .heavy))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .background(Color.white.opacity(0.25))
-                    .cornerRadius(4)
+        ZStack {
+            // Background image if available
+            if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    color
+                }
+                .frame(width: 170, height: 125)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                
+                // Gradient overlay for text readability
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.7)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(width: 170, height: 125)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+            }
+            
+            VStack(alignment: .leading) {
+                HStack {
+                    Text(tag)
+                        .font(.system(size: 9, weight: .heavy))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.25))
+                        .cornerRadius(4)
+                    Spacer()
+                    if isJustIn {
+                        Text("⚡")
+                            .font(.caption2)
+                    }
+                }
                 Spacer()
-                Image(systemName: "bubble.right.fill")
-                    .font(.caption2)
-                    .opacity(0.8)
+                Text(headline)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .lineLimit(3)
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10))
+                    Text(socialText)
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .opacity(0.9)
             }
-            Spacer()
-            Text(headline)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .lineLimit(3)
-            Spacer()
-            HStack(spacing: 4) {
-                Image(systemName: "person.2.fill")
-                    .font(.system(size: 10))
-                Text(socialText)
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .opacity(0.9)
+            .padding(14)
+            .foregroundColor(.white)
         }
-        .padding(14)
-        .foregroundColor(.white)
         .frame(width: 170, height: 125)
-        .background(color)
+        .background(imageUrl == nil ? color : Color.clear)
         .cornerRadius(18)
         .shadow(color: color.opacity(0.3), radius: 6, y: 3)
     }
@@ -795,6 +947,155 @@ struct PastVibeCard: View {
             .frame(width: 100, height: 140)
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
+    }
+}
+
+// =====================================================================
+// MARK: - EXPLORE ALL VIBES VIEW (Vibe Type Picker)
+// =====================================================================
+
+struct ExploreAllVibesView: View {
+    @EnvironmentObject var appState: AppState
+
+    let bgOffWhite = Color(red: 0.96, green: 0.96, blue: 0.97)
+
+    @State private var selectedVibeType: VibeType? = nil
+    @State private var isLocked: Bool = false
+
+    // All available vibe types
+    let vibeTypes: [(type: VibeType, title: String, icon: String, color: Color, locked: Bool)] = [
+        (.video, "Video", "video.fill", .pink, false),
+        (.photo, "Photo", "camera.fill", .blue, false),
+        (.video, "POV", "eye.fill", .teal, true),
+        (.battery, "Battery", "battery.100", .yellow, false),
+        (.mood, "Mood", "face.smiling", .purple, false),
+        (.poll, "Poll", "chart.bar.fill", .blue, false),
+        (.tea, "Tea", "cup.and.saucer.fill", .orange, false),
+        (.leak, "Leak", "lock.open.fill", .red, false),
+        (.sketch, "Sketch", "hand.draw.fill", .indigo, false),
+        (.eta, "ETA", "location.fill", .green, false),
+        (.song, "Song", "music.note", .pink, false),
+        (.dailyDrop, "Daily Drop", "die.face.5", .cyan, false),
+        (.parlay, "Parlay", "dollarsign.circle.fill", .green, false),
+    ]
+
+    var body: some View {
+        ZStack {
+            bgOffWhite.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // Header
+                HStack {
+                    Button {
+                        appState.shouldShowVibePicker = false
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.black)
+                            .padding(10)
+                            .background(Color.white)
+                            .clipShape(Circle())
+                    }
+
+                    Spacer()
+
+                    Text("Choose a Vibe")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+
+                    Spacer()
+
+                    // Spacer for symmetry
+                    Color.clear
+                        .frame(width: 38, height: 38)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
+                .background(bgOffWhite)
+
+                // Grid of all vibe types
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: [
+                        GridItem(.flexible(), spacing: 16),
+                        GridItem(.flexible(), spacing: 16),
+                        GridItem(.flexible(), spacing: 16)
+                    ], spacing: 20) {
+                        ForEach(vibeTypes, id: \.title) { item in
+                            VStack(spacing: 10) {
+                                Button {
+                                    selectVibeType(item.type, locked: item.locked)
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(item.color.opacity(0.15))
+                                            .frame(width: 70, height: 70)
+                                            .shadow(color: item.color.opacity(0.2), radius: 8, y: 4)
+
+                                        Image(systemName: item.icon)
+                                            .font(.system(size: 28))
+                                            .foregroundColor(item.color)
+                                    }
+                                }
+
+                                Text(item.title)
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .foregroundColor(.primary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 40)
+                }
+            }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { selectedVibeType != nil },
+            set: { if !$0 {
+                selectedVibeType = nil
+                // When composer is dismissed, also dismiss the explore view
+                appState.shouldShowVibePicker = false
+            }}
+        )) {
+            // Present the composer based on the selected vibe type
+            if selectedVibeType != nil {
+                ComposerViewWrapper(vibeType: selectedVibeType, isLocked: isLocked)
+            }
+        }
+    }
+
+    private func selectVibeType(_ type: VibeType, locked: Bool) {
+        self.isLocked = locked
+        selectedVibeType = type
+    }
+}
+
+// Wrapper to handle initializing ComposerView with proper state
+struct ComposerViewWrapper: View {
+    @EnvironmentObject var appState: AppState
+    let vibeType: VibeType?
+    let isLocked: Bool
+
+    var body: some View {
+        Group {
+            if let type = vibeType {
+                ComposerViewWithInitialType(initialType: type, initialLocked: isLocked)
+            }
+        }
+    }
+}
+
+struct ComposerViewWithInitialType: View {
+    @EnvironmentObject var appState: AppState
+    let initialType: VibeType
+    let initialLocked: Bool
+
+    var body: some View {
+        ComposerView()
+            .onAppear {
+                appState.selectedVibeType = initialType
+                appState.currentDestination = .composer
+            }
     }
 }
 

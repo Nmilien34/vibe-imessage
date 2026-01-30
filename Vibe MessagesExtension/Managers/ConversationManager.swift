@@ -231,21 +231,21 @@ class ConversationManager: ObservableObject {
     // MARK: - Backend API Calls
 
     private func createNewChat(userId: String) async -> String {
-        // Generate a local chat ID
-        let chatId = "chat_\(UUID().uuidString)"
-
         // Call backend to create the chat
         do {
-            let _: ChatResponse = try await APIClient.shared.post(
+            let response: ChatResponse = try await APIClient.shared.post(
                 "/chat/create",
                 body: CreateChatRequest(userId: userId, title: nil, type: "group")
             )
-            // Use the returned chatId if available, otherwise use our generated one
-            return chatId
+            // Use the chatId returned by the backend
+            print("ConversationManager: Backend created chat: \(response.chatId)")
+            return response.chatId
         } catch {
             print("ConversationManager: Failed to create chat on backend: \(error)")
-            // Return our local ID anyway - backend will sync later
-            return chatId
+            // Fallback: generate a local ID if backend fails
+            let fallbackId = "chat_\(UUID().uuidString)"
+            print("ConversationManager: Using fallback local chat ID: \(fallbackId)")
+            return fallbackId
         }
     }
 

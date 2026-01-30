@@ -1,13 +1,11 @@
 import SwiftUI
 import AVFoundation
-import Combine
 
 struct PermissionRequestView: View {
     @EnvironmentObject var appState: AppState
     
     @State private var cameraStatus: AVAuthorizationStatus = .notDetermined
     @State private var audioStatus: AVAuthorizationStatus = .notDetermined
-    @State private var timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 40) {
@@ -80,9 +78,6 @@ struct PermissionRequestView: View {
             Spacer()
         }
         .onAppear(perform: updateStatuses)
-        .onReceive(timer) { _ in
-            updateStatuses()
-        }
     }
     
     private var allGranted: Bool {

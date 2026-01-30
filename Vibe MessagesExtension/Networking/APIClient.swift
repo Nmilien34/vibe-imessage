@@ -40,7 +40,8 @@ actor APIClient {
     let useMockData = false
 
     #if DEBUG
-    private let baseURL = "http://localhost:3000/api"
+    // Use 127.0.0.1 for Simulator compatibility
+    private let baseURL = "http://127.0.0.1:3000/api"
     #else
     private let baseURL = "https://vibe-imessage.onrender.com/api"
     #endif
@@ -55,8 +56,8 @@ actor APIClient {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 10  // 10 seconds - fail fast for better UX
+        config.timeoutIntervalForResource = 30
         self.session = URLSession(configuration: config)
 
         self.decoder = JSONDecoder()
@@ -89,6 +90,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_1",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .video,
                 mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
@@ -115,6 +117,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_2",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .photo,
                 mediaUrl: "https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?q=80&w=1000&auto=format&fit=crop",
@@ -141,6 +144,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_3",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .video,
                 mediaUrl: nil,
@@ -167,6 +171,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_1",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .mood,
                 mediaUrl: nil,
@@ -193,6 +198,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_4",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .poll,
                 mediaUrl: nil,
@@ -219,6 +225,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_5",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .battery,
                 mediaUrl: nil,
@@ -245,6 +252,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_friend_2",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .song,
                 mediaUrl: nil,
@@ -273,11 +281,12 @@ actor APIClient {
             ),
             
             // --- PROFILE / HISTORY (user_me) ---
-            
+
             Vibe(
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_me",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .mood,
                 mediaUrl: nil,
@@ -303,6 +312,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_me",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .photo,
                 mediaUrl: "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop",
@@ -328,6 +338,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_me",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .song,
                 mediaUrl: nil,
@@ -359,6 +370,7 @@ actor APIClient {
                 id: UUID().uuidString,
                 oderId: nil,
                 userId: "user_me",
+                chatId: "conv_1",
                 conversationId: "conv_1",
                 type: .battery,
                 mediaUrl: nil,
@@ -392,8 +404,8 @@ actor APIClient {
         }
         
         let urlString = baseURL + path
-        guard let url = URL(string: urlString) else {
-            print("API Error: Malformed URL string: \(urlString)")
+        guard !path.isEmpty, let url = URL(string: urlString) else {
+            print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
 
@@ -411,8 +423,8 @@ actor APIClient {
         }
         
         let urlString = baseURL + path
-        guard let url = URL(string: urlString) else {
-            print("API Error: Malformed URL string: \(urlString)")
+        guard !path.isEmpty, let url = URL(string: urlString) else {
+            print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
 
@@ -429,7 +441,9 @@ actor APIClient {
             return try await performMockPost(path, body: EmptyBody())
         }
         
-        guard let url = URL(string: "\(baseURL)\(path)") else {
+        let urlString = baseURL + path
+        guard !path.isEmpty, let url = URL(string: urlString) else {
+            print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
 
@@ -449,7 +463,8 @@ actor APIClient {
         }
 
         let urlString = baseURL + path
-        guard let url = URL(string: urlString) else {
+        guard !path.isEmpty, let url = URL(string: urlString) else {
+            print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
 
@@ -592,6 +607,7 @@ actor APIClient {
                     id: UUID().uuidString,
                     oderId: nil,
                     userId: request.userId,
+                    chatId: request.chatId,
                     conversationId: request.conversationId ?? request.chatId,
                     type: request.type,
                     mediaUrl: request.mediaUrl,
@@ -600,7 +616,7 @@ actor APIClient {
                     batteryLevel: request.batteryLevel,
                     mood: request.mood,
                     poll: request.poll.map { Poll(question: $0.question, options: $0.options.map { PollOption(text: $0) }) },
-                    parlay: request.parlay.map { Parlay(title: $0.title, amount: $0.amount, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending) },
+                    parlay: request.parlay.map { Parlay(title: $0.title, question: $0.question, options: $0.options, amount: $0.amount, wager: $0.wager, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending, expiresAt: nil, votes: nil, winnersReceived: nil) },
                     textStatus: request.textStatus,
                     styleName: request.styleName,
                     etaStatus: request.etaStatus,

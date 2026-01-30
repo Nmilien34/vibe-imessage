@@ -45,13 +45,14 @@ class MessagesViewController: MSMessagesAppViewController {
 
         // Embed in UIHostingController
         let hosting = UIHostingController(rootView: rootView)
+        hosting.view.backgroundColor = .clear
         hostingController = hosting
 
         // Add as child view controller
         addChild(hosting)
         view.addSubview(hosting.view)
 
-        // Set up constraints
+        // Set up constraints - fill entire view so SwiftUI can handle safe areas
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             hosting.view.topAnchor.constraint(equalTo: view.topAnchor),

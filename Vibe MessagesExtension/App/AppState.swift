@@ -67,13 +67,14 @@ class AppState: ObservableObject {
         return activeRealVibes.count
     }
     
-    /// A "Welcome" vibe from the creators to fill empty feeds
+    /// A "Welcome" vibe from the creators to fill empty feeds - ALWAYS at index 0
     var teamWelcomeVibe: Vibe {
         Vibe(
             id: "team_welcome",
             oderId: nil,
             userId: "vibe_team",
-            conversationId: conversationId ?? "global",
+            chatId: currentChatId ?? "global",           // Primary chat ID
+            conversationId: conversationId ?? "global",  // Legacy support
             type: .video,
             mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
             thumbnailUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
@@ -82,16 +83,16 @@ class AppState: ObservableObject {
             mood: Mood(emoji: "👋", text: "Welcome to Vibe! Watch this to learn how it works."),
             poll: nil,
             parlay: nil,
-            textStatus: nil,
+            textStatus: "From the Vibez Team 💜",
             styleName: nil,
             etaStatus: nil,
             isLocked: false,
             unlockedBy: [],
             reactions: [],
             viewedBy: [],
-            expiresAt: Date().addingTimeInterval(365 * 24 * 3600), // Long-lived
-            createdAt: Date().addingTimeInterval(-3600),
-            updatedAt: Date().addingTimeInterval(-3600)
+            expiresAt: Date.distantFuture, // Never expires
+            createdAt: Date(timeIntervalSince1970: 0), // Very old so it sorts last, but we'll pin it to index 0
+            updatedAt: Date(timeIntervalSince1970: 0)
         )
     }
 
@@ -201,19 +202,52 @@ class AppState: ObservableObject {
         conversationId = identifier
         print("AppState Debug: Set Conversation ID to: \(conversationId ?? "nil")")
 
+        // Set loading state IMMEDIATELY (synchronously) so UI shows spinner
+        self.isLoading = true
+
         // Resolve the virtual chat ID using ConversationManager
+        // Use a detached task to avoid blocking the UI
         Task {
-            let chatId = await ConversationManager.shared.resolveChatID(
-                conversation: conversation,
-                userId: userId
-            )
-            await MainActor.run {
-                self.currentChatId = chatId
-                print("AppState Debug: Resolved Chat ID to: \(chatId)")
+            // Step 1: Resolve chat ID (required before loading chat-specific data)
+            // Add timeout to prevent hanging if backend is down
+            let chatId = await withTimeout(seconds: 5) {
+                await ConversationManager.shared.resolveChatID(
+                    conversation: conversation,
+                    userId: self.userId
+                )
+            } ?? "fallback_\(conversation.localParticipantIdentifier.uuidString)"
+
+            self.currentChatId = chatId
+            print("AppState Debug: Resolved Chat ID to: \(chatId)")
+
+            // Step 2: Load vibes and reminders IN PARALLEL (not sequential)
+            async let vibesTask: () = loadVibes()
+            async let remindersTask: () = loadReminders()
+
+            // Wait for both to complete (but they run concurrently)
+            _ = await (vibesTask, remindersTask)
+
+            self.isLoading = false
+        }
+    }
+
+    /// Helper to add timeout to async operations
+    private func withTimeout<T>(seconds: Double, operation: @escaping () async -> T) async -> T? {
+        await withTaskGroup(of: T?.self) { group in
+            group.addTask {
+                await operation()
             }
-            // Load vibes and reminders after resolving chat ID
-            await loadVibes()
-            await loadReminders()
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                return nil
+            }
+
+            // Return first completed result
+            if let result = await group.next() {
+                group.cancelAll()
+                return result
+            }
+            return nil
         }
     }
 
@@ -245,14 +279,32 @@ class AppState: ObservableObject {
         do {
             // Use the unified feed endpoint - gets vibes from ALL joined chats
             let response = try await APIService.shared.getUnifiedFeed(userId: userId)
-            self.vibes = response.vibes
+
+            // Filter out the team vibe if it's in the response (shouldn't be, but just in case)
+            var userVibes = response.vibes.filter { $0.id != "team_welcome" }
+
+            // Deduplicate by ID (keep the first occurrence of each unique vibe)
+            var seenIds = Set<String>()
+            userVibes = userVibes.filter { vibe in
+                if seenIds.contains(vibe.id) {
+                    return false
+                } else {
+                    seenIds.insert(vibe.id)
+                    return true
+                }
+            }
+
+            // ALWAYS insert team welcome vibe at index 0
+            userVibes.insert(teamWelcomeVibe, at: 0)
+
+            self.vibes = userVibes
 
             // Load streak for current chat if we have one
             if let chatId = currentChatId {
                 self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
             }
 
-            print("AppState: Loaded \(vibes.count) vibes from unified feed")
+            print("AppState: Loaded \(vibes.count) vibes (including team vibe at index 0)")
         } catch {
             self.error = error.localizedDescription
             print("AppState Error: Loading vibes failed: \(error)")
@@ -261,9 +313,9 @@ class AppState: ObservableObject {
             self.networkError = .networkFailure(underlying: error)
             self.showNetworkErrorBanner = true
 
-            // Fallback to empty if error
+            // Fallback to team vibe only if error
             if vibes.isEmpty {
-                vibes = []
+                vibes = [teamWelcomeVibe]
             }
         }
 
@@ -278,11 +330,35 @@ class AppState: ObservableObject {
         error = nil
 
         do {
-            self.vibes = try await APIService.shared.getChatFeed(chatId: chatId, userId: userId)
+            let chatVibes = try await APIService.shared.getChatFeed(chatId: chatId, userId: userId)
+
+            // Filter out the team vibe if it's in the response
+            var userVibes = chatVibes.filter { $0.id != "team_welcome" }
+
+            // Deduplicate by ID (keep the first occurrence of each unique vibe)
+            var seenIds = Set<String>()
+            userVibes = userVibes.filter { vibe in
+                if seenIds.contains(vibe.id) {
+                    return false
+                } else {
+                    seenIds.insert(vibe.id)
+                    return true
+                }
+            }
+
+            // ALWAYS insert team welcome vibe at index 0
+            userVibes.insert(teamWelcomeVibe, at: 0)
+
+            self.vibes = userVibes
             self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
         } catch {
             self.error = error.localizedDescription
             print("AppState Error: Loading chat vibes failed: \(error)")
+
+            // Fallback to team vibe only if error
+            if vibes.isEmpty {
+                vibes = [teamWelcomeVibe]
+            }
         }
 
         isLoading = false
@@ -429,11 +505,70 @@ class AppState: ObservableObject {
         UserDefaults.standard.set(true, forKey: "vibePermissionsGranted")
     }
 
+    /// Development-only login that authenticates with the backend using a test user.
+    /// This creates a real user in the database, allowing full testing of the API.
+    /// Run `npm run seed` on the backend first to populate test data.
     func bypassLogin() {
-        self.userId = "user_me"
-        self.isAuthenticated = true
-        UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
-        print("Auth Debug: Login bypassed by developer.")
+        Task {
+            await devLogin()
+        }
+    }
+
+    @MainActor
+    private func devLogin() async {
+        isLoading = true
+        error = nil
+
+        // Test user ID - must match the seed script
+        let testUserId = "test_user_me"
+
+        struct DevLoginRequest: Encodable {
+            let userId: String
+        }
+
+        struct DevLoginResponse: Decodable {
+            let token: String
+            let user: UserData
+        }
+
+        struct UserData: Decodable {
+            let id: String
+            let firstName: String?
+            let lastName: String?
+            let email: String?
+        }
+
+        do {
+            let response: DevLoginResponse = try await APIClient.shared.post(
+                "/auth/dev-login",
+                body: DevLoginRequest(userId: testUserId)
+            )
+
+            self.userId = response.user.id
+            self.userFirstName = response.user.firstName
+            self.isAuthenticated = true
+
+            // Save to UserDefaults for persistence
+            UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
+            UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
+            UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
+
+            print("Auth Debug: Dev login successful. UserID: \(self.userId)")
+
+        } catch {
+            self.error = "Dev login failed: \(error.localizedDescription)"
+            print("Auth Debug: Dev login error: \(error)")
+
+            // Fallback to old behavior if backend isn't running
+            print("Auth Debug: Falling back to local-only dev login")
+            self.userId = testUserId
+            self.userFirstName = "Test"
+            self.isAuthenticated = true
+            UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
+            UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
+        }
+
+        isLoading = false
     }
 
     // MARK: - Vibe Actions
@@ -474,8 +609,13 @@ class AppState: ObservableObject {
 
         let newVibe = try await APIService.shared.createVibe(request)
 
-        // Insert at the beginning
-        vibes.insert(newVibe, at: 0)
+        // Remove any existing vibe with the same ID (shouldn't happen, but just in case)
+        vibes.removeAll { $0.id == newVibe.id }
+
+        // Insert at index 1 (after team welcome vibe at index 0)
+        // If for some reason team vibe isn't there, insert at 0
+        let insertIndex = vibes.first?.id == "team_welcome" ? 1 : 0
+        vibes.insert(newVibe, at: insertIndex)
 
         // Refresh streak
         streak = try? await APIService.shared.fetchStreak(chatId: chatId)
@@ -555,23 +695,40 @@ class AppState: ObservableObject {
         // 1. Prepare Playlist: Group by user, sort oldest to newest per user
         // Filter out expired vibes on client-side to ensure freshness
         var activeVibes = vibes.filter { !$0.isExpired }
-        
+
         // If no real vibes, show the team welcome vibe
         if activeVibes.isEmpty {
             activeVibes = [teamWelcomeVibe]
         }
-        
+
         let grouped = vibesGroupedByUser(from: activeVibes)
-        
+
         // Flatten and sort each group by creation date (Oldest first)
         var playlist: [Vibe] = []
         for userVibes in grouped {
             let sortedUserVibes = userVibes.sorted(by: { $0.createdAt < $1.createdAt })
             playlist.append(contentsOf: sortedUserVibes)
         }
-        
+
+        // Deduplicate playlist by ID (keep first occurrence)
+        var seenIds = Set<String>()
+        playlist = playlist.filter { vibe in
+            if seenIds.contains(vibe.id) {
+                return false
+            } else {
+                seenIds.insert(vibe.id)
+                return true
+            }
+        }
+
+        // ENSURE team vibe is always first in playlist
+        if let teamIndex = playlist.firstIndex(where: { $0.id == "team_welcome" }) {
+            let teamVibe = playlist.remove(at: teamIndex)
+            playlist.insert(teamVibe, at: 0)
+        }
+
         self.viewerVibes = playlist
-        
+
         // 2. Find index
         if let index = playlist.firstIndex(where: { $0.id == vibeId }) {
             currentViewerIndex = index
@@ -581,7 +738,7 @@ class AppState: ObservableObject {
             currentViewerIndex = 0
             currentDestination = .viewer(startIndex: 0)
         }
-        
+
         requestExpand()
     }
 
@@ -670,9 +827,20 @@ class AppState: ObservableObject {
         // Group vibes by userId, maintaining order
         var userOrder: [String] = []
         var grouped: [String: [Vibe]] = [:]
-        
+
         var sourceList = list ?? vibes.filter { !$0.isExpired }
-        
+
+        // Deduplicate source list by ID
+        var seenIds = Set<String>()
+        sourceList = sourceList.filter { vibe in
+            if seenIds.contains(vibe.id) {
+                return false
+            } else {
+                seenIds.insert(vibe.id)
+                return true
+            }
+        }
+
         // If empty, add the team welcome vibe
         if sourceList.isEmpty {
             sourceList = [teamWelcomeVibe]
@@ -687,5 +855,24 @@ class AppState: ObservableObject {
         }
 
         return userOrder.compactMap { grouped[$0] }
+    }
+
+    // MARK: - Consistent Name Generation
+    func nameForUser(_ id: String) -> String {
+        if id == userId { return "You" }
+        if id == "vibe_team" { return "Vibez" }
+        
+        // Consistent Friend Mappings
+        if id.contains("friend_1") { return "Sarah" }
+        if id.contains("friend_2") { return "Mike" }
+        if id.contains("friend_3") { return "Jess" }
+        if id.contains("friend_4") { return "Alex" }
+        if id.contains("friend_5") { return "Sam" }
+        
+        // Deterministic Fallback
+        // Use a consistent list so "Liam" is always "Liam" for the same ID
+        let names = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason"]
+        let index = abs(id.hashValue) % names.count
+        return names[index]
     }
 }

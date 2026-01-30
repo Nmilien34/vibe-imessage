@@ -7,6 +7,7 @@ struct BirthdayCollectionView: View {
     @State private var isLoading = true
     @State private var selectedMonth = 1
     @State private var selectedDay = 1
+    @State private var loadingTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -24,7 +25,22 @@ struct BirthdayCollectionView: View {
             }
         }
         .task {
+            // Start a timeout - if contacts lookup takes too long, show manual input
+            loadingTask = Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 second timeout
+                if !Task.isCancelled && isLoading {
+                    await MainActor.run {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isLoading = false
+                        }
+                    }
+                }
+            }
+
             await resolveBirthdayFromContacts()
+
+            // Cancel the timeout if we finished normally
+            loadingTask?.cancel()
         }
     }
 
@@ -107,7 +123,7 @@ struct BirthdayCollectionView: View {
         do {
             let granted = try await store.requestAccess(for: .contacts)
             guard granted else {
-                showManualInput()
+                await showManualInput()
                 return
             }
 
@@ -133,11 +149,12 @@ struct BirthdayCollectionView: View {
             print("Contacts access error: \(error)")
         }
 
-        showManualInput()
+        await showManualInput()
     }
 
     @MainActor
     private func showManualInput() {
+        guard isLoading else { return } // Already showing manual input
         withAnimation(.easeInOut(duration: 0.3)) {
             isLoading = false
         }

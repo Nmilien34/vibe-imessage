@@ -137,7 +137,7 @@ struct CompactFeedView: View {
                                         let isMe = firstVibe.userId == appState.userId
 
                                         CompactAvatar(
-                                            name: isMe ? "You" : nameForUser(firstVibe.userId),
+                                            name: appState.nameForUser(firstVibe.userId),
                                             thumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
                                             vibeType: firstVibe.type,
                                             hasUnseen: hasUnseen && !isMe
@@ -164,7 +164,7 @@ struct CompactFeedView: View {
             .compactMap { $0.first }
             .filter { $0.userId != appState.userId }
             .prefix(2)
-            .map { nameForUser($0.userId) }
+            .map { appState.nameForUser($0.userId) }
 
         if activeUsers.isEmpty {
             return "No one active yet"
@@ -173,13 +173,6 @@ struct CompactFeedView: View {
         } else {
             return "\(activeUsers[0]) & \(activeUsers[1]) are active"
         }
-    }
-
-    private func nameForUser(_ id: String) -> String {
-        if id == appState.userId { return "You" }
-        let names = ["Sarah", "Mike", "Jess", "Alex", "Sam", "Emma", "Liam", "Olivia"]
-        let index = abs(id.hashValue) % names.count
-        return names[index]
     }
 }
 
@@ -416,8 +409,8 @@ struct VibeGridCell: View {
                     Image(systemName: "chart.bar.fill")
                         .font(.title)
                         .foregroundColor(vibe.type.color)
-                    if let poll = vibe.poll {
-                        Text(poll.question)
+                    if let poll = vibe.poll, let question = poll.question {
+                        Text(question)
                             .font(.caption2)
                             .lineLimit(2)
                             .multilineTextAlignment(.center)

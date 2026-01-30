@@ -88,11 +88,19 @@ class CameraViewModel: NSObject, ObservableObject {
             // Also check/request audio permission
             checkAudioPermissionAndSetup()
         case .notDetermined:
+            // Request video access
+            // PAUSE SESSION IF RUNNING to avoid interruption crashes
+            sessionQueue.async { [weak self] in
+                if let self = self, let session = self.session, session.isRunning {
+                     session.stopRunning()
+                }
+            }
+            
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                if granted {
-                    self?.checkAudioPermissionAndSetup()
-                } else {
-                    DispatchQueue.main.async {
+                DispatchQueue.main.async {
+                    if granted {
+                        self?.checkAudioPermissionAndSetup()
+                    } else {
                         self?.isUnauthorized = true
                         self?.setupError = "Camera access is required to record videos"
                     }
@@ -117,7 +125,10 @@ class CameraViewModel: NSObject, ObservableObject {
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 // Proceed even if audio denied - video will still work
-                self?.setupSession()
+                // Ensure we call setupSession on main thread if checking access
+                 DispatchQueue.main.async {
+                    self?.setupSession()
+                }
             }
         case .denied, .restricted:
             // Still setup session, just without audio
@@ -171,11 +182,16 @@ class CameraViewModel: NSObject, ObservableObject {
                 session.addOutput(self.videoOutput)
             }
             
-            // Audio Input
-            if let audioDevice = AVCaptureDevice.default(for: .audio),
-               let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
-               session.canAddInput(audioInput) {
-                session.addInput(audioInput)
+            // Audio Input - only add if we have permission
+            let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+            if audioStatus == .authorized {
+                if let audioDevice = AVCaptureDevice.default(for: .audio),
+                   let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
+                   session.canAddInput(audioInput) {
+                    session.addInput(audioInput)
+                }
+            } else {
+                print("CameraViewModel: Skipping audio input - permission not granted (status: \(audioStatus.rawValue))")
             }
             
             session.commitConfiguration()
@@ -215,8 +231,7 @@ class CameraViewModel: NSObject, ObservableObject {
             return
         }
         
-        let outputPath = NSTemporaryDirectory() + UUID().uuidString + ".mov"
-        let outputUrl = URL(fileURLWithPath: outputPath)
+        let outputUrl = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         
         videoOutput.startRecording(to: outputUrl, recordingDelegate: self)
     }
@@ -230,13 +245,8 @@ class CameraViewModel: NSObject, ObservableObject {
             
             // Generate dummy video
             Task { @MainActor in
-                let outputUrl = URL(fileURLWithPath: NSTemporaryDirectory() + UUID().uuidString + ".mov")
-                // In a real app we'd write dummy bytes, but for now we might fail or need a real dummy file.
-                // Hack: Write a tiny text file masked as .mov so it exists at least? 
-                // NO, AVAsset will fail.
-                // Better approach: Since we are in mock mode, VideoComposer might fail to generate thumbnail from invalid file.
-                // We'll create a minimal valid MP4 if possible, OR, rely on Mock Data in VideoComposer to ignore file content if simulator.
-                // For now, let's create a minimal generic file to ensure "existence".
+                let outputUrl = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
+                // Write dummy data to ensure file exists
                 try? "DUMMY VIDEO DATA".data(using: .utf8)?.write(to: outputUrl)
                 self.recordedVideo = VideoRecording(url: outputUrl, duration: self.recordingTime)
             }

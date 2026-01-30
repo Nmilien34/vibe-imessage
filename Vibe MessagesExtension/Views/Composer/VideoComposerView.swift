@@ -171,7 +171,7 @@ struct VideoComposerView: View {
             // 2. Create the Vibe Record for Feed
             // Note: The upload endpoint creates a basic vibe, but we create another
             // with full metadata (song, text overlay) for the feed
-            try await appState.createVibe(
+            let vibe = try await appState.createVibe(
                 type: .video,
                 mediaUrl: result.videoUrl,
                 mediaKey: result.videoKey,
@@ -182,8 +182,15 @@ struct VideoComposerView: View {
 
             uploadProgress = 0.9
 
-            // 3. Send iMessage Bubble with real VideoId
-            appState.sendStory?(result.videoId, result.videoUrl, isLocked, thumbnailImage, mediaType, nil)
+            // 3. Send iMessage Bubble with the vibe ID
+            appState.sendVibeMessage(
+                vibeId: vibe.id,
+                mediaUrl: result.videoUrl,
+                isLocked: isLocked,
+                thumbnail: thumbnailImage,
+                vibeType: mediaType,
+                contextText: overlayText
+            )
 
             uploadProgress = 1.0
 
