@@ -159,6 +159,26 @@ class AppState: ObservableObject {
 
 
     init() {
+        // Reset onboarding if launched with -resetOnboarding argument (useful for testing)
+        if ProcessInfo.processInfo.arguments.contains("-resetOnboarding") {
+            UserDefaults.standard.removeObject(forKey: "vibeOnboardingCompleted")
+            UserDefaults.standard.removeObject(forKey: "vibeBirthdayCollected")
+            UserDefaults.standard.removeObject(forKey: "vibeUserFirstName")
+            UserDefaults.standard.removeObject(forKey: "vibePermissionsGranted")
+            UserDefaults.standard.removeObject(forKey: "vibeUserId")
+            UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
+            print("AppState: Reset onboarding state via launch argument")
+            
+            // Force reset of Published properties
+            self.isOnboardingCompleted = false
+            self.isBirthdayCollected = false
+            self.userFirstName = nil
+            self.hasRequiredPermissions = false
+            self.userId = "anonymous"
+            self.isAuthenticated = false
+            return
+        }
+
         // Load onboarding state
         self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
         self.isBirthdayCollected = UserDefaults.standard.bool(forKey: "vibeBirthdayCollected")
