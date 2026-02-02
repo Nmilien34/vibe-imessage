@@ -79,7 +79,7 @@ struct UpperSectionView: View {
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundColor(.white)
                         )
-                    Text("Hi, \(appState.userFirstName ?? "Vibez")")
+                    Text("Hi, \(appState.userFirstName ?? "there")")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                 }
 
@@ -188,10 +188,9 @@ struct UpperSectionView: View {
                     .padding(.leading)
 
                     // Friends' Stories
-                    let groupedVibes = appState.vibesGroupedByUser()
+                    let groupedVibes = appState.vibesGroupedByUser(includeMe: false)
                     ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                        if let firstVibe = userVibes.first,
-                           firstVibe.userId != appState.userId {
+                        if let firstVibe = userVibes.first {
                             StoryRingItem(
                                 vibes: userVibes,
                                 name: appState.nameForUser(firstVibe.userId),
@@ -275,7 +274,7 @@ struct UpperSectionView: View {
                         }
                         .padding(.horizontal)
                         .frame(height: 65)
-                        .background(Color.white)
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
                         .cornerRadius(20)
                         .shadow(color: .black.opacity(0.03), radius: 3)
                     }
@@ -292,7 +291,7 @@ struct UpperSectionView: View {
                         }
                         .padding(.horizontal)
                         .frame(height: 65)
-                        .background(Color.white)
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
                         .cornerRadius(20)
                         .shadow(color: .black.opacity(0.03), radius: 3)
                     }
@@ -548,7 +547,7 @@ struct LowerSectionView: View {
                     // Empty state
                     ZStack {
                         RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white)
+                            .fill(Color(UIColor.secondarySystemGroupedBackground))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 24)
                                     .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
@@ -698,7 +697,7 @@ struct LeaderboardCardView: View {
         }
         .padding(12)
         .frame(width: 100, height: 100)
-        .background(Color.white)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
@@ -842,7 +841,7 @@ struct UpcomingRemindersSection: View {
                     .padding(.vertical, 24)
                     Spacer()
                 }
-                .background(Color.white)
+                .background(Color(UIColor.secondarySystemGroupedBackground))
                 .cornerRadius(16)
                 .padding(.horizontal)
             } else {
@@ -893,7 +892,7 @@ struct ReminderCardView: View {
             Spacer()
         }
         .padding(12)
-        .background(Color.white)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
         .cornerRadius(16)
         .shadow(color: Color.black.opacity(0.03), radius: 5, y: 2)
     }

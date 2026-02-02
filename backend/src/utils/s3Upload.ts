@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import s3Client from '../config/s3';
 import { UploadResult, S3UploadResult } from '../types';
 
-const BUCKET = process.env.AWS_S3_BUCKET || '';
+const BUCKET = process.env.AWS_BUCKET_NAME || '';
 
 const contentTypes: Record<string, string> = {
   mp4: 'video/mp4',
@@ -29,7 +29,7 @@ export const getUploadUrl = async (fileType: string, folder: string = 'vibes'): 
   });
 
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
 
   return { uploadUrl, publicUrl, key };
 };
@@ -59,7 +59,7 @@ export const uploadToS3 = async (
   });
 
   await s3Client.send(command);
-  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
 
   return { publicUrl, key };
 };

@@ -139,14 +139,14 @@ class APIService {
      * Uploads a video vibe using multipart/form-data.
      * Returns the videoId, public videoUrl, and S3 key for cleanup tracking.
      */
-    func uploadVideo(videoData: Data, userId: String, chatId: String, isLocked: Bool) async throws -> VideoUploadResult {
+    func uploadMedia(mediaData: Data, userId: String, chatId: String, isLocked: Bool, isVideo: Bool) async throws -> VideoUploadResult {
         if useMockData {
             try await Task.sleep(nanoseconds: 1_000_000_000) // 1s delay to simulate upload
             let mockId = UUID().uuidString
             return VideoUploadResult(
                 videoId: mockId,
-                videoUrl: "https://mock-s3.com/videos/\(mockId).mp4",
-                videoKey: "videos/\(mockId).mp4"
+                videoUrl: "https://mock-s3.com/media/\(mockId).\(isVideo ? "mp4" : "jpg")",
+                videoKey: "media/\(mockId).\(isVideo ? "mp4" : "jpg")"
             )
         }
 
@@ -156,6 +156,7 @@ class APIService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        request.timeoutInterval = 60 // 1 minute timeout for uploads
 
         let boundary = "Boundary-\(UUID().uuidString)"
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -173,11 +174,14 @@ class APIService {
         appendTextField(name: "chatId", value: chatId)
         appendTextField(name: "isLocked", value: isLocked ? "true" : "false")
 
-        // Video file
+        // Media file
+        let filename = isVideo ? "video.mp4" : "photo.jpg"
+        let contentType = isVideo ? "video/mp4" : "image/jpeg"
+        
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"video\"; filename=\"video.mp4\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: video/mp4\r\n\r\n".data(using: .utf8)!)
-        body.append(videoData)
+        body.append("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(contentType)\r\n\r\n".data(using: .utf8)!)
+        body.append(mediaData)
         body.append("\r\n".data(using: .utf8)!)
 
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
@@ -580,6 +584,30 @@ class APIService {
             throw APIError.invalidResponse
         }
         
+        return try decoder.decode(Vibe.self, from: data)
+    }
+
+    func respondToParlay(vibeId: String, userId: String, status: String) async throws -> Vibe {
+        guard let url = URL(string: "\(baseURL)/vibes/\(vibeId)/parlay/respond") else {
+            throw APIError.invalidURL
+        }
+
+        struct RespondRequest: Codable {
+            let userId: String
+            let status: String
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(RespondRequest(userId: userId, status: status))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
         return try decoder.decode(Vibe.self, from: data)
     }
 

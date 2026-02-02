@@ -21,46 +21,20 @@ struct SketchComposerView: View {
     
     var body: some View {
         VStack(spacing: 24) {
-            // Canvas
-            ZStack {
-                Color.black
-                    .cornerRadius(24)
-                
-                Canvas { context, size in
-                    for line in lines {
-                        var path = Path()
-                        path.addLines(line.points)
-                        context.stroke(path, with: .color(line.color), lineWidth: line.lineWidth)
+            // Canvas Area
+            canvasView
+                .frame(height: 400)
+                .padding(.horizontal)
+                .overlay(alignment: .topTrailing) {
+                    Button {
+                        lines = []
+                    } label: {
+                        Image(systemName: "arrow.uturn.backward.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white.opacity(0.5))
+                            .padding(24)
                     }
-                    
-                    var path = Path()
-                    path.addLines(currentLine.points)
-                    context.stroke(path, with: .color(currentLine.color), lineWidth: currentLine.lineWidth)
                 }
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let newPoint = value.location
-                            currentLine.points.append(newPoint)
-                        }
-                        .onEnded { _ in
-                            lines.append(currentLine)
-                            currentLine = Line(points: [], color: selectedColor, lineWidth: 5)
-                        }
-                )
-            }
-            .frame(height: 400)
-            .padding(.horizontal)
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    lines = []
-                } label: {
-                    Image(systemName: "arrow.uturn.backward.circle.fill")
-                        .font(.title)
-                        .foregroundColor(.white.opacity(0.5))
-                        .padding(24)
-                }
-            }
             
             // Tool Palette
             HStack(spacing: 20) {
@@ -129,22 +103,85 @@ struct SketchComposerView: View {
         }
         .padding(.top, 16)
     }
+
+    // Extracted canvas view for rendering
+    private var canvasView: some View {
+        ZStack {
+            Color.black
+                .cornerRadius(24)
+            
+            Canvas { context, size in
+                for line in lines {
+                    var path = Path()
+                    path.addLines(line.points)
+                    context.stroke(path, with: .color(line.color), lineWidth: line.lineWidth)
+                }
+                
+                var path = Path()
+                path.addLines(currentLine.points)
+                context.stroke(path, with: .color(currentLine.color), lineWidth: currentLine.lineWidth)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        let newPoint = value.location
+                        currentLine.points.append(newPoint)
+                    }
+                    .onEnded { _ in
+                        lines.append(currentLine)
+                        currentLine = Line(points: [], color: selectedColor, lineWidth: 5)
+                    }
+            )
+        }
+    }
     
     private func shareSketch() async {
-        // In a real app, convert lines to JSON or render to image
-        // For the MVP, we'll just simulate a successful upload
         isUploading = true
         showUploadError = false
         uploadError = nil
 
         do {
+            // 1. Render canvas to UIImage
+            let renderer = ImageRenderer(content: canvasView.frame(width: 400, height: 400))
+            renderer.scale = 3.0 // High quality
+            
+            guard let image = renderer.uiImage,
+                  let imageData = image.jpegData(compressionQuality: 0.8) else {
+                throw NSError(domain: "SketchError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to render drawing"])
+            }
+
+            // 2. Get Presigned URL
+            let presignedResponse: APIClient.PresignedUrlResponse = try await APIClient.shared.post("/api/upload/presigned-url", body: [
+                "fileType": "jpg",
+                "folder": "sketches"
+            ])
+
+            // 3. Upload to S3
+            guard let uploadUrl = URL(string: presignedResponse.uploadUrl) else {
+                throw NSError(domain: "UploadError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid upload URL"])
+            }
+
+            var request = URLRequest(url: uploadUrl)
+            request.httpMethod = "PUT"
+            request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+            
+            let (_, response) = try await URLSession.shared.upload(for: request, from: imageData)
+            
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                throw NSError(domain: "S3Error", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to upload sketch to storage"])
+            }
+
+            // 4. Create Vibe with the public URL
             let vibe = try await appState.createVibe(
                 type: .sketch,
+                mediaUrl: presignedResponse.publicUrl,
                 isLocked: isLocked
             )
+            
             appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .sketch)
             appState.dismissComposer()
         } catch {
+            print("Sketch sharing failed: \(error)")
             uploadError = error.localizedDescription
             showUploadError = true
         }

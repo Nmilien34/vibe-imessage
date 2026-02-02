@@ -17,6 +17,7 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var isRecording = false
     @Published var recordingTime: TimeInterval = 0
     @Published var recordedVideo: VideoRecording?
+    @Published var capturedPhoto: UIImage?
     @Published var isUploading = false
     @Published var uploadError: String?
     
@@ -55,6 +56,7 @@ class CameraViewModel: NSObject, ObservableObject {
     
     private let sessionQueue = DispatchQueue(label: "com.vibe.cameraSession")
     private var videoOutput = AVCaptureMovieFileOutput()
+    private var photoOutput = AVCapturePhotoOutput()
     private var videoInput: AVCaptureDeviceInput?
     private var timer: Timer?
     private var startTime: Date?
@@ -182,6 +184,11 @@ class CameraViewModel: NSObject, ObservableObject {
                 session.addOutput(self.videoOutput)
             }
             
+            // Add Photo Output
+            if session.canAddOutput(self.photoOutput) {
+                session.addOutput(self.photoOutput)
+            }
+            
             // Audio Input - only add if we have permission
             let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             if audioStatus == .authorized {
@@ -203,6 +210,13 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
     
+    func reset() {
+        self.recordedVideo = nil
+        self.capturedPhoto = nil
+        self.isRecording = false
+        self.recordingTime = 0
+    }
+
     func stopSession() {
         if isSimulator { return }
         sessionQueue.async { [weak self] in
@@ -254,6 +268,25 @@ class CameraViewModel: NSObject, ObservableObject {
         }
 
         videoOutput.stopRecording()
+    }
+    
+    func takePhoto() {
+        guard !isRecording else { return }
+        
+        if isSimulator {
+            // Generate dummy photo
+            let dummyImage = UIImage(systemName: "photo.fill")?.withTintColor(.pink)
+            self.capturedPhoto = dummyImage
+            return
+        }
+        
+        let settings = AVCapturePhotoSettings()
+        // Check for flash if needed
+        if let device = videoInput?.device, device.hasFlash {
+            settings.flashMode = device.torchMode == .on ? .on : .off
+        }
+        
+        photoOutput.capturePhoto(with: settings, delegate: self)
     }
     
     func flipCamera() {
@@ -352,6 +385,22 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
             }
             
             self.recordedVideo = VideoRecording(url: outputFileURL, duration: self.recordingTime)
+        }
+    }
+}
+
+extension CameraViewModel: AVCapturePhotoCaptureDelegate {
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        if let error = error {
+            print("Photo capture error: \(error.localizedDescription)")
+            return
+        }
+        
+        guard let imageData = photo.fileDataRepresentation() else { return }
+        if let image = UIImage(data: imageData) {
+            DispatchQueue.main.async {
+                self.capturedPhoto = image
+            }
         }
     }
 }

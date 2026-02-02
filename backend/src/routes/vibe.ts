@@ -52,25 +52,9 @@ router.post('/upload', upload.single('video'), async (req: Request<{}, {}, Uploa
     const extension = file.originalname.split('.').pop() || 'mp4';
     const { publicUrl, key } = await uploadToS3(file.buffer, extension, 'vibes');
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + FEED_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
-    const permanentDeleteAt = new Date(now.getTime() + HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-
-    const vibe = new Vibe({
-      userId,
-      conversationId: chatId,
-      type: 'video',
-      mediaUrl: publicUrl,
-      mediaKey: key,
-      isLocked: isLocked === 'true' || isLocked === true,
-      expiresAt,
-      permanentDeleteAt,
-    });
-
-    await vibe.save();
-
+    // RETURN ONLY S3 INFO - LET THE CLIENT CREATE THE VIBE WITH METADATA
     res.status(201).json({
-      videoId: vibe._id,
+      videoId: "temp_upload_success", // Backwards compatibility for client parser
       videoUrl: publicUrl,
       videoKey: key,
     });

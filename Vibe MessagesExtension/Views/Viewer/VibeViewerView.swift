@@ -206,6 +206,8 @@ struct VibeViewerView: View {
                             TeaVibeContent(vibe: vibe)
                         } else if vibe.type == .sketch {
                             SketchVibeContent(vibe: vibe)
+                        } else if vibe.type == .parlay {
+                            ParlayVibeContent(vibe: vibe)
                         } else if vibe.type == .eta {
                             ETAVibeContent(vibe: vibe)
                         } else {
@@ -958,12 +960,36 @@ struct SketchVibeContent: View {
         ZStack {
             Color.black.ignoresSafeArea()
             
-            VStack {
-                Image(systemName: "hand.draw.fill")
-                    .font(.system(size: 80))
-                    .foregroundColor(.orange.opacity(0.3))
-                Text("Doodle incoming...")
-                    .foregroundColor(.white.opacity(0.5))
+            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        ProgressView()
+                            .tint(.white)
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    case .failure:
+                        VStack {
+                            Image(systemName: "hand.draw.fill")
+                                .font(.system(size: 80))
+                                .foregroundColor(.orange.opacity(0.3))
+                            Text("Doodle failed to load")
+                                .foregroundColor(.white.opacity(0.5))
+                        }
+                    @unknown default:
+                        EmptyView()
+                    }
+                }
+            } else {
+                VStack {
+                    Image(systemName: "hand.draw.fill")
+                        .font(.system(size: 80))
+                        .foregroundColor(.orange.opacity(0.3))
+                    Text("Doodle incoming...")
+                        .foregroundColor(.white.opacity(0.5))
+                }
             }
         }
     }

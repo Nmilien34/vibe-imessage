@@ -43,7 +43,7 @@ struct VideoComposerView: View {
                     }
                 )
             } else {
-                CreatorCameraView(initialLocked: isLocked, selectedItem: $selectedItem, mediaData: $mediaData, thumbnail: $thumbnailImage)
+                CreatorCameraView(initialLocked: isLocked, selectedItem: $selectedItem, mediaData: $mediaData, thumbnail: $thumbnailImage, mediaType: $mediaType)
             }
             
             if isUploading {
@@ -159,11 +159,12 @@ struct VideoComposerView: View {
             // 1. Upload Video (Multipart)
             uploadProgress = 0.2
 
-            let result = try await APIService.shared.uploadVideo(
-                videoData: data,
+            let result = try await APIService.shared.uploadMedia(
+                mediaData: data,
                 userId: appState.userId,
                 chatId: chatId,
-                isLocked: isLocked
+                isLocked: isLocked,
+                isVideo: mediaType == .video
             )
 
             uploadProgress = 0.7
@@ -172,7 +173,7 @@ struct VideoComposerView: View {
             // Note: The upload endpoint creates a basic vibe, but we create another
             // with full metadata (song, text overlay) for the feed
             let vibe = try await appState.createVibe(
-                type: .video,
+                type: mediaType,
                 mediaUrl: result.videoUrl,
                 mediaKey: result.videoKey,
                 songData: song,

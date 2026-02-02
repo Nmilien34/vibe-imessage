@@ -25,6 +25,8 @@ struct MediaEditorView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
+                Color.black.ignoresSafeArea()
+                
                 // Background Media Preview
                 mediaPreview
                     .onTapGesture {
@@ -111,12 +113,15 @@ struct MediaEditorView: View {
                     Color.black
                 }
             } else {
-                if let uiImage = thumbnail ?? UIImage(data: mediaData) {
+                if let uiImage = (thumbnail ?? UIImage(data: mediaData)) {
                     Image(uiImage: uiImage)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
+                        .background(Color.black)
+                } else {
+                    Color.red.overlay(Text("No Image Data").foregroundColor(.white))
                 }
             }
         }
@@ -225,6 +230,7 @@ class PlayerController: ObservableObject {
 
     func setup(with data: Data) {
         if player != nil { return }
+        print("MediaEditor: Setting up player with data (\(data.count) bytes)")
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
         self.tempURL = url
@@ -266,6 +272,7 @@ struct VideoPlayerView: UIViewRepresentable {
     
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
+        view.backgroundColor = .black
         let layer = AVPlayerLayer(player: player)
         layer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(layer)
@@ -273,9 +280,15 @@ struct VideoPlayerView: UIViewRepresentable {
     }
     
     func updateUIView(_ uiView: UIView, context: Context) {
-        if let layer = uiView.layer.sublayers?.first as? AVPlayerLayer {
-            layer.frame = uiView.bounds
+        // Ensure layer matches view bounds on every update
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        uiView.layer.sublayers?.forEach { layer in
+            if let playerLayer = layer as? AVPlayerLayer {
+                playerLayer.frame = uiView.bounds
+            }
         }
+        CATransaction.commit()
     }
 }
 

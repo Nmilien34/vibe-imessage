@@ -105,6 +105,7 @@ class AppState: ObservableObject {
     // MARK: - Viewer State
     @Published var viewerVibes: [Vibe] = []
     @Published var currentViewerIndex = 0
+    @Published var pendingViewerVibeId: String?
 
     // MARK: - Unlock Flow State
     @Published var showUnlockPrompt = false
@@ -314,17 +315,20 @@ class AppState: ObservableObject {
                 }
             }
 
-            // ALWAYS insert team welcome vibe at index 0
-            userVibes.insert(teamWelcomeVibe, at: 0)
-
             self.vibes = userVibes
+
+            // Handle pending navigation
+            if let pendingId = pendingViewerVibeId {
+                self.pendingViewerVibeId = nil
+                navigateToViewer(opening: pendingId)
+            }
 
             // Load streak for current chat if we have one
             if let chatId = currentChatId {
                 self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
             }
 
-            print("AppState: Loaded \(vibes.count) vibes (including team vibe at index 0)")
+            print("AppState: Loaded \(vibes.count) vibes")
         } catch {
             self.error = error.localizedDescription
             print("AppState Error: Loading vibes failed: \(error)")
@@ -365,9 +369,6 @@ class AppState: ObservableObject {
                     return true
                 }
             }
-
-            // ALWAYS insert team welcome vibe at index 0
-            userVibes.insert(teamWelcomeVibe, at: 0)
 
             self.vibes = userVibes
             self.streak = try? await APIService.shared.fetchStreak(chatId: chatId)
@@ -632,10 +633,11 @@ class AppState: ObservableObject {
         // Remove any existing vibe with the same ID (shouldn't happen, but just in case)
         vibes.removeAll { $0.id == newVibe.id }
 
-        // Insert at index 1 (after team welcome vibe at index 0)
-        // If for some reason team vibe isn't there, insert at 0
-        let insertIndex = vibes.first?.id == "team_welcome" ? 1 : 0
-        vibes.insert(newVibe, at: insertIndex)
+        // Insert locally for immediate feedback
+        // Insert at index 0 now that team vibe is handled dynamically in grouping
+        vibes.insert(newVibe, at: 0)
+        
+        print("AppState: Created Vibe \(newVibe.id) for user \(userId) in chat \(chatId)")
 
         // Refresh streak
         streak = try? await APIService.shared.fetchStreak(chatId: chatId)
@@ -703,6 +705,19 @@ class AppState: ObservableObject {
         }
     }
 
+    func respondToParlay(on vibe: Vibe, status: ParlayStatus) async {
+        do {
+            let updatedVibe = try await APIService.shared.respondToParlay(
+                vibeId: vibe.id,
+                userId: userId,
+                status: status.rawValue
+            )
+            updateVibe(updatedVibe)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     private func updateVibe(_ vibe: Vibe) {
         if let index = vibes.firstIndex(where: { $0.id == vibe.id }) {
             vibes[index] = vibe
@@ -712,6 +727,13 @@ class AppState: ObservableObject {
     // MARK: - Navigation
 
     func navigateToViewer(opening vibeId: String) {
+        // If we're currently loading, set this as pending so it opens when ready
+        if isLoading && vibes.count <= 1 {
+            pendingViewerVibeId = vibeId
+            requestExpand()
+            return
+        }
+
         // 1. Prepare Playlist: Group by user, sort oldest to newest per user
         // Filter out expired vibes on client-side to ensure freshness
         var activeVibes = vibes.filter { !$0.isExpired }
@@ -721,13 +743,20 @@ class AppState: ObservableObject {
             activeVibes = [teamWelcomeVibe]
         }
 
-        let grouped = vibesGroupedByUser(from: activeVibes)
+        // Find the user who owns this vibe to prioritize their story
+        let priorityUserId = activeVibes.first(where: { $0.id == vibeId })?.userId
+        let grouped = vibesGroupedByUser(from: activeVibes, priorityUserId: priorityUserId)
 
         // Flatten and sort each group by creation date (Oldest first)
         var playlist: [Vibe] = []
         for userVibes in grouped {
             let sortedUserVibes = userVibes.sorted(by: { $0.createdAt < $1.createdAt })
             playlist.append(contentsOf: sortedUserVibes)
+        }
+        
+        // Remove team welcome vibe if it's not the requested vibe
+        if vibeId != "team_welcome" {
+            playlist.removeAll { $0.id == "team_welcome" }
         }
 
         // Deduplicate playlist by ID (keep first occurrence)
@@ -741,12 +770,6 @@ class AppState: ObservableObject {
             }
         }
 
-        // ENSURE team vibe is always first in playlist
-        if let teamIndex = playlist.firstIndex(where: { $0.id == "team_welcome" }) {
-            let teamVibe = playlist.remove(at: teamIndex)
-            playlist.insert(teamVibe, at: 0)
-        }
-
         self.viewerVibes = playlist
 
         // 2. Find index
@@ -754,7 +777,7 @@ class AppState: ObservableObject {
             currentViewerIndex = index
             currentDestination = .viewer(startIndex: index)
         } else {
-            // Fallback (shouldn't happen with team vibe)
+            // If vibeId not found, fallback to first
             currentViewerIndex = 0
             currentDestination = .viewer(startIndex: 0)
         }
@@ -843,12 +866,21 @@ class AppState: ObservableObject {
         streak?.userPostedToday(userId) ?? false
     }
 
-    func vibesGroupedByUser(from list: [Vibe]? = nil) -> [[Vibe]] {
+    func vibesGroupedByUser(includeMe: Bool = true, includeTeam: Bool = true, priorityUserId: String? = nil) -> [[Vibe]] {
         // Group vibes by userId, maintaining order
         var userOrder: [String] = []
         var grouped: [String: [Vibe]] = [:]
 
-        var sourceList = list ?? vibes.filter { !$0.isExpired }
+        // Get active vibes
+        var sourceList = vibes.filter { !$0.isExpired }
+
+        // Filter out Me/Team if requested
+        if !includeMe {
+            sourceList = sourceList.filter { $0.userId != userId }
+        }
+        if !includeTeam {
+            sourceList = sourceList.filter { $0.userId != "vibe_team" }
+        }
 
         // Deduplicate source list by ID
         var seenIds = Set<String>()
@@ -861,17 +893,23 @@ class AppState: ObservableObject {
             }
         }
 
-        // If empty, add the team welcome vibe
-        if sourceList.isEmpty {
-            sourceList = [teamWelcomeVibe]
-        }
-
         for vibe in sourceList {
             if grouped[vibe.userId] == nil {
                 userOrder.append(vibe.userId)
                 grouped[vibe.userId] = []
             }
             grouped[vibe.userId]?.append(vibe)
+        }
+        
+        // If empty and team requested, add the team welcome vibe
+        if userOrder.isEmpty && includeTeam {
+            return [[teamWelcomeVibe]]
+        }
+        
+        // If priorityUserId is set, move it to the front of userOrder
+        if let priority = priorityUserId, let index = userOrder.firstIndex(of: priority) {
+            let user = userOrder.remove(at: index)
+            userOrder.insert(user, at: 0)
         }
 
         return userOrder.compactMap { grouped[$0] }
@@ -882,15 +920,14 @@ class AppState: ObservableObject {
         if id == userId { return "You" }
         if id == "vibe_team" { return "Vibez" }
         
-        // Consistent Friend Mappings
-        if id.contains("friend_1") { return "Sarah" }
-        if id.contains("friend_2") { return "Mike" }
-        if id.contains("friend_3") { return "Jess" }
-        if id.contains("friend_4") { return "Alex" }
-        if id.contains("friend_5") { return "Sam" }
+        // Consistent Friend Mappings for simulator/mock
+        if id.contains("friend_1") || id.contains("friend1") { return "Sarah" }
+        if id.contains("friend_2") || id.contains("friend2") { return "Mike" }
+        if id.contains("friend_3") || id.contains("friend3") { return "Jess" }
+        if id.contains("friend_4") || id.contains("friend4") { return "Alex" }
+        if id.contains("friend_5") || id.contains("friend5") { return "Sam" }
         
         // Deterministic Fallback
-        // Use a consistent list so "Liam" is always "Liam" for the same ID
         let names = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason"]
         let index = abs(id.hashValue) % names.count
         return names[index]

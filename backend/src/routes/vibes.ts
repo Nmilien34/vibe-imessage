@@ -355,4 +355,36 @@ router.get('/:conversationId/streak', async (req: Request<{ conversationId: stri
   }
 });
 
+/**
+ * @route   POST /api/vibes/:vibeId/parlay/respond
+ * @desc    Accept or decline a parlay bet
+ */
+router.post('/:vibeId/parlay/respond', async (req: Request<{ vibeId: string }>, res: Response) => {
+  try {
+    const { vibeId } = req.params;
+    const { userId, status } = req.body;
+
+    if (!['accepted', 'declined'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be accepted or declined.' });
+    }
+
+    const vibe = await Vibe.findById(vibeId);
+    if (!vibe || vibe.type !== 'parlay') {
+      return res.status(404).json({ error: 'Parlay not found' });
+    }
+
+    if (vibe.parlay) {
+      vibe.parlay.status = status;
+      vibe.parlay.opponentId = userId;
+      // If accepted, we could also update the opponentName if we had it, but for now we just track the ID
+      await vibe.save();
+    }
+
+    res.json(vibe);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    res.status(500).json({ error: message });
+  }
+});
+
 export default router;

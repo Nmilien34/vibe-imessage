@@ -54,15 +54,17 @@ struct CreatorCameraView: View {
     @Binding var selectedItem: PhotosPickerItem?
     @Binding var mediaData: Data?
     @Binding var thumbnail: UIImage?
+    @Binding var mediaType: VibeType
 
     // Pass song selection back to parent
     var onSongSelected: ((SongData?) -> Void)?
 
-    init(initialLocked: Bool = false, selectedItem: Binding<PhotosPickerItem?>, mediaData: Binding<Data?>, thumbnail: Binding<UIImage?>) {
+    init(initialLocked: Bool = false, selectedItem: Binding<PhotosPickerItem?>, mediaData: Binding<Data?>, thumbnail: Binding<UIImage?>, mediaType: Binding<VibeType>) {
         _selectedMode = State(initialValue: initialLocked ? .locked : .normal)
         _selectedItem = selectedItem
         _mediaData = mediaData
         _thumbnail = thumbnail
+        _mediaType = mediaType
     }
 
     var body: some View {
@@ -163,6 +165,7 @@ struct CreatorCameraView: View {
             }
         }
         .onAppear {
+            viewModel.reset()
             viewModel.checkPermissions()
         }
         .onDisappear {
@@ -179,7 +182,17 @@ struct CreatorCameraView: View {
                     if let data = try? Data(contentsOf: video.url) {
                         self.mediaData = data
                         self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
+                        self.mediaType = .video
                     }
+                }
+            }
+        }
+        .onChange(of: viewModel.capturedPhoto) { _, newValue in
+            if let image = newValue {
+                if let data = image.jpegData(compressionQuality: 0.8) {
+                    self.mediaData = data
+                    self.thumbnail = image
+                    self.mediaType = .photo
                 }
             }
         }
@@ -424,7 +437,14 @@ struct CreatorCameraView: View {
                         } else {
                             viewModel.stopRecording()
                         }
-                    }) { }
+                    }) {
+                        // Empty action block
+                    }
+                    .onTapGesture {
+                        let gen = UIImpactFeedbackGenerator(style: .medium)
+                        gen.impactOccurred()
+                        viewModel.takePhoto()
+                    }
 
                 if viewModel.isRecording {
                     Circle()

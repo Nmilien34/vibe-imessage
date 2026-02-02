@@ -18,11 +18,11 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.AWS_BUCKET_NAME;
 const REGION = process.env.AWS_REGION;
 
 if (!BUCKET || !REGION) {
-  console.error('Error: AWS_S3_BUCKET and AWS_REGION environment variables are required');
+  console.error('Error: AWS_BUCKET_NAME and AWS_REGION environment variables are required');
   process.exit(1);
 }
 

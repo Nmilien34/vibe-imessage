@@ -125,6 +125,9 @@ class MessagesViewController: MSMessagesAppViewController {
                 await MainActor.run {
                     appState.currentChatId = chatId
                 }
+                
+                // Refresh vibes for the new chat
+                await appState.loadVibes()
             }
         }
 
