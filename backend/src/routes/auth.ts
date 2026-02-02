@@ -33,7 +33,7 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
 
   try {
     const appleData = await appleSignin.verifyIdToken(identityToken, {
-      audience: 'nickmilien.com.vibes.MessagesExtension',
+      audience: ['nickmilien.com.vibes.MessagesExtension', 'nickmilien.com.vibes'],
       ignoreExpiration: false,
     });
 
