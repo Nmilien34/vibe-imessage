@@ -756,4 +756,11 @@ class APIService {
         
         return try decoder.decode(GroupStreak.self, from: data)
     }
+
+    func getVibeWire() async throws -> [NewsItem] {
+        if useMockData {
+            return []
+        }
+        return try await APIClient.shared.get("/vibewire")
+    }
 }

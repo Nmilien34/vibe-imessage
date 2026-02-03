@@ -18,6 +18,50 @@
             endingLineNumber = "27"
             landmarkName = "setupSwiftUI()"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "01B8EB14-ED27-4D89-A05E-80FC181395D1 - 6df4cf0132bcb456"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (__C.MSMessagesAppPresentationStyle) -&gt; () in Vibe_MessagesExtension.MessagesViewController.setupSwiftUI() -&gt; ()"
+                  moduleName = "Vibe MessagesExtension.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe%20MessagesExtension/MessagesViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "27"
+                  endingLineNumber = "27">
+               </Location>
+               <Location
+                  uuid = "01B8EB14-ED27-4D89-A05E-80FC181395D1 - 4a4f0d0a8171519e"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "Vibe_MessagesExtension.MessagesViewController.setupSwiftUI() -&gt; ()"
+                  moduleName = "Vibe MessagesExtension.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe%20MessagesExtension/MessagesViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "28"
+                  endingLineNumber = "28">
+               </Location>
+               <Location
+                  uuid = "01B8EB14-ED27-4D89-A05E-80FC181395D1 - 6df4cf0132bcb475"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 (__C.MSMessagesAppPresentationStyle) -&gt; () in Vibe_MessagesExtension.MessagesViewController.setupSwiftUI() -&gt; ()"
+                  moduleName = "Vibe MessagesExtension.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe%20MessagesExtension/MessagesViewController.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "28"
+                  endingLineNumber = "28">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

@@ -53,6 +53,10 @@ class AppState: ObservableObject {
     @Published var streak: Streak?
     @Published var isLoading = false
     @Published var error: String?
+    
+    // News Data (Moved from BentoDashboardView)
+    @Published var newsItems: [NewsItem] = []
+    @Published var isLoadingNews = false
 
     // MARK: - Network Error State
     @Published var networkError: VibeError?
@@ -230,8 +234,8 @@ class AppState: ObservableObject {
         // Use a detached task to avoid blocking the UI
         Task {
             // Step 1: Resolve chat ID (required before loading chat-specific data)
-            // Add timeout to prevent hanging if backend is down
-            let chatId = await withTimeout(seconds: 5) {
+            // Increased timeout for Render cold starts
+            let chatId = await withTimeout(seconds: 20) {
                 await ConversationManager.shared.resolveChatID(
                     conversation: conversation,
                     userId: self.userId
@@ -241,12 +245,13 @@ class AppState: ObservableObject {
             self.currentChatId = chatId
             print("AppState Debug: Resolved Chat ID to: \(chatId)")
 
-            // Step 2: Load vibes and reminders IN PARALLEL (not sequential)
+            // Step 2: Load vibes, reminders, and news IN PARALLEL
             async let vibesTask: () = loadVibes()
             async let remindersTask: () = loadReminders()
+            async let newsTask: () = loadNews()
 
-            // Wait for both to complete (but they run concurrently)
-            _ = await (vibesTask, remindersTask)
+            // Wait for all to complete concurrently
+            _ = await (vibesTask, remindersTask, newsTask)
 
             self.isLoading = false
         }
@@ -344,6 +349,38 @@ class AppState: ObservableObject {
         }
 
         isLoading = false
+    }
+
+    /**
+     * Loads the 'Vibe Wire' news feed.
+     */
+    func loadNews() async {
+        guard newsItems.isEmpty else { return }
+        isLoadingNews = true
+        
+        do {
+            let items: [NewsItem] = try await APIService.shared.getVibeWire()
+            self.newsItems = items
+        } catch {
+            print("AppState Error: Loading news failed: \(error)")
+        }
+        
+        isLoadingNews = false
+    }
+    
+    /**
+     * Wakes up the server early.
+     */
+    func awakeServer() {
+        APIClient.shared.awakeServer()
+    }
+    
+    /**
+     * Sharing logic for news
+     */
+    func shareNewsInChat(_ item: NewsItem) {
+        print("AppState Debug: Sharing news in chat: \(item.headline)")
+        // Implementation for sharing would go here (e.g., embedding in a message)
     }
 
     /**
@@ -745,7 +782,7 @@ class AppState: ObservableObject {
 
         // Find the user who owns this vibe to prioritize their story
         let priorityUserId = activeVibes.first(where: { $0.id == vibeId })?.userId
-        let grouped = vibesGroupedByUser(from: activeVibes, priorityUserId: priorityUserId)
+        let grouped = vibesGroupedByUser(activeVibes, priorityUserId: priorityUserId)
 
         // Flatten and sort each group by creation date (Oldest first)
         var playlist: [Vibe] = []
@@ -866,13 +903,12 @@ class AppState: ObservableObject {
         streak?.userPostedToday(userId) ?? false
     }
 
-    func vibesGroupedByUser(includeMe: Bool = true, includeTeam: Bool = true, priorityUserId: String? = nil) -> [[Vibe]] {
+    func vibesGroupedByUser(_ customVibes: [Vibe]? = nil, includeMe: Bool = true, includeTeam: Bool = true, priorityUserId: String? = nil) -> [[Vibe]] {
         // Group vibes by userId, maintaining order
         var userOrder: [String] = []
         var grouped: [String: [Vibe]] = [:]
-
         // Get active vibes
-        var sourceList = vibes.filter { !$0.isExpired }
+        var sourceList = (customVibes ?? vibes).filter { !$0.isExpired }
 
         // Filter out Me/Team if requested
         if !includeMe {

@@ -129,7 +129,7 @@ struct CompactFeedView: View {
                                     CompactAvatarSkeleton()
                                 }
                             } else {
-                                let groupedVibes = appState.vibesGroupedByUser(includeMe: true, includeTeam: true)
+                                let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: true, includeTeam: true)
 
                                 ForEach(groupedVibes, id: \.first?.userId) { userVibes in
                                     if let firstVibe = userVibes.first {

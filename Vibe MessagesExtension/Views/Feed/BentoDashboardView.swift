@@ -188,7 +188,7 @@ struct UpperSectionView: View {
                     .padding(.leading)
 
                     // Friends' Stories
-                    let groupedVibes = appState.vibesGroupedByUser(includeMe: false)
+                    let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false)
                     ForEach(groupedVibes, id: \.first?.userId) { userVibes in
                         if let firstVibe = userVibes.first {
                             StoryRingItem(
@@ -359,7 +359,7 @@ struct UpperSectionView: View {
                         }
 
                         // Third place or fallback
-                        let thirdPlace = appState.vibesGroupedByUser()
+                        let thirdPlace = appState.vibesGroupedByUser(nil)
                             .compactMap { $0.first }
                             .filter { $0.userId != appState.userId && $0.userId != mvpData?.0 && $0.userId != ghostUserId }
                             .first
@@ -407,7 +407,7 @@ struct UpperSectionView: View {
     }
 
     private var ghostUserId: String? {
-        let friends = appState.vibesGroupedByUser()
+        let friends = appState.vibesGroupedByUser(nil)
             .compactMap { $0.first?.userId }
             .filter { $0 != appState.userId }
 
@@ -425,8 +425,6 @@ struct UpperSectionView: View {
 
 struct LowerSectionView: View {
     @EnvironmentObject var appState: AppState
-    @State private var newsItems: [NewsItem] = []
-    @State private var isLoadingNews = false
     @State private var selectedNewsItem: NewsItem? = nil
     @State private var showAllNews = false
 
@@ -441,13 +439,13 @@ struct LowerSectionView: View {
                         .bold()
                         .foregroundColor(.gray)
                     Spacer()
-                    if isLoadingNews {
+                    if appState.isLoadingNews {
                         ProgressView()
                             .scaleEffect(0.6)
                     }
 
                     // See More Button
-                    if !newsItems.isEmpty {
+                    if !appState.newsItems.isEmpty {
                         Button {
                             withAnimation(.spring()) {
                                 showAllNews.toggle()
@@ -473,7 +471,7 @@ struct LowerSectionView: View {
                         GridItem(.flexible(), spacing: 12),
                         GridItem(.flexible(), spacing: 12)
                     ], spacing: 12) {
-                        ForEach(newsItems) { item in
+                        ForEach(appState.newsItems) { item in
                             NewsCardView(newsItem: item)
                                 .onTapGesture {
                                     selectedNewsItem = item
@@ -485,7 +483,7 @@ struct LowerSectionView: View {
                     // Horizontal Scroll View (Original)
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
-                            if newsItems.isEmpty && !isLoadingNews {
+                            if appState.newsItems.isEmpty && !appState.isLoadingNews {
                                 // Fallback placeholder cards
                                 NewsCardView(
                                     tag: "VIRAL",
@@ -500,7 +498,7 @@ struct LowerSectionView: View {
                                     color: .purple
                                 )
                             } else {
-                                ForEach(newsItems) { item in
+                                ForEach(appState.newsItems) { item in
                                     NewsCardView(newsItem: item)
                                         .onTapGesture {
                                             selectedNewsItem = item
@@ -513,7 +511,9 @@ struct LowerSectionView: View {
                 }
             }
             .onAppear {
-                loadNews()
+                Task {
+                    await appState.loadNews()
+                }
             }
             .fullScreenCover(item: $selectedNewsItem) { item in
                 NewsDetailView(
@@ -522,7 +522,7 @@ struct LowerSectionView: View {
                         selectedNewsItem = nil
                     },
                     onShare: {
-                        shareNewsInChat(item)
+                        appState.shareNewsInChat(item)
                     }
                 )
                 .onAppear {
@@ -584,32 +584,6 @@ struct LowerSectionView: View {
                 }
             }
         }
-    }
-    
-    private func loadNews() {
-        guard newsItems.isEmpty else { return }
-        isLoadingNews = true
-        
-        Task {
-            do {
-                let items: [NewsItem] = try await APIClient.shared.get("/vibewire")
-                await MainActor.run {
-                    self.newsItems = items
-                    self.isLoadingNews = false
-                }
-            } catch {
-                print("Failed to load Vibe Wire: \(error)")
-                await MainActor.run {
-                    self.isLoadingNews = false
-                }
-            }
-        }
-    }
-    
-    private func shareNewsInChat(_ item: NewsItem) {
-        // Dismiss the detail view
-        selectedNewsItem = nil
-        print("Sharing news in chat: \(item.headline)")
     }
 }
 
@@ -745,63 +719,65 @@ struct NewsCardView: View {
     }
 
     var body: some View {
-        ZStack {
-            // Background image if available
-            if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
-                AsyncImage(url: url) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    color
-                }
-                .frame(width: 170, height: 125)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-                
-                // Gradient overlay for text readability
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.7)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(width: 170, height: 125)
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-            }
-            
-            VStack(alignment: .leading) {
-                HStack {
-                    Text(tag)
-                        .font(.system(size: 9, weight: .heavy))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.25))
-                        .cornerRadius(4)
-                    Spacer()
-                    if isJustIn {
-                        Text("⚡")
-                            .font(.caption2)
+        VStack(alignment: .leading, spacing: 0) {
+            // Image Section
+            ZStack(alignment: .topTrailing) {
+                if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+                    AsyncImage(url: url) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        color.opacity(0.1)
                     }
+                } else {
+                    color.opacity(0.2)
                 }
-                Spacer()
+                
+                if isJustIn {
+                    Text("⚡️")
+                        .font(.system(size: 12))
+                        .padding(5)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                        .padding(8)
+                }
+            }
+            .frame(width: 170, height: 110)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            
+            // Content Section
+            VStack(alignment: .leading, spacing: 6) {
+                Text(tag.uppercased())
+                    .font(.system(size: 10, weight: .heavy))
+                    .foregroundColor(color)
+                    .lineLimit(1)
+                
                 Text(headline)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
                     .lineLimit(3)
-                Spacer()
+                    .multilineTextAlignment(.leading)
+                
+                Spacer(minLength: 0)
+                
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
                         .font(.system(size: 10))
                     Text(socialText)
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.system(size: 10, weight: .semibold))
                 }
-                .opacity(0.9)
+                .foregroundColor(.gray)
+                .padding(.bottom, 2)
             }
-            .padding(14)
-            .foregroundColor(.white)
+            .padding(.top, 10)
+            .padding(.horizontal, 4)
         }
-        .frame(width: 170, height: 125)
-        .background(imageUrl == nil ? color : Color.clear)
-        .cornerRadius(18)
-        .shadow(color: color.opacity(0.3), radius: 6, y: 3)
+        .padding(10)
+        .frame(width: 170, height: 210)
+        .background(Color(UIColor.secondarySystemGroupedBackground))
+        .cornerRadius(24)
+        .shadow(color: Color.black.opacity(0.04), radius: 8, y: 4)
     }
 }
 

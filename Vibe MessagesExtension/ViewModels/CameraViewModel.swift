@@ -33,11 +33,12 @@ class CameraViewModel: NSObject, ObservableObject {
 
         do {
             let data = try Data(contentsOf: video.url)
-            let result = try await APIService.shared.uploadVideo(
-                videoData: data,
+            let result = try await APIService.shared.uploadMedia(
+                mediaData: data,
                 userId: userId,
                 chatId: chatId,
-                isLocked: isLocked
+                isLocked: isLocked,
+                isVideo: true
             )
 
             await MainActor.run {
@@ -275,7 +276,7 @@ class CameraViewModel: NSObject, ObservableObject {
         
         if isSimulator {
             // Generate dummy photo
-            let dummyImage = UIImage(systemName: "photo.fill")?.withTintColor(.pink)
+            let dummyImage = UIImage(systemName: "photo.fill")?.withTintColor(.systemPink)
             self.capturedPhoto = dummyImage
             return
         }

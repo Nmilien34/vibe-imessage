@@ -56,8 +56,8 @@ actor APIClient {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 10  // 10 seconds - fail fast for better UX
-        config.timeoutIntervalForResource = 30
+        config.timeoutIntervalForRequest = 30  // 30 seconds - accommodates Render cold starts
+        config.timeoutIntervalForResource = 60
         self.session = URLSession(configuration: config)
 
         self.decoder = JSONDecoder()
@@ -395,6 +395,24 @@ actor APIClient {
     }
 
     private func pollPlaceholder() -> Poll? { nil }
+
+    /**
+     * Pings the server health endpoint to wake up the service (Render cold start).
+     * This is a fire-and-forget lightweight request.
+     */
+    nonisolated func awakeServer() {
+        guard !useMockData else { return }
+        
+        let urlString = baseURL.replacingOccurrences(of: "/api", with: "/health")
+        guard let url = URL(string: urlString) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        // We don't care about the result, just that the request hits the server
+        URLSession.shared.dataTask(with: request).resume()
+        print("API Debug: Sent awakeServer ping to \(urlString)")
+    }
 
 
     func get<T: Decodable>(_ path: String) async throws -> T {

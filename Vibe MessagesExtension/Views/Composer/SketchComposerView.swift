@@ -150,8 +150,15 @@ struct SketchComposerView: View {
                 throw NSError(domain: "SketchError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to render drawing"])
             }
 
+            // Define local response type to avoid any visibility issues
+            struct LocalPresignedResponse: Decodable {
+                let uploadUrl: String
+                let publicUrl: String
+                let key: String
+            }
+
             // 2. Get Presigned URL
-            let presignedResponse: APIClient.PresignedUrlResponse = try await APIClient.shared.post("/api/upload/presigned-url", body: [
+            let presignedResponse: LocalPresignedResponse = try await APIClient.shared.post("/api/upload/presigned-url", body: [
                 "fileType": "jpg",
                 "folder": "sketches"
             ])

@@ -47,18 +47,23 @@ export const fetchVibeNews = async (batch: 'morning' | 'noon' | 'evening') => {
     for (const article of articles) {
         if (!article.image) continue; // Skip if no image (it's visual!)
 
-        const newsItem = new NewsItem({
-            headline: article.title,
-            imageUrl: article.image,
-            source: article.source.title,
-            url: article.url,
-            publishedAt: new Date(article.dateTime),
-            vibeScore: article.socialScore || 0,
-            batch: batch
-        });
+        try {
+            const newsItem = new NewsItem({
+                headline: article.title,
+                imageUrl: article.image,
+                source: article.source.title,
+                url: article.url,
+                publishedAt: new Date(article.dateTime),
+                vibeScore: article.socialScore || 0,
+                batch: batch
+            });
 
-        await newsItem.save();
-        savedItems.push(newsItem);
+            await newsItem.save();
+            savedItems.push(newsItem);
+        } catch (error) {
+            console.error(`[Vibe Wire] Failed to save article: ${article.title}`, error);
+            // Continue with other articles
+        }
     }
 
     console.log(`[Vibe Wire] Saved ${savedItems.length} valid articles for ${batch} batch.`);
@@ -66,7 +71,26 @@ export const fetchVibeNews = async (batch: 'morning' | 'noon' | 'evening') => {
 };
 
 export const getVibeWireFeed = async () => {
-    // Return sorted by batch priority (Evening > Noon > Morning) then Score
-    // Or just simple createdAt desc
-    return await NewsItem.find().sort({ createdAt: -1 }).limit(20);
+    const news = await NewsItem.find().sort({ createdAt: -1 }).limit(20);
+
+    // Auto-fetch if empty or very stale
+    if (news.length === 0) {
+        console.log('[Vibe Wire] Feed is empty, triggering background fetch...');
+        // Fire and forget fetch (don't await to avoid blocking the response)
+        fetchVibeNews('morning').catch(err => {
+            console.error('[Vibe Wire] Background fetch failed:', err);
+        });
+    } else {
+        // Check if the latest news is older than 12 hours
+        const latest = news[0];
+        const ageHours = (Date.now() - latest.createdAt.getTime()) / (1000 * 60 * 60);
+        if (ageHours > 12) {
+            console.log(`[Vibe Wire] News is stale (${Math.round(ageHours)}h old), refreshing...`);
+            fetchVibeNews('morning').catch(err => {
+                console.error('[Vibe Wire] Background refresh failed:', err);
+            });
+        }
+    }
+
+    return news;
 };

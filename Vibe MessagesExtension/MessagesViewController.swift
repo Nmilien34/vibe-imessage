@@ -18,6 +18,9 @@ class MessagesViewController: MSMessagesAppViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupSwiftUI()
+        
+        // Start waking up the server early
+        appState.awakeServer()
     }
 
     private func setupSwiftUI() {

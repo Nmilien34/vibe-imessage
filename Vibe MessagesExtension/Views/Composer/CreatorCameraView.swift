@@ -716,6 +716,6 @@ private class VideoPreviewUIView: UIView {
 }
 
 #Preview {
-    CreatorCameraView(selectedItem: .constant(nil), mediaData: .constant(nil), thumbnail: .constant(nil))
+    CreatorCameraView(selectedItem: .constant(nil), mediaData: .constant(nil), thumbnail: .constant(nil), mediaType: .constant(.video))
         .environmentObject(AppState())
 }
