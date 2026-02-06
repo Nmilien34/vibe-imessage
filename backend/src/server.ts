@@ -15,6 +15,9 @@ import chatRoutes from './routes/chat';
 import feedRoutes from './routes/feed';
 import remindersRoutes from './routes/reminders';
 import vibeWireRoutes from './routes/vibewire';
+import userRoutes from './routes/user';
+import betRoutes from './routes/bet';
+import auraRoutes from './routes/aura';
 
 const app = express();
 
@@ -59,6 +62,9 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/reminders', remindersRoutes);
 app.use('/api/vibewire', vibeWireRoutes);
+app.use('/api/user', userRoutes);
+app.use('/api/bets', betRoutes);
+app.use('/api/aura', auraRoutes);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

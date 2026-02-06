@@ -1,5 +1,5 @@
 import mongoose, { Schema, Model, HydratedDocument } from 'mongoose';
-import { IChatDocument, ChatType } from '../types';
+import { IChatDocument, ChatType, ChatSourceType } from '../types';
 
 interface IChatMethods {
   addMember(userId: string): Promise<HydratedDocument<IChatDocument, IChatMethods>>;
@@ -10,6 +10,7 @@ interface IChatMethods {
 type ChatModel = Model<IChatDocument, {}, IChatMethods>;
 
 const chatTypes: ChatType[] = ['individual', 'group'];
+const chatSourceTypes: ChatSourceType[] = ['imessage', 'virtual'];
 
 const chatSchema = new Schema<IChatDocument, ChatModel, IChatMethods>(
   {
@@ -40,6 +41,11 @@ const chatSchema = new Schema<IChatDocument, ChatModel, IChatMethods>(
       type: String,
       enum: chatTypes,
       default: 'group',
+    },
+    chatType: {
+      type: String,
+      enum: chatSourceTypes,
+      default: 'imessage',
     },
     createdBy: {
       type: String,

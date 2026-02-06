@@ -24,6 +24,30 @@ export type ReminderType = 'birthday' | 'hangout' | 'event' | 'custom';
 
 export type ChatType = 'individual' | 'group';
 
+// Betting System
+export type BetType = 'self' | 'callout' | 'dare';
+export type BetStatus = 'active' | 'completed' | 'expired' | 'ducked';
+export type BetSide = 'yes' | 'no';
+export type BetOutcome = 'yes' | 'no' | 'expired' | 'ducked';
+export type ProofMediaType = 'photo' | 'video';
+
+// Tea Spill
+export type TeaSpillStatus = 'active' | 'revealed' | 'expired';
+
+// Chat Extensions
+export type ChatSourceType = 'imessage' | 'virtual';
+
+// Chat Member
+export type MembershipType = 'full' | 'virtual';
+export type MemberRole = 'admin' | 'member';
+
+// Discovery
+export type VisibilitySource = 'past_chat' | 'contact' | 'manual';
+
+// Join Request
+export type JoinRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
+export type JoinDecision = 'approve' | 'deny';
+
 // ============================================================================
 // Subdocument Interfaces
 // ============================================================================
@@ -107,6 +131,21 @@ export interface IUserDocument {
   joinedChatIds: string[];
   pushToken?: string;
   lastSeen: Date;
+
+  // Aura Economy
+  auraBalance?: number;
+  lifetimeAuraEarned?: number;
+  lifetimeAuraSpent?: number;
+  lastDailyBonus?: Date;
+
+  // Reputation Stats
+  vibeScore?: number;
+  betsCreated?: number;
+  betsCompleted?: number;
+  betsFailed?: number;
+  calloutsReceived?: number;
+  calloutsIgnored?: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -151,6 +190,7 @@ export interface IChatDocument {
   lastVibeId?: string;
   lastActivityAt: Date;
   type: ChatType;
+  chatType?: ChatSourceType;
   createdBy?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -194,6 +234,174 @@ export interface IArchivedVibe {
   archivedAt: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ============================================================================
+// Betting System Interfaces
+// ============================================================================
+
+export interface IBet {
+  _id: Types.ObjectId;
+  betId: string;
+  chatId: string;
+  creatorId: string;
+  betType: BetType;
+  description: string;
+  deadline: Date;
+  status: BetStatus;
+  targetUserId?: string;
+  creationCost: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IBetParticipant {
+  _id: Types.ObjectId;
+  participantId: string;
+  betId: string;
+  userId: string;
+  side: BetSide;
+  amount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IBetProof {
+  _id: Types.ObjectId;
+  proofId: string;
+  betId: string;
+  userId: string;
+  mediaType: ProofMediaType;
+  mediaUrl: string;
+  mediaKey: string;
+  thumbnailUrl?: string;
+  thumbnailKey?: string;
+  caption?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IBetResolution {
+  _id: Types.ObjectId;
+  resolutionId: string;
+  betId: string;
+  outcome: BetOutcome;
+  resolvedBy: string;
+  resolvedAt: Date;
+  notes?: string;
+}
+
+// ============================================================================
+// Aura Economy Interfaces
+// ============================================================================
+
+export interface IAuraTransaction {
+  _id: Types.ObjectId;
+  transactionId: string;
+  userId: string;
+  amount: number;
+  balanceAfter: number;
+  transactionType: string;
+  referenceId?: string;
+  description?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================================================
+// Tea Spill Interfaces
+// ============================================================================
+
+export interface ITeaSpill {
+  _id: Types.ObjectId;
+  teaId: string;
+  chatId: string;
+  creatorId: string;
+  mysteryText: string;
+  answer?: string;
+  options: string[];
+  deadline: Date;
+  status: TeaSpillStatus;
+  creationCost: number;
+  creatorBonusPercent: number;
+  revealedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ITeaGuess {
+  _id: Types.ObjectId;
+  guessId: string;
+  teaId: string;
+  userId: string;
+  guess: string;
+  amount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// ============================================================================
+// Chat Member Interfaces
+// ============================================================================
+
+export interface IChatMember {
+  _id: Types.ObjectId;
+  memberId: string;
+  chatId: string;
+  userId: string;
+  membershipType: MembershipType;
+  role: MemberRole;
+  joinedAt: Date;
+}
+
+// ============================================================================
+// Discovery Interfaces
+// ============================================================================
+
+export interface IUserConnection {
+  _id: Types.ObjectId;
+  connectionId: string;
+  userId1: string;
+  userId2: string;
+  sourceChatId: string;
+  establishedAt: Date;
+  lastInteraction: Date;
+}
+
+export interface IVisibilityPermission {
+  _id: Types.ObjectId;
+  permissionId: string;
+  userId: string;
+  visibleToUserId: string;
+  source: VisibilitySource;
+  grantedAt: Date;
+  revokedAt?: Date;
+}
+
+// ============================================================================
+// Join Request Interfaces
+// ============================================================================
+
+export interface IJoinRequest {
+  _id: Types.ObjectId;
+  requestId: string;
+  chatId: string;
+  userId: string;
+  reason?: string;
+  contextBetId?: string;
+  status: JoinRequestStatus;
+  resolvedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IJoinRequestVote {
+  _id: Types.ObjectId;
+  voteId: string;
+  requestId: string;
+  voterId: string;
+  decision: JoinDecision;
+  votedAt: Date;
 }
 
 // ============================================================================

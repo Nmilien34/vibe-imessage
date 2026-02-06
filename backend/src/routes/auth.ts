@@ -2,6 +2,7 @@ import express, { Request, Response, Router } from 'express';
 import appleSignin from 'apple-signin-auth';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
+import { processLoginUpdates } from '../services/auraService';
 
 const router: Router = express.Router();
 
@@ -40,30 +41,44 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
     const { sub: appleId, email: appleEmail } = appleData;
 
     let user = await User.findOne({ appleId });
+    let isNewUser = false;
 
     if (!user) {
       user = new User({
+        _id: appleId,
         appleId,
         email: email || appleEmail,
         firstName,
         lastName,
       });
       await user.save();
+      isNewUser = true;
+      console.log(`New user created: ${user._id}`);
+    }
+
+    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);
+    if (dailyBonusClaimed) {
+      console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
     }
 
     const token = jwt.sign(
       { userId: user._id, appleId: user.appleId },
-      process.env.JWT_SECRET || 'your_fallback_secret',
+      process.env.JWT_SECRET!,
       { expiresIn: '7d' }
     );
 
     res.json({
       token,
+      isNewUser,
+      dailyBonusClaimed,
       user: {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        profilePicture: user.profilePicture,
+        auraBalance,
+        vibeScore,
       },
     });
   } catch (err) {
@@ -91,9 +106,9 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
 
   try {
     let user = await User.findById(userId);
+    let isNewUser = false;
 
     if (!user) {
-      // Create the user if they don't exist (for first-time dev testing)
       user = new User({
         _id: userId,
         firstName: 'Test',
@@ -101,12 +116,18 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
         email: 'test@vibe.app',
       });
       await user.save();
+      isNewUser = true;
       console.log(`Dev login: Created new test user ${userId}`);
+    }
+
+    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);
+    if (dailyBonusClaimed) {
+      console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
     }
 
     const token = jwt.sign(
       { userId: user._id },
-      process.env.JWT_SECRET || 'dev_secret',
+      process.env.JWT_SECRET!,
       { expiresIn: '30d' }
     );
 
@@ -114,11 +135,16 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
 
     res.json({
       token,
+      isNewUser,
+      dailyBonusClaimed,
       user: {
         id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
         email: user.email,
+        profilePicture: user.profilePicture,
+        auraBalance,
+        vibeScore,
       },
     });
   } catch (err) {

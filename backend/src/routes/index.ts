@@ -6,3 +6,5 @@ export { default as remindersRoutes } from './reminders';
 export { default as uploadRoutes } from './upload';
 export { default as vibeRoutes } from './vibe';
 export { default as vibesRoutes } from './vibes';
+export { default as userRoutes } from './user';
+export { default as betRoutes } from './bet';

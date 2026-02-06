@@ -2,6 +2,7 @@ import express, { Request, Response, Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import Chat from '../models/Chat';
 import User from '../models/User';
+import ChatMember from '../models/ChatMember';
 import {
   ChatType,
   CreateChatResponse,
@@ -11,6 +12,14 @@ import {
   UserChatsResponse,
   ChatMembersResponse,
 } from '../types';
+import { authMiddleware } from '../middleware/auth';
+import {
+  createJoinRequest,
+  voteOnJoinRequest,
+  getPendingRequests,
+  getUserRequest,
+  cancelJoinRequest
+} from '../services/chatService';
 
 const router: Router = express.Router();
 
@@ -86,8 +95,16 @@ router.post('/resolve', async (req: Request<{}, {}, ResolveChatRequest>, res: Re
       isNewMember = true;
     }
 
-    // Ensure user exists and has this chat in their joinedChatIds
+    // Ensure user exists and has this chat in their joinedChatIds.
+    // Fallback chain prevents identity split: client sends appleId as userId,
+    // but an older doc may have been created with a different _id.
     let user = await User.findById(userId);
+    if (!user) {
+      user = await User.findOne({ appleId: userId });
+    }
+    if (!user && appleUUID) {
+      user = await User.findOne({ appleUUID });
+    }
     if (!user) {
       user = new User({
         _id: userId,
@@ -96,7 +113,6 @@ router.post('/resolve', async (req: Request<{}, {}, ResolveChatRequest>, res: Re
       });
       await user.save();
     } else {
-      // Update appleUUID if provided (it can change per device)
       if (appleUUID && user.appleUUID !== appleUUID) {
         user.appleUUID = appleUUID;
       }
@@ -144,6 +160,9 @@ router.post('/create', async (req: Request<{}, {}, CreateChatRequest>, res: Resp
     await chat.save();
 
     let user = await User.findById(userId);
+    if (!user) {
+      user = await User.findOne({ appleId: userId });
+    }
     if (!user) {
       user = new User({
         _id: userId,
@@ -193,6 +212,9 @@ router.post('/join', async (req: Request<{}, {}, JoinChatRequest>, res: Response
     }
 
     let user = await User.findById(userId);
+    if (!user) {
+      user = await User.findOne({ appleId: userId });
+    }
     if (!user) {
       user = new User({
         _id: userId,
@@ -287,6 +309,234 @@ router.get('/user/:userId/chats', async (req: Request<{ userId: string }>, res: 
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// JOIN REQUEST ROUTES
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * @route   POST /api/chat/:chatId/request
+ * @desc    Request to join a chat
+ * @access  Private (JWT required)
+ */
+router.post('/:chatId/request', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { chatId } = req.params;
+    const { reason, betId } = req.body;
+
+    const request = await createJoinRequest({
+      chatId,
+      userId,
+      reason,
+      betId
+    });
+
+    res.status(201).json({
+      success: true,
+      request: {
+        requestId: request.requestId,
+        chatId: request.chatId,
+        userId: request.userId,
+        reason: request.reason,
+        betId: request.betId,
+        status: request.status,
+        createdAt: request.createdAt
+      },
+      message: 'Join request submitted. Waiting for member approval.'
+    });
+
+  } catch (error: any) {
+    console.error('Join request error:', error);
+
+    if (error.message === 'Chat not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('already a member') ||
+        error.message?.includes('already have a pending request')) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create join request',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/chat/:chatId/requests
+ * @desc    Get pending join requests for a chat
+ * @access  Private (JWT required, must be member)
+ */
+router.get('/:chatId/requests', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { chatId } = req.params;
+
+    // Verify user is a member
+    const member = await ChatMember.findOne({ chatId, userId });
+    if (!member) {
+      return res.status(403).json({
+        error: 'Only chat members can view join requests'
+      });
+    }
+
+    const requests = await getPendingRequests(chatId);
+
+    res.json({
+      requests,
+      count: requests.length
+    });
+
+  } catch (error: any) {
+    console.error('Get requests error:', error);
+    res.status(500).json({
+      error: 'Failed to get join requests',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/chat/requests/:requestId/vote
+ * @desc    Vote on a join request
+ * @access  Private (JWT required, must be member)
+ */
+router.post('/requests/:requestId/vote', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { requestId } = req.params;
+    const { vote } = req.body;
+
+    // Validate vote
+    if (!vote || !['approve', 'deny'].includes(vote)) {
+      return res.status(400).json({
+        error: 'Invalid vote',
+        allowed: ['approve', 'deny']
+      });
+    }
+
+    const result = await voteOnJoinRequest({
+      requestId,
+      voterId: userId,
+      vote
+    });
+
+    res.json({
+      success: true,
+      vote: {
+        voteId: result.vote.voteId,
+        vote: result.vote.vote
+      },
+      request: {
+        requestId: result.request.requestId,
+        status: result.request.status
+      },
+      resolved: result.resolved,
+      outcome: result.outcome,
+      message: result.resolved
+        ? `Request ${result.outcome}!`
+        : 'Vote recorded. Waiting for more votes.'
+    });
+
+  } catch (error: any) {
+    console.error('Vote error:', error);
+
+    if (error.message === 'Join request not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('already voted') ||
+        error.message?.includes('already approved') ||
+        error.message?.includes('already denied')) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    if (error.message?.includes('Only chat members')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to vote',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   DELETE /api/chat/requests/:requestId
+ * @desc    Cancel a pending join request
+ * @access  Private (JWT required, must be requester)
+ */
+router.delete('/requests/:requestId', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { requestId } = req.params;
+
+    await cancelJoinRequest(requestId, userId);
+
+    res.json({
+      success: true,
+      message: 'Join request cancelled'
+    });
+
+  } catch (error: any) {
+    console.error('Cancel request error:', error);
+
+    if (error.message === 'Join request not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('only cancel your own')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to cancel request',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/chat/:chatId/my-request
+ * @desc    Get current user's pending request for a chat
+ * @access  Private (JWT required)
+ */
+router.get('/:chatId/my-request', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { chatId } = req.params;
+
+    const request = await getUserRequest(chatId, userId);
+
+    if (!request) {
+      return res.json({
+        hasRequest: false,
+        request: null
+      });
+    }
+
+    res.json({
+      hasRequest: true,
+      request: {
+        requestId: request.requestId,
+        status: request.status,
+        reason: request.reason,
+        createdAt: request.createdAt
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Get my request error:', error);
+    res.status(500).json({
+      error: 'Failed to get request',
+      message: error.message
+    });
   }
 });
 
