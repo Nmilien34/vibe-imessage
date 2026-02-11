@@ -34,9 +34,35 @@ struct RootView: View {
                         ComposerView()
                     case .unlockComposer:
                         UnlockCameraView()
+                    case .profile:
+                        UserProfileView()
+                    case .auraHub:
+                        AuraHubView()
+                    case .betDetail:
+                        if let bet = appState.selectedBet {
+                            BetDetailView(bet: bet)
+                        } else {
+                            FeedView()
+                        }
+                    case .betList:
+                        BetListView()
+                    case .teaGuess:
+                        if let tea = appState.selectedTea {
+                            TeaGuessSheet(tea: tea)
+                        } else {
+                            FeedView()
+                        }
+                    case .teaReveal:
+                        if let tea = appState.selectedTea,
+                           let response = appState.teaRevealResponse {
+                            TeaRevealView(tea: tea, revealResponse: response)
+                        } else {
+                            FeedView()
+                        }
                     }
                 }
             }
+            .contentTransition(.opacity)
             .animation(.easeInOut(duration: 0.2), value: appState.currentDestination)
 
             // Unlock prompt overlay
@@ -56,35 +82,38 @@ struct RootView: View {
 
             // Emergency reset option (appears after long press anywhere)
             if showResetOption {
-                Color.black.opacity(0.8)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
                     .ignoresSafeArea()
                     .onTapGesture {
                         showResetOption = false
                     }
 
-                VStack(spacing: 20) {
+                VStack(spacing: VibeSpacing.lg) {
                     Text("Having trouble?")
-                        .font(.headline)
-                        .foregroundColor(.white)
+                        .font(VibeTypography.titleSmall)
+                        .foregroundColor(VibeTheme.textPrimary)
 
                     Button {
+                        VibeHaptic.medium()
                         resetAppState()
                         showResetOption = false
                     } label: {
                         Text("Reset App")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(VibeTypography.bodyMedium)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 32)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, VibeSpacing.xxxl)
+                            .padding(.vertical, VibeSpacing.md)
                             .background(Color.red)
-                            .cornerRadius(12)
+                            .continuousCorner(VibeTheme.radiusSmall)
                     }
+                    .buttonStyle(VibePressStyle())
 
                     Button {
                         showResetOption = false
                     } label: {
                         Text("Cancel")
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(VibeTheme.textSecondary)
                     }
                 }
             }

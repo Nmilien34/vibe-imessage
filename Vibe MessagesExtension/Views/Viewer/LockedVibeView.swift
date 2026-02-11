@@ -24,7 +24,7 @@ struct LockedVibeView: View {
                     .transition(.opacity)
 
                 // Lock content
-                VStack(spacing: 24) {
+                VStack(spacing: VibeSpacing.xl) {
                     // Animated lock icon
                     ZStack {
                         Circle()
@@ -42,66 +42,58 @@ struct LockedVibeView: View {
 
                         Image(systemName: "lock.fill")
                             .font(.system(size: 60))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [.pink, .purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .foregroundStyle(VibeTheme.brandGradient)
                             .scaleEffect(isAnimating ? 1.1 : 1.0)
+                            .symbolEffect(.pulse)
                     }
 
-                    VStack(spacing: 12) {
+                    VStack(spacing: VibeSpacing.sm) {
                         Text("Locked Vibe")
-                            .font(.title)
-                            .fontWeight(.bold)
+                            .font(VibeTypography.displaySmall)
                             .foregroundColor(.white)
 
                         Text("Post your own vibe to unlock\nthis content")
-                            .font(.subheadline)
+                            .font(VibeTypography.bodyMedium)
                             .foregroundColor(.white.opacity(0.8))
                             .multilineTextAlignment(.center)
                     }
 
                     // Unlock button
-                    Button(action: onUnlock) {
-                        HStack(spacing: 8) {
+                    Button(action: {
+                        VibeHaptic.medium()
+                        onUnlock()
+                    }) {
+                        HStack(spacing: VibeSpacing.sm) {
                             Image(systemName: "plus.circle.fill")
                             Text("Share to Unlock")
                         }
-                        .font(.headline)
+                        .font(VibeTypography.titleMedium)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .padding(.horizontal, VibeSpacing.xxl)
+                        .padding(.vertical, VibeSpacing.lg)
+                        .background(VibeTheme.brandGradient)
                         .clipShape(Capsule())
-                        .shadow(color: .purple.opacity(0.5), radius: 10, y: 5)
+                        .vibeShadow(.lg)
                     }
+                    .buttonStyle(VibePressStyle())
 
                     // Type hint
-                    HStack(spacing: 8) {
+                    HStack(spacing: VibeSpacing.sm) {
                         Image(systemName: vibe.type.icon)
                         Text(vibe.type.displayName)
                     }
-                    .font(.caption)
+                    .font(VibeTypography.captionSmall)
                     .foregroundColor(.white.opacity(0.6))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.1))
+                    .padding(.horizontal, VibeSpacing.sm)
+                    .padding(.vertical, VibeSpacing.xs)
+                    .background(.ultraThinMaterial)
                     .clipShape(Capsule())
                 }
                 .transition(.scale.combined(with: .opacity))
             }
         }
         .onAppear {
-            withAnimation(.easeOut(duration: 0.5)) {
+            withAnimation(VibeAnimation.smooth) {
                 isVisible = true
             }
             withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
@@ -202,7 +194,7 @@ struct LockedVibeView: View {
             )
         case .parlay:
             LinearGradient(
-                colors: [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)],
+                colors: [VibeTheme.accent, VibeTheme.accentSecondary],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )

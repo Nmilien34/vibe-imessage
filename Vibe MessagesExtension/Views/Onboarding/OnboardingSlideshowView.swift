@@ -11,40 +11,43 @@ struct OnboardingSlide: Identifiable {
 struct OnboardingSlideshowView: View {
     @EnvironmentObject var appState: AppState
     @State private var currentPage = 0
-    
+
     var body: some View {
         ZStack {
             TabView(selection: $currentPage) {
-                // Slide 1: The New Video Background Slide
+                // Slide 1: Welcome
                 OnboardingSlideOne(onContinue: {
-                    withAnimation {
+                    VibeHaptic.light()
+                    withAnimation(VibeAnimation.snappy) {
                         currentPage = 1
                     }
                 })
                 .tag(0)
-                
-                // Slide 2: Daily Drop (Placeholder for now, can be redesigned later)
-                OnboardingLegacySlideView(
-                    title: "Daily Drop Shuffles",
-                    description: "Shake things up! Roll the dice for daily group challenges and prompts.",
-                    icon: "die.face.5.fill",
-                    gradient: [.blue, .cyan],
+
+                // Slide 2: Aura Economy & Betting
+                OnboardingFeatureSlide(
+                    title: "Earn Aura",
+                    description: "Bet on your squad, spill tea, and climb the leaderboard.",
+                    icon: "sparkles",
+                    gradient: VibeTheme.auraGradient,
                     onContinue: {
-                        withAnimation {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.snappy) {
                             currentPage = 2
                         }
                     }
                 )
                 .tag(1)
-                
-                // Slide 3: Track the Squad
-                OnboardingLegacySlideView(
+
+                // Slide 3: Story Rings & Squad
+                OnboardingFeatureSlide(
                     title: "Track the Squad",
                     description: "See who's the MVP, who's ghosting, and check everyone's live status.",
-                    icon: "chart.bar.fill",
-                    gradient: [.orange, .red],
+                    icon: "person.3.fill",
+                    gradient: VibeTheme.brandGradient,
                     onContinue: {
-                        withAnimation {
+                        VibeHaptic.success()
+                        withAnimation(VibeAnimation.smooth) {
                             appState.completeOnboarding()
                         }
                     }
@@ -53,27 +56,41 @@ struct OnboardingSlideshowView: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .edgesIgnoringSafeArea(.all)
-            
-            // Global Skip Button (Top Right)
+
+            // Page indicators
+            VStack {
+                Spacer()
+                HStack(spacing: VibeSpacing.xs) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Capsule()
+                            .fill(currentPage == index ? Color.white : Color.white.opacity(0.4))
+                            .frame(width: currentPage == index ? 24 : 8, height: 8)
+                            .animation(VibeAnimation.snappy, value: currentPage)
+                    }
+                }
+                .padding(.bottom, 100)
+            }
+
+            // Skip button
             VStack {
                 HStack {
                     Spacer()
                     Button {
-                        withAnimation {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.smooth) {
                             appState.completeOnboarding()
                         }
                     } label: {
                         Text("Skip")
-                            .font(.system(.subheadline, design: .rounded))
-                            .fontWeight(.bold)
+                            .font(VibeTypography.titleSmall)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, VibeSpacing.md)
+                            .padding(.vertical, VibeSpacing.xs)
                             .background(.ultraThinMaterial)
                             .clipShape(Capsule())
                     }
                     .padding(.top, 50)
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                 }
                 Spacer()
             }
@@ -81,58 +98,138 @@ struct OnboardingSlideshowView: View {
     }
 }
 
-// Helper to use existing slide data in the new full-screen style
+// MARK: - Feature Slide
+
+struct OnboardingFeatureSlide: View {
+    let title: String
+    let description: String
+    let icon: String
+    let gradient: LinearGradient
+    let onContinue: () -> Void
+
+    @State private var isVisible = false
+
+    var body: some View {
+        ZStack {
+            gradient
+                .opacity(0.85)
+                .ignoresSafeArea()
+
+            Color.black.opacity(0.3).ignoresSafeArea()
+
+            VStack(spacing: VibeSpacing.xl) {
+                Spacer()
+
+                // Icon
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.15))
+                        .frame(width: 120, height: 120)
+
+                    Image(systemName: icon)
+                        .font(.system(size: 52))
+                        .foregroundColor(.white)
+                        .symbolEffect(.bounce)
+                }
+                .scaleEffect(isVisible ? 1.0 : 0.8)
+                .opacity(isVisible ? 1 : 0)
+
+                VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                    Text(title)
+                        .font(VibeTypography.displayLarge)
+                        .foregroundColor(.white)
+
+                    Text(description)
+                        .font(VibeTypography.bodyLarge)
+                        .foregroundColor(.white.opacity(0.85))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, VibeSpacing.xl)
+                .opacity(isVisible ? 1 : 0)
+                .offset(y: isVisible ? 0 : 20)
+
+                // Continue button
+                Button(action: onContinue) {
+                    HStack(spacing: VibeSpacing.sm) {
+                        Text("Continue")
+                            .font(VibeTypography.titleMedium)
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, VibeSpacing.md)
+                    .background(Color.white)
+                    .clipShape(Capsule())
+                    .vibeShadow(.lg)
+                }
+                .buttonStyle(VibePressStyle())
+                .padding(.horizontal, VibeSpacing.xl)
+                .padding(.bottom, VibeSpacing.xxxl + VibeSpacing.lg)
+            }
+        }
+        .onAppear {
+            withAnimation(VibeAnimation.smooth.delay(0.2)) {
+                isVisible = true
+            }
+        }
+        .onDisappear {
+            isVisible = false
+        }
+    }
+}
+
+// Legacy slide view kept for compatibility
 struct OnboardingLegacySlideView: View {
     let title: String
     let description: String
     let icon: String
     let gradient: [Color]
     let onContinue: () -> Void
-    
+
     var body: some View {
         ZStack {
-            // Background
             LinearGradient(colors: gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
                 .opacity(0.8)
                 .ignoresSafeArea()
-            
+
             Color.black.opacity(0.4).ignoresSafeArea()
-            
-            VStack(spacing: 24) {
+
+            VStack(spacing: VibeSpacing.xl) {
                 Spacer()
-                
+
                 Image(systemName: icon)
                     .font(.system(size: 80))
                     .foregroundColor(.white)
                     .shadow(radius: 10)
-                
-                VStack(alignment: .leading, spacing: 12) {
+
+                VStack(alignment: .leading, spacing: VibeSpacing.sm) {
                     Text(title)
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .font(VibeTypography.displayLarge)
                         .foregroundColor(.white)
-                    
+
                     Text(description)
-                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .font(VibeTypography.bodyLarge)
                         .foregroundColor(.white.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                
-                // Action Button
+                .padding(.horizontal, VibeSpacing.xl)
+
                 Button(action: onContinue) {
                     HStack {
                         Text("Continue")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .font(VibeTypography.titleMedium)
                         Image(systemName: "arrow.right")
                     }
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
+                    .padding(.vertical, VibeSpacing.md)
                     .background(Color.white)
                     .clipShape(Capsule())
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 60)
+                .buttonStyle(VibePressStyle())
+                .padding(.horizontal, VibeSpacing.xl)
+                .padding(.bottom, VibeSpacing.xxxl + VibeSpacing.lg)
             }
         }
     }
@@ -140,9 +237,9 @@ struct OnboardingLegacySlideView: View {
 
 struct SlideView: View {
     let slide: OnboardingSlide
-    
+
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: VibeSpacing.xxxl) {
             ZStack {
                 Circle()
                     .fill(
@@ -154,7 +251,7 @@ struct SlideView: View {
                     )
                     .frame(width: 200, height: 200)
                     .opacity(0.1)
-                
+
                 Image(systemName: slide.icon)
                     .font(.system(size: 80))
                     .foregroundStyle(
@@ -165,17 +262,17 @@ struct SlideView: View {
                         )
                     )
             }
-            
-            VStack(spacing: 16) {
+
+            VStack(spacing: VibeSpacing.md) {
                 Text(slide.title)
-                    .font(.system(size: 32, weight: .black, design: .rounded))
+                    .font(VibeTypography.displayMedium)
                     .multilineTextAlignment(.center)
-                
+
                 Text(slide.description)
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .font(VibeTypography.bodyLarge)
+                    .foregroundColor(VibeTheme.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, VibeSpacing.xxxl)
             }
         }
     }

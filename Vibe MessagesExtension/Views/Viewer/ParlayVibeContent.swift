@@ -10,28 +10,22 @@ import SwiftUI
 struct ParlayVibeContent: View {
     let vibe: Vibe
     @EnvironmentObject var appState: AppState
-    
-    // Theme Colors
-    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
-    let vibezPurple = Color(red: 0.6, green: 0.2, blue: 1.0)
-    
+
     private var parlay: Parlay? {
         vibe.parlay
     }
-    
+
     private var isSender: Bool {
         vibe.userId == appState.userId
     }
-    
+
     private var isOpponent: Bool {
-        // If an opponent was explicitly named, check if this user matches (future: use IDs)
-        // For now, if no opponentId is set, anyone can respond except the sender
         if let opponentId = parlay?.opponentId {
             return opponentId == appState.userId
         }
         return !isSender
     }
-    
+
     var body: some View {
         ZStack {
             // Background Gradient
@@ -41,123 +35,120 @@ struct ParlayVibeContent: View {
                 endPoint: .bottom
             )
             .ignoresSafeArea()
-            
-            VStack(spacing: 30) {
+
+            VStack(spacing: VibeSpacing.xxl) {
                 // Header Icon
                 ZStack {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: [vibezPink.opacity(0.2), vibezPurple.opacity(0.2)],
+                                colors: [VibeTheme.accent.opacity(0.2), VibeTheme.accentSecondary.opacity(0.2)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
                         )
                         .frame(width: 100, height: 100)
-                    
+
                     Text("💸")
                         .font(.system(size: 50))
                 }
-                .padding(.top, 40)
-                
+                .padding(.top, VibeSpacing.xxxl)
+
                 // Bet Question/Title
-                VStack(spacing: 12) {
+                VStack(spacing: VibeSpacing.sm) {
                     Text(parlay?.displayTitle ?? "Friendly Bet")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                        .font(VibeTypography.titleLarge)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
-                    
+
                     if let amount = parlay?.displayAmount, !amount.isEmpty {
                         Text(amount)
-                            .font(.system(size: 34, weight: .black, design: .rounded))
-                            .foregroundColor(vibezPink)
+                            .font(VibeTypography.displayLarge)
+                            .foregroundColor(VibeTheme.accent)
                     }
                 }
-                
+
                 // Status Section
-                VStack(spacing: 8) {
+                VStack(spacing: VibeSpacing.sm) {
                     if let status = parlay?.status {
                         statusBadge(for: status)
                     }
-                    
+
                     if let opponentName = parlay?.opponentName {
                         Text("vs \(opponentName)")
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            .font(VibeTypography.bodyMedium)
                             .foregroundColor(.white.opacity(0.6))
                     }
                 }
-                
+
                 Spacer()
-                
-                // Action Buttons (Only for the opponent and if pending)
+
+                // Action Buttons
                 if parlay?.status == .pending && isOpponent {
-                    VStack(spacing: 16) {
+                    VStack(spacing: VibeSpacing.lg) {
                         Button {
+                            VibeHaptic.success()
                             Task {
                                 await appState.respondToParlay(on: vibe, status: .accepted)
                             }
                         } label: {
                             Text("Accept Bet")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(VibeTypography.titleMedium)
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 18)
-                                .background(
-                                    LinearGradient(
-                                        colors: [vibezPink, vibezPurple],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .cornerRadius(20)
+                                .padding(.vertical, VibeSpacing.lg)
+                                .background(VibeTheme.brandGradient)
+                                .continuousCorner(VibeTheme.radiusLarge)
                         }
-                        
+                        .buttonStyle(VibePressStyle())
+
                         Button {
+                            VibeHaptic.light()
                             Task {
                                 await appState.respondToParlay(on: vibe, status: .declined)
                             }
                         } label: {
                             Text("Decline")
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .font(VibeTypography.bodyMedium)
                                 .foregroundColor(.white.opacity(0.8))
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, VibeSpacing.sm)
                         }
                     }
-                    .padding(.horizontal, 30)
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, VibeSpacing.xxl)
+                    .padding(.bottom, VibeSpacing.xxxl)
                 } else if parlay?.status == .accepted {
-                    VStack(spacing: 10) {
+                    VStack(spacing: VibeSpacing.sm) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.green)
+                            .symbolEffect(.bounce)
                         Text("Bet is On!")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(VibeTypography.titleMedium)
                             .foregroundColor(.white)
                     }
                     .padding(.bottom, 60)
                 } else if parlay?.status == .declined {
-                    VStack(spacing: 10) {
+                    VStack(spacing: VibeSpacing.sm) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.red.opacity(0.7))
                         Text("Bet Declined")
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .font(VibeTypography.titleMedium)
                             .foregroundColor(.white.opacity(0.6))
                     }
                     .padding(.bottom, 60)
                 } else {
-                    // Just wait for opponent
                     Text("Waiting for \(parlay?.opponentName ?? "opponent")...")
-                        .font(.system(size: 16, weight: .medium, design: .rounded))
+                        .font(VibeTypography.bodyMedium)
                         .foregroundColor(.white.opacity(0.4))
                         .padding(.bottom, 60)
                 }
             }
         }
     }
-    
+
     @ViewBuilder
     private func statusBadge(for status: ParlayStatus) -> some View {
         let color: Color = {
@@ -171,16 +162,16 @@ struct ParlayVibeContent: View {
             case .cancelled: return .gray
             }
         }()
-        
+
         Text(status.rawValue.uppercased())
-            .font(.system(size: 12, weight: .black))
+            .font(VibeTypography.overline)
             .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
+            .padding(.horizontal, VibeSpacing.sm)
+            .padding(.vertical, VibeSpacing.xxxs)
             .background(color.opacity(0.3))
-            .cornerRadius(6)
+            .continuousCorner(6)
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .stroke(color.opacity(0.5), lineWidth: 1)
             )
     }

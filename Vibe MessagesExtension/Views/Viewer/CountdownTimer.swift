@@ -18,15 +18,16 @@ struct CountdownTimer: View {
     var body: some View {
         Group {
             if isVisible {
-                HStack(spacing: 6) {
+                HStack(spacing: VibeSpacing.xs) {
                     Image(systemName: "clock")
                         .font(.system(size: 12))
                     Text(formattedTime)
-                        .font(.system(size: 12, weight: .medium, design: .monospaced))
+                        .font(VibeTypography.numericSmall)
+                        .contentTransition(.numericText())
                 }
                 .foregroundColor(urgencyColor)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, VibeSpacing.sm)
+                .padding(.vertical, VibeSpacing.xs)
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
@@ -34,7 +35,7 @@ struct CountdownTimer: View {
         }
         .onAppear {
             updateTimeRemaining()
-            withAnimation(.easeIn(duration: 0.4)) {
+            withAnimation(VibeAnimation.smooth) {
                 isVisible = true
             }
         }
@@ -62,9 +63,9 @@ struct CountdownTimer: View {
     }
 
     private var urgencyColor: Color {
-        if timeRemaining < 300 { // Less than 5 minutes
+        if timeRemaining < 300 {
             return .red
-        } else if timeRemaining < 3600 { // Less than 1 hour
+        } else if timeRemaining < 3600 {
             return .orange
         } else {
             return .white
@@ -84,11 +85,9 @@ struct ProgressRingTimer: View {
 
     var body: some View {
         ZStack {
-            // Background ring
             Circle()
                 .stroke(Color.white.opacity(0.3), lineWidth: 3)
 
-            // Progress ring
             Circle()
                 .trim(from: 0, to: progress)
                 .stroke(
@@ -128,7 +127,7 @@ struct ProgressRingTimer: View {
     ZStack {
         Color.black.ignoresSafeArea()
 
-        VStack(spacing: 20) {
+        VStack(spacing: VibeSpacing.xl) {
             CountdownTimer(expiresAt: Date().addingTimeInterval(3600))
             CountdownTimer(expiresAt: Date().addingTimeInterval(300))
             CountdownTimer(expiresAt: Date().addingTimeInterval(60))

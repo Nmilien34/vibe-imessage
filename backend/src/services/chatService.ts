@@ -58,7 +58,7 @@ export async function createJoinRequest(params: {
     chatId,
     userId,
     reason: reason?.trim() || undefined,
-    betId: betId || undefined,
+    contextBetId: betId || undefined,
     status: 'pending'
   });
 
@@ -115,18 +115,18 @@ export async function voteOnJoinRequest(params: {
     voteId,
     requestId,
     voterId,
-    vote
+    decision: vote
   });
 
   // Count votes
   const totalMembers = await ChatMember.countDocuments({ chatId: request.chatId });
   const approvals = await JoinRequestVote.countDocuments({
     requestId,
-    vote: 'approve'
+    decision: 'approve'
   });
   const denials = await JoinRequestVote.countDocuments({
     requestId,
-    vote: 'deny'
+    decision: 'deny'
   });
 
   // Simple majority needed (> 50%)
@@ -187,8 +187,8 @@ export async function getPendingRequests(chatId: string): Promise<any[]> {
       );
 
       const votes = await JoinRequestVote.find({ requestId: req.requestId });
-      const approvals = votes.filter(v => v.vote === 'approve').length;
-      const denials = votes.filter(v => v.vote === 'deny').length;
+      const approvals = votes.filter(v => v.decision === 'approve').length;
+      const denials = votes.filter(v => v.decision === 'deny').length;
 
       const totalMembers = await ChatMember.countDocuments({ chatId });
 
@@ -196,7 +196,7 @@ export async function getPendingRequests(chatId: string): Promise<any[]> {
         requestId: req.requestId,
         chatId: req.chatId,
         reason: req.reason,
-        betId: req.betId,
+        betId: req.contextBetId,
         status: req.status,
         createdAt: req.createdAt,
         user: user ? {

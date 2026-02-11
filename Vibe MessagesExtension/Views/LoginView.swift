@@ -13,94 +13,111 @@ struct LoginView: View {
     @Environment(\.colorScheme) var colorScheme
     @State private var isAuthenticating = false
     @State private var authError: String?
+    @State private var isVisible = false
+    @State private var logoScale: CGFloat = 0.8
 
     var body: some View {
         ZStack {
-            // Background that receives touches
-            Color(UIColor.systemBackground)
-                .ignoresSafeArea()
+            VibeTheme.background.ignoresSafeArea()
 
-            VStack(spacing: 30) {
+            VStack(spacing: VibeSpacing.xxl) {
                 Spacer()
 
-                // App Logo or Icon
-                VStack(spacing: 16) {
+                // App Logo
+                VStack(spacing: VibeSpacing.md) {
                     ZStack {
                         Circle()
-                            .fill(LinearGradient(
-                                colors: [Color(hex: "FF4D4D"), Color(hex: "FF9E4D")],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ))
-                            .frame(width: 100, height: 100)
-                            .shadow(color: Color(hex: "FF4D4D").opacity(0.3), radius: 15, x: 0, y: 10)
+                            .fill(VibeTheme.brandGradient)
+                            .frame(width: 110, height: 110)
+                            .vibeShadow(.xl)
 
                         Image(systemName: "v.circle.fill")
                             .resizable()
                             .aspectRatio(contentMode: .fit)
-                            .frame(width: 60, height: 60)
+                            .frame(width: 64, height: 64)
                             .foregroundColor(.white)
                     }
+                    .scaleEffect(logoScale)
 
                     Text("Vibes")
-                        .font(.system(size: 42, weight: .black, design: .rounded))
+                        .font(VibeTypography.displayLarge)
+                        .foregroundColor(VibeTheme.textPrimary)
                         .tracking(-1)
                 }
+                .opacity(isVisible ? 1 : 0)
+                .offset(y: isVisible ? 0 : 20)
 
                 Text("See what your friends are up to.\nShare your vibe.")
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .font(VibeTypography.bodyLarge)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 40)
+                    .foregroundColor(VibeTheme.textSecondary)
+                    .padding(.horizontal, VibeSpacing.xxxl)
+                    .opacity(isVisible ? 1 : 0)
 
                 // Error message
                 if let error = authError {
                     Text(error)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(VibeTypography.captionLarge)
                         .foregroundColor(.red)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                        .transition(.opacity)
+                        .padding(.horizontal, VibeSpacing.xxxl)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 Spacer()
 
-                // Sign in with Apple Button
-                if isAuthenticating {
-                    ProgressView()
+                // Sign in section
+                VStack(spacing: VibeSpacing.md) {
+                    if isAuthenticating {
+                        ProgressView()
+                            .tint(VibeTheme.accent)
+                            .frame(height: 56)
+                            .padding(.horizontal, VibeSpacing.xxxl)
+                    } else {
+                        SignInWithAppleButton(
+                            .signIn,
+                            onRequest: { request in
+                                request.requestedScopes = [.fullName, .email]
+                            },
+                            onCompletion: { result in
+                                handleSignInResult(result)
+                            }
+                        )
+                        .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
                         .frame(height: 56)
-                        .padding(.horizontal, 40)
-                } else {
-                    SignInWithAppleButton(
-                        .signIn,
-                        onRequest: { request in
-                            request.requestedScopes = [.fullName, .email]
-                        },
-                        onCompletion: { result in
-                            handleSignInResult(result)
-                        }
-                    )
-                    .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                    .frame(height: 56)
-                    .padding(.horizontal, 40)
-                }
+                        .continuousCorner(VibeTheme.radiusMedium)
+                        .padding(.horizontal, VibeSpacing.xxxl)
+                        .vibeShadow(.md)
+                    }
 
-                #if DEBUG
-                Button {
-                    appState.bypassLogin()
-                } label: {
-                    Text("Dev: Skip Login")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.gray)
+                    #if DEBUG
+                    Button {
+                        VibeHaptic.light()
+                        appState.bypassLogin()
+                    } label: {
+                        Text("Dev: Skip Login")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    }
+                    .padding(.top, VibeSpacing.xs)
+                    #endif
                 }
-                .padding(.top, 10)
-                #endif
+                .opacity(isVisible ? 1 : 0)
+                .offset(y: isVisible ? 0 : 30)
 
                 Spacer()
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: isAuthenticating)
-        .animation(.easeInOut(duration: 0.2), value: authError)
+        .onAppear {
+            withAnimation(VibeAnimation.smooth.delay(0.2)) {
+                isVisible = true
+            }
+            withAnimation(VibeAnimation.bouncy.delay(0.3)) {
+                logoScale = 1.0
+            }
+        }
+        .animation(VibeAnimation.snappy, value: isAuthenticating)
+        .animation(VibeAnimation.snappy, value: authError != nil)
     }
 
     private func handleSignInResult(_ result: Result<ASAuthorization, Error>) {
@@ -109,7 +126,6 @@ struct LoginView: View {
         switch result {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
-                // Safely unwrap identity token - this is critical!
                 guard let tokenData = appleIDCredential.identityToken,
                       let identityToken = String(data: tokenData, encoding: .utf8) else {
                     authError = "Could not get identity token. Please try again."
@@ -131,7 +147,6 @@ struct LoginView: View {
 
                     await MainActor.run {
                         isAuthenticating = false
-                        // Check if there was an error from the API
                         if !appState.isAuthenticated {
                             authError = appState.error ?? "Sign in failed. Please try again."
                         }
@@ -139,10 +154,8 @@ struct LoginView: View {
                 }
             }
         case .failure(let error):
-            // User cancelled or other Apple Sign In error
             let nsError = error as NSError
             if nsError.code != ASAuthorizationError.canceled.rawValue {
-                // Only show error if not user-cancelled
                 authError = "Sign in failed: \(error.localizedDescription)"
             }
             print("Authentication failed: \(error.localizedDescription)")

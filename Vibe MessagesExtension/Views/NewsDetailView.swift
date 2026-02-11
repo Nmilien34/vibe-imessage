@@ -40,7 +40,7 @@ struct NewsDetailView: View {
                             .resizable()
                             .scaledToFill()
                     } placeholder: {
-                        Rectangle().fill(Color.gray.opacity(0.3))
+                        Rectangle().fill(VibeTheme.surfaceOverlay)
                     }
                     .frame(width: geometry.size.width, height: geometry.size.height)
                     .clipped()
@@ -60,11 +60,14 @@ struct NewsDetailView: View {
 
                     // HEADER (Back & Share)
                     HStack {
-                        Button(action: onBack) {
+                        Button(action: {
+                            VibeHaptic.light()
+                            onBack()
+                        }) {
                             Image(systemName: "chevron.left")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding(8)
+                                .padding(VibeSpacing.sm)
                                 .background(.ultraThinMaterial)
                                 .clipShape(Circle())
                         }
@@ -80,55 +83,49 @@ struct NewsDetailView: View {
                                 Image(systemName: "square.and.arrow.up")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(.white)
-                                    .padding(8)
+                                    .padding(VibeSpacing.sm)
                                     .background(.ultraThinMaterial)
                                     .clipShape(Circle())
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
+                    .padding(.horizontal, VibeSpacing.lg)
+                    .padding(.top, VibeSpacing.lg)
 
                     Spacer()
 
                     // HERO CONTENT
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
 
                         // Vibe Badge
                         HStack(spacing: 3) {
                             if newsItem.isJustIn {
-                                Text("⚡ JUST IN")
-                                    .font(.system(size: 7, weight: .bold))
+                                Text("JUST IN")
+                                    .font(VibeTypography.overline)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        )
-                                    )
+                                    .background(VibeTheme.brandGradient)
                                     .clipShape(Capsule())
                             } else {
-                                Text("🔥 TRENDING")
-                                    .font(.system(size: 7, weight: .bold))
+                                Text("TRENDING")
+                                    .font(VibeTypography.overline)
                                     .foregroundColor(.white)
                                     .padding(.horizontal, 5)
                                     .padding(.vertical, 2)
-                                    .background(Color.blue)
+                                    .background(VibeTheme.accent)
                                     .clipShape(Capsule())
                             }
                         }
 
                         // Source & Time
                         Text("\(newsItem.source.uppercased()) • \(newsItem.timeAgo.uppercased())")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.gray)
+                            .font(VibeTypography.overline)
+                            .foregroundColor(VibeTheme.textTertiary)
 
                         // Headline
                         Text(newsItem.headline)
-                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .font(VibeTypography.titleLarge)
                             .foregroundColor(.white)
                             .lineLimit(4)
                             .multilineTextAlignment(.leading)
@@ -142,29 +139,33 @@ struct NewsDetailView: View {
                                     .font(.system(size: 9))
                                     .foregroundColor(.orange)
                                 Text("\(newsItem.vibeScore) Vibe Score")
-                                    .font(.system(size: 9, weight: .semibold))
+                                    .font(VibeTypography.captionSmall)
                                     .foregroundColor(.white.opacity(0.85))
                             }
                         }
 
                         // CTA Button
-                        Button(action: { showWebView = true }) {
+                        Button(action: {
+                            VibeHaptic.light()
+                            showWebView = true
+                        }) {
                             HStack(spacing: 3) {
                                 Text("Read Full Story")
                                 Image(systemName: "arrow.right")
                             }
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(VibeTypography.captionLarge)
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .padding(.horizontal, 12)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .padding(.horizontal, VibeSpacing.md)
                             .background(Color.white)
-                            .cornerRadius(8)
+                            .continuousCorner(VibeTheme.radiusSmall)
                         }
-                        .padding(.top, 4)
+                        .buttonStyle(VibePressStyle())
+                        .padding(.top, VibeSpacing.xxxs)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 20)
+                    .padding(.horizontal, VibeSpacing.md)
+                    .padding(.bottom, VibeSpacing.lg)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

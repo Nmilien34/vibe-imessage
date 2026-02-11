@@ -4,29 +4,29 @@ import Combine
 
 struct MediaEditorView: View {
     @EnvironmentObject var appState: AppState
-    
+
     let mediaType: VibeType
     let mediaData: Data
     let thumbnail: UIImage?
     let isLocked: Bool
     let onShare: (String?, SongData?) async -> Void
     let onCancel: () -> Void
-    
+
     @State private var overlayText: String = ""
     @State private var isEditingText = false
     @State private var textPosition: CGPoint = .zero
     @State private var selectedSong: SongData?
     @State private var showMusicSearch = false
-    
+
     @FocusState private var isTextFieldFocused: Bool
-    
+
     @StateObject private var playerController = PlayerController()
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.black.ignoresSafeArea()
-                
+
                 // Background Media Preview
                 mediaPreview
                     .onTapGesture {
@@ -35,17 +35,16 @@ struct MediaEditorView: View {
                             isTextFieldFocused = true
                         }
                     }
-                
+
                 // Text Overlay
                 if !overlayText.isEmpty && !isEditingText {
                     Text(overlayText)
-                        .font(.system(.title2, design: .rounded))
-                        .fontWeight(.bold)
+                        .font(VibeTypography.titleLarge)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, VibeSpacing.lg)
+                        .padding(.vertical, VibeSpacing.sm)
                         .background(.ultraThinMaterial)
-                        .cornerRadius(12)
+                        .continuousCorner(VibeTheme.radiusMedium)
                         .position(textPosition == .zero ? CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2) : textPosition)
                         .gesture(
                             DragGesture()
@@ -58,7 +57,7 @@ struct MediaEditorView: View {
                             isTextFieldFocused = true
                         }
                 }
-                
+
                 // Text Input Mode
                 if isEditingText {
                     Color.black.opacity(0.6).ignoresSafeArea()
@@ -66,13 +65,12 @@ struct MediaEditorView: View {
                             isEditingText = false
                             isTextFieldFocused = false
                         }
-                    
+
                     VStack {
                         Spacer()
                         TextField("Type something...", text: $overlayText)
                             .focused($isTextFieldFocused)
-                            .font(.system(.title, design: .rounded))
-                            .fontWeight(.bold)
+                            .font(VibeTypography.displaySmall)
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .padding()
@@ -83,7 +81,7 @@ struct MediaEditorView: View {
                         Spacer()
                     }
                 }
-                
+
                 // UI Controls
                 VStack {
                     header
@@ -103,7 +101,7 @@ struct MediaEditorView: View {
             MusicSelectorView(selectedSong: $selectedSong)
         }
     }
-    
+
     private var mediaPreview: some View {
         Group {
             if mediaType == .video {
@@ -127,21 +125,21 @@ struct MediaEditorView: View {
         }
         .ignoresSafeArea()
     }
-    
+
     private var header: some View {
         HStack {
             Button(action: onCancel) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.white)
-                    .padding(12)
+                    .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
             }
-            
+
             Spacer()
-            
-            HStack(spacing: 16) {
+
+            HStack(spacing: VibeSpacing.lg) {
                 Button {
                     isEditingText = true
                     isTextFieldFocused = true
@@ -149,35 +147,34 @@ struct MediaEditorView: View {
                     Image(systemName: "textformat")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(.white)
-                        .padding(12)
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
-                
+
                 Button {
                     showMusicSearch = true
                 } label: {
                     Image(systemName: selectedSong != nil ? "music.note.list" : "music.note")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundColor(selectedSong != nil ? .green : .white)
-                        .padding(12)
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
             }
         }
-        .padding()
+        .padding(VibeSpacing.md)
     }
-    
+
     private var footer: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: VibeSpacing.lg) {
             if let song = selectedSong {
                 HStack {
                     Image(systemName: "music.note")
                         .foregroundColor(.green)
                     Text("\(song.title) - \(song.artist)")
-                        .font(.caption)
-                        .fontWeight(.bold)
+                        .font(VibeTypography.captionLarge)
                         .foregroundColor(.white)
                     Button {
                         selectedSong = nil
@@ -187,13 +184,14 @@ struct MediaEditorView: View {
                             .foregroundColor(.white.opacity(0.6))
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, VibeSpacing.sm)
+                .padding(.vertical, VibeSpacing.xs)
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
             }
-            
+
             Button {
+                VibeHaptic.success()
                 Task {
                     await onShare(overlayText.isEmpty ? nil : overlayText, selectedSong)
                 }
@@ -202,25 +200,20 @@ struct MediaEditorView: View {
                     Image(systemName: "paperplane.fill")
                     Text("Share Vibe")
                 }
-                .font(.system(.headline, design: .rounded))
+                .font(VibeTypography.titleMedium)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(
-                    LinearGradient(
-                        colors: [.pink, .purple],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .cornerRadius(20)
-                .padding(.horizontal, 40)
+                .frame(height: VibeSpacing.minTouchTarget + 12)
+                .background(VibeTheme.brandGradient)
+                .continuousCorner(VibeTheme.radiusLarge)
+                .padding(.horizontal, VibeSpacing.xxxl)
             }
+            .buttonStyle(VibePressStyle())
         }
-        .padding(.bottom, 30)
+        .padding(.bottom, VibeSpacing.xxl)
     }
-    
-    
+
+
 }
 
 class PlayerController: ObservableObject {
@@ -234,12 +227,12 @@ class PlayerController: ObservableObject {
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
         self.tempURL = url
-        
+
         do {
             try data.write(to: url)
             let player = AVPlayer(url: url)
             player.actionAtItemEnd = .none
-            
+
             self.observer = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player.currentItem,
@@ -248,7 +241,7 @@ class PlayerController: ObservableObject {
                 player?.seek(to: .zero)
                 player?.play()
             }
-            
+
             self.player = player
             player.play()
         } catch {
@@ -269,7 +262,7 @@ class PlayerController: ObservableObject {
 
 struct VideoPlayerView: UIViewRepresentable {
     let player: AVPlayer
-    
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
         view.backgroundColor = .black
@@ -278,9 +271,8 @@ struct VideoPlayerView: UIViewRepresentable {
         view.layer.addSublayer(layer)
         return view
     }
-    
+
     func updateUIView(_ uiView: UIView, context: Context) {
-        // Ensure layer matches view bounds on every update
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         uiView.layer.sublayers?.forEach { layer in

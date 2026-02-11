@@ -9,41 +9,48 @@ import SwiftUI
 
 struct OnboardingSlideOne: View {
     var onContinue: () -> Void
-    
+    @State private var isVisible = false
+
     var body: some View {
         ZStack {
-            // LAYER 1: The Background (Static Image)
+            // LAYER 1: Background Image
             Image("OnboardingSkater")
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .edgesIgnoringSafeArea(.all)
-            
-            // LAYER 2: The Content (Bottom Aligned)
-            VStack(spacing: 32) {
+
+            // LAYER 2: Content
+            VStack(spacing: VibeSpacing.xxl) {
                 Spacer()
-                
-                // Subtitle
+
                 Text("Capture moments, share memories, and vibe with friends right inside iMessage.")
-                    .font(.system(size: 20, weight: .medium, design: .rounded))
+                    .font(VibeTypography.titleLarge)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                    .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2) // Added shadow for readability against busy background
-                
+                    .padding(.horizontal, VibeSpacing.xxxl)
+                    .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)
+                    .opacity(isVisible ? 1 : 0)
+                    .offset(y: isVisible ? 0 : 20)
+
                 // Action Button
-                Button(action: {
-                    onContinue()
-                }) {
+                Button(action: onContinue) {
                     Text("Next")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .font(VibeTypography.titleMedium)
                         .foregroundColor(.black)
-                        .padding(.horizontal, 60)
-                        .padding(.vertical, 16)
+                        .padding(.horizontal, VibeSpacing.xxxl + VibeSpacing.lg)
+                        .padding(.vertical, VibeSpacing.md)
                         .background(Color.white)
                         .clipShape(Capsule())
-                        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                        .vibeShadow(.lg)
                 }
-                .padding(.bottom, 40) // Space from home indicator
+                .buttonStyle(VibePressStyle())
+                .padding(.bottom, VibeSpacing.xxxl)
+                .opacity(isVisible ? 1 : 0)
+            }
+        }
+        .onAppear {
+            withAnimation(VibeAnimation.smooth.delay(0.3)) {
+                isVisible = true
             }
         }
     }

@@ -10,96 +10,95 @@ import SwiftUI
 struct MoodComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var selectedEmoji: String?
     @State private var customText = ""
     @FocusState private var isFocused: Bool
-    
+
     let columns = [
         GridItem(.flexible()),
         GridItem(.flexible()),
         GridItem(.flexible())
     ]
-    
+
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.xl) {
             Text("How are you feeling?")
-                .font(.title2)
-                .fontWeight(.semibold)
-                .padding(.top)
-            
+                .font(VibeTypography.titleLarge)
+                .foregroundColor(VibeTheme.textPrimary)
+                .padding(.top, VibeSpacing.md)
+
             if let selected = selectedEmoji {
-                // Selected State
-                VStack(spacing: 32) {
+                VStack(spacing: VibeSpacing.xxl) {
                     Text(selected)
                         .font(.system(size: 100))
                         .onTapGesture {
-                            withAnimation {
+                            VibeHaptic.light()
+                            withAnimation(VibeAnimation.bouncy) {
                                 selectedEmoji = nil
                             }
                         }
-                    
+
                     TextField("Add a note (optional)", text: $customText)
-                        .textFieldStyle(.roundedBorder)
+                        .font(VibeTypography.bodyLarge)
+                        .padding(VibeSpacing.md)
+                        .background(.ultraThinMaterial)
+                        .continuousCorner(VibeTheme.radiusMedium)
                         .focused($isFocused)
-                        .padding(.horizontal)
-                    
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                     Button {
-                        Task {
-                            await shareMood()
-                        }
+                        VibeHaptic.success()
+                        Task { await shareMood() }
                     } label: {
                         Text("Share Mood")
-                            .font(.headline)
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.purple)
-                            .cornerRadius(12)
+                            .vibeButton(.primary)
                     }
-                    .padding(.horizontal)
-                    
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                     Button("Choose Different Mood") {
-                        withAnimation {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.bouncy) {
                             selectedEmoji = nil
                         }
                     }
-                    .padding(.top)
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.accent)
                 }
             } else {
-                // Picker State
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 20) {
+                    LazyVGrid(columns: columns, spacing: VibeSpacing.lg) {
                         ForEach(Mood.presets, id: \.emoji) { preset in
-                            VStack {
+                            VStack(spacing: VibeSpacing.xxs) {
                                 Text(preset.emoji)
                                     .font(.system(size: 50))
                                 Text(preset.label)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(VibeTypography.captionSmall)
+                                    .foregroundColor(VibeTheme.textSecondary)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical)
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
+                            .padding(.vertical, VibeSpacing.md)
+                            .background(.ultraThinMaterial)
+                            .continuousCorner(VibeTheme.radiusMedium)
                             .onTapGesture {
-                                withAnimation {
+                                VibeHaptic.selection()
+                                withAnimation(VibeAnimation.bouncy) {
                                     selectedEmoji = preset.emoji
                                 }
                             }
                         }
                     }
-                    .padding()
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                 }
             }
-            
+
             Spacer()
         }
     }
-    
+
     private func shareMood() async {
         guard let emoji = selectedEmoji else { return }
-        
         do {
             let mood = Mood(emoji: emoji, text: customText.isEmpty ? nil : customText)
             let vibe = try await appState.createVibe(

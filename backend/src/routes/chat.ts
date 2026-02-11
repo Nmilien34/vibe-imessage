@@ -138,7 +138,7 @@ router.post('/resolve', async (req: Request<{}, {}, ResolveChatRequest>, res: Re
  * @route   POST /api/chat/create
  * @desc    Create a new virtual chat room
  */
-router.post('/create', async (req: Request<{}, {}, CreateChatRequest>, res: Response) => {
+router.post('/create', authMiddleware, async (req: Request<{}, {}, CreateChatRequest>, res: Response) => {
   try {
     const { userId, title, type = 'group' } = req.body;
 
@@ -191,7 +191,7 @@ router.post('/create', async (req: Request<{}, {}, CreateChatRequest>, res: Resp
  * @route   POST /api/chat/join
  * @desc    Join an existing chat
  */
-router.post('/join', async (req: Request<{}, {}, JoinChatRequest>, res: Response) => {
+router.post('/join', authMiddleware, async (req: Request<{}, {}, JoinChatRequest>, res: Response) => {
   try {
     const { userId, chatId } = req.body;
 
@@ -341,7 +341,7 @@ router.post('/:chatId/request', authMiddleware, async (req: Request, res: Respon
         chatId: request.chatId,
         userId: request.userId,
         reason: request.reason,
-        betId: request.betId,
+        betId: request.contextBetId,
         status: request.status,
         createdAt: request.createdAt
       },

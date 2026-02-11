@@ -20,21 +20,23 @@ struct MusicPickerView: View {
         NavigationView {
             Group {
                 if !isAuthorized {
-                    VStack(spacing: 16) {
+                    VStack(spacing: VibeSpacing.lg) {
                         Image(systemName: "music.note.house")
                             .font(.system(size: 50))
-                            .foregroundColor(.gray)
+                            .foregroundColor(VibeTheme.textTertiary)
                         Text("Apple Music access is required")
-                            .font(.headline)
+                            .font(VibeTypography.titleMedium)
+                            .foregroundColor(VibeTheme.textPrimary)
                         Text("Allow access in Settings to search songs.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .font(VibeTypography.bodyMedium)
+                            .foregroundColor(VibeTheme.textSecondary)
                             .multilineTextAlignment(.center)
                     }
                     .padding()
                 } else {
                     List(searchResults) { song in
                         Button {
+                            VibeHaptic.selection()
                             let artworkURL = song.artwork?.url(width: 300, height: 300)?.absoluteString
                             selectedSong = SongData(
                                 title: song.title,
@@ -45,33 +47,34 @@ struct MusicPickerView: View {
                             )
                             dismiss()
                         } label: {
-                            HStack(spacing: 12) {
+                            HStack(spacing: VibeSpacing.sm) {
                                 if let artwork = song.artwork {
                                     AsyncImage(url: artwork.url(width: 60, height: 60)) { image in
                                         image.resizable()
                                     } placeholder: {
                                         RoundedRectangle(cornerRadius: 6)
-                                            .fill(Color.gray.opacity(0.3))
+                                            .fill(VibeTheme.surfaceOverlay)
                                     }
                                     .frame(width: 50, height: 50)
-                                    .cornerRadius(6)
+                                    .continuousCorner(6)
                                 }
 
-                                VStack(alignment: .leading, spacing: 2) {
+                                VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                                     Text(song.title)
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(VibeTypography.titleSmall)
+                                        .foregroundColor(VibeTheme.textPrimary)
                                         .lineLimit(1)
                                     Text(song.artistName)
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.gray)
+                                        .font(VibeTypography.bodySmall)
+                                        .foregroundColor(VibeTheme.textSecondary)
                                         .lineLimit(1)
                                 }
 
                                 Spacer()
 
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.blue)
+                                    .font(.system(size: 20))
+                                    .foregroundColor(VibeTheme.accent)
                             }
                         }
                         .listRowSeparator(.hidden)

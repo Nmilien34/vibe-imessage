@@ -11,140 +11,142 @@ import Combine
 struct SongComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var searchText = ""
     @State private var searchResults: [SongData] = []
     @State private var isSearching = false
     @State private var selectedSong: SongData?
     @State private var error: String?
-    
-    // Debounce search
+
     let searchPublisher = PassthroughSubject<String, Never>()
-    
+
     var body: some View {
         VStack(spacing: 0) {
             // Search Bar
-            HStack {
+            HStack(spacing: VibeSpacing.xs) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
+                    .foregroundColor(VibeTheme.textSecondary)
                 TextField("Search songs, artists...", text: $searchText)
+                    .font(VibeTypography.bodyMedium)
                     .textFieldStyle(.plain)
                     .onChange(of: searchText) { _, newValue in
                         searchPublisher.send(newValue)
                     }
-                
+
                 if !searchText.isEmpty {
                     Button {
                         searchText = ""
                         searchResults = []
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
+                            .foregroundColor(VibeTheme.textSecondary)
                     }
                 }
             }
-            .padding()
-            .background(Color(.secondarySystemBackground))
-            .cornerRadius(10)
-            .padding()
-            
+            .padding(VibeSpacing.md)
+            .background(.ultraThinMaterial)
+            .continuousCorner(VibeTheme.radiusMedium)
+            .padding(VibeSpacing.md)
+
             if let selected = selectedSong {
-                // Confirmation State
-                VStack(spacing: 24) {
+                VStack(spacing: VibeSpacing.xl) {
                     Spacer()
-                    
+
                     if let albumArt = selected.albumArt, let url = URL(string: albumArt) {
                         AsyncImage(url: url) { image in
-                            image.resizable()
-                                .aspectRatio(contentMode: .fit)
+                            image.resizable().aspectRatio(contentMode: .fit)
                         } placeholder: {
-                            Color.gray.opacity(0.3)
+                            VibeTheme.surfaceOverlay
                         }
                         .frame(width: 200, height: 200)
-                        .cornerRadius(12)
-                        .shadow(radius: 10)
+                        .continuousCorner(VibeTheme.radiusMedium)
+                        .vibeShadow(.lg)
                     } else {
                         Image(systemName: "music.note")
                             .font(.system(size: 80))
                             .foregroundColor(.white)
                             .frame(width: 200, height: 200)
                             .background(Color.green.opacity(0.3))
-                            .cornerRadius(12)
+                            .continuousCorner(VibeTheme.radiusMedium)
                     }
-                    
-                    VStack(spacing: 8) {
+
+                    VStack(spacing: VibeSpacing.xs) {
                         Text(selected.title)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                            .font(VibeTypography.titleLarge)
+                            .foregroundColor(VibeTheme.textPrimary)
                         Text(selected.artist)
-                            .font(.headline)
-                            .foregroundColor(.secondary)
+                            .font(VibeTypography.bodyMedium)
+                            .foregroundColor(VibeTheme.textSecondary)
                     }
-                    
+
                     Button {
-                        Task {
-                            await shareSong(selected)
-                        }
+                        VibeHaptic.success()
+                        Task { await shareSong(selected) }
                     } label: {
                         Text("Share Song")
-                            .font(.headline)
+                            .font(VibeTypography.titleSmall)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
-                            .padding()
+                            .frame(height: VibeSpacing.minTouchTarget)
                             .background(Color.green)
-                            .cornerRadius(12)
+                            .continuousCorner(VibeTheme.radiusMedium)
                     }
-                    .padding(.horizontal)
-                    .padding(.top)
-                    
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                     Button("Choose Different Song") {
-                        withAnimation {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.snappy) {
                             selectedSong = nil
                         }
                     }
-                    
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.accent)
+
                     Spacer()
                 }
             } else {
-                // Search Results
                 if isSearching {
                     ProgressView()
                         .padding(.top, 50)
                     Spacer()
                 } else if searchResults.isEmpty && !searchText.isEmpty {
-                        Text("No results found")
-                            .foregroundColor(.secondary)
-                            .padding(.top, 50)
-                        Spacer()
+                    Text("No results found")
+                        .font(VibeTypography.bodyMedium)
+                        .foregroundColor(VibeTheme.textSecondary)
+                        .padding(.top, 50)
+                    Spacer()
                 } else {
                     List(searchResults, id: \.title) { song in
                         Button {
-                            withAnimation {
+                            VibeHaptic.selection()
+                            withAnimation(VibeAnimation.snappy) {
                                 selectedSong = song
                             }
                         } label: {
-                            HStack(spacing: 12) {
+                            HStack(spacing: VibeSpacing.sm) {
                                 if let albumArt = song.albumArt, let url = URL(string: albumArt) {
                                     AsyncImage(url: url) { image in
                                         image.resizable().aspectRatio(contentMode: .fill)
                                     } placeholder: {
-                                        Color.gray.opacity(0.3)
+                                        VibeTheme.surfaceOverlay
                                     }
                                     .frame(width: 50, height: 50)
-                                    .cornerRadius(6)
+                                    .continuousCorner(6)
                                 } else {
                                     Image(systemName: "music.note")
                                         .frame(width: 50, height: 50)
                                         .background(Color.green.opacity(0.1))
-                                        .cornerRadius(6)
+                                        .continuousCorner(6)
                                 }
-                                
-                                VStack(alignment: .leading) {
+
+                                VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                                     Text(song.title)
-                                        .font(.headline)
+                                        .font(VibeTypography.titleSmall)
+                                        .foregroundColor(VibeTheme.textPrimary)
                                     Text(song.artist)
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
+                                        .font(VibeTypography.bodySmall)
+                                        .foregroundColor(VibeTheme.textSecondary)
                                 }
                             }
                         }
@@ -155,32 +157,25 @@ struct SongComposerView: View {
             }
         }
         .onReceive(searchPublisher.debounce(for: .milliseconds(500), scheduler: RunLoop.main)) { query in
-            Task {
-                await performSearch(query)
-            }
+            Task { await performSearch(query) }
         }
     }
-    
+
     private func performSearch(_ query: String) async {
         guard !query.isEmpty else {
             searchResults = []
             return
         }
-        
         isSearching = true
-        // Mock search for now
         try? await Task.sleep(nanoseconds: 1 * 1_000_000_000)
-        
-        // Mock data
         searchResults = [
             SongData(title: "Vibe Check", artist: "The Vibes", albumArt: "https://picsum.photos/200", previewUrl: nil, spotifyId: "1"),
             SongData(title: "Coding Late", artist: "Dev Team", albumArt: "https://picsum.photos/201", previewUrl: nil, spotifyId: "2"),
             SongData(title: "Message Me", artist: "Socials", albumArt: "https://picsum.photos/202", previewUrl: nil, spotifyId: "3")
         ]
-        
         isSearching = false
     }
-    
+
     private func shareSong(_ song: SongData) async {
         do {
             let vibe = try await appState.createVibe(

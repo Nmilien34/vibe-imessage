@@ -18,6 +18,7 @@ struct UnlockPromptView: View {
     let onDismiss: () -> Void
 
     @State private var animatePulse = false
+    @State private var isVisible = false
 
     var body: some View {
         ZStack {
@@ -25,24 +26,28 @@ struct UnlockPromptView: View {
             Color.black.opacity(0.7)
                 .ignoresSafeArea()
                 .onTapGesture {
+                    VibeHaptic.light()
                     onDismiss()
                 }
 
             // Modal content
-            VStack(spacing: 24) {
+            VStack(spacing: VibeSpacing.xxl) {
                 // Close button
                 HStack {
                     Spacer()
-                    Button(action: onDismiss) {
+                    Button(action: {
+                        VibeHaptic.light()
+                        onDismiss()
+                    }) {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white.opacity(0.7))
-                            .frame(width: 32, height: 32)
-                            .background(Color.white.opacity(0.15))
+                            .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                            .background(.ultraThinMaterial)
                             .clipShape(Circle())
                     }
                 }
-                .padding(.horizontal, 4)
+                .padding(.horizontal, VibeSpacing.xxxs)
 
                 Spacer()
 
@@ -52,32 +57,19 @@ struct UnlockPromptView: View {
                 // Lock icon
                 Image(systemName: "lock.fill")
                     .font(.system(size: 40))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .padding(.top, 8)
+                    .foregroundStyle(VibeTheme.brandGradient)
+                    .symbolEffect(.pulse)
+                    .padding(.top, VibeSpacing.sm)
 
                 // Prompt text
-                VStack(spacing: 8) {
+                VStack(spacing: VibeSpacing.sm) {
                     Text("Post your story to unlock")
-                        .font(.title3)
-                        .fontWeight(.semibold)
+                        .font(VibeTypography.titleMedium)
                         .foregroundColor(.white)
 
                     Text("\(senderName)'s Vibe!")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.purple, .pink, .orange],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
+                        .font(VibeTypography.titleLarge)
+                        .foregroundStyle(VibeTheme.brandGradient)
                 }
                 .multilineTextAlignment(.center)
 
@@ -87,62 +79,56 @@ struct UnlockPromptView: View {
                 recordButton
 
                 // "Open Camera" text button
-                Button(action: onOpenCamera) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    onOpenCamera()
+                }) {
                     Text("Open Camera")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.vertical, 16)
-                        .padding(.horizontal, 48)
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .clipShape(Capsule())
+                        .vibeButton(.primary)
                 }
+                .buttonStyle(VibePressStyle())
+                .padding(.horizontal, VibeSpacing.xxxl)
 
                 Spacer()
-                    .frame(height: 20)
+                    .frame(height: VibeSpacing.lg)
             }
-            .padding(24)
+            .padding(VibeSpacing.xxl)
             .frame(maxWidth: 320)
             .background(
-                RoundedRectangle(cornerRadius: 28)
-                    .fill(Color(white: 0.12))
+                RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
+                    .fill(.ultraThinMaterial)
             )
-            .shadow(color: .black.opacity(0.5), radius: 30, y: 10)
+            .vibeShadow(.xl)
+            .opacity(isVisible ? 1 : 0)
+            .scaleEffect(isVisible ? 1 : 0.9)
+        }
+        .onAppear {
+            withAnimation(VibeAnimation.bouncy) {
+                isVisible = true
+            }
         }
     }
 
     // MARK: - App Icon
     private var appIcon: some View {
         ZStack {
-            // Gradient background
-            RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.69, green: 0.33, blue: 0.94),
-                            Color(red: 0.40, green: 0.45, blue: 0.98)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(VibeTheme.brandGradient)
                 .frame(width: 80, height: 80)
 
-            // App icon symbol
             Image(systemName: "sparkles")
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundColor(.white)
+                .symbolEffect(.bounce)
         }
     }
 
     // MARK: - Record Button
     private var recordButton: some View {
-        Button(action: onOpenCamera) {
+        Button(action: {
+            VibeHaptic.medium()
+            onOpenCamera()
+        }) {
             ZStack {
                 // Pulsing ring animation
                 Circle()
@@ -169,7 +155,7 @@ struct UnlockPromptView: View {
         }
         .buttonStyle(.plain)
         .onAppear {
-            withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+            withAnimation(VibeAnimation.smooth.speed(0.5).repeatForever(autoreverses: false)) {
                 animatePulse = true
             }
         }

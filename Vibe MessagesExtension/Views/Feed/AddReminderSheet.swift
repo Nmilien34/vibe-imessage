@@ -15,7 +15,7 @@ struct AddReminderSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color(red: 0.96, green: 0.96, blue: 0.97)
+                VibeTheme.groupedBackground
                     .edgesIgnoringSafeArea(.all)
 
                 if step == 1 {
@@ -33,32 +33,33 @@ struct AddReminderSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: step)
+            .animation(VibeAnimation.snappy, value: step)
         }
     }
 
     // MARK: - Step 1: Type Picker
 
     private var typePickerView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: VibeSpacing.lg) {
             Text("What's coming up?")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .padding(.top, 20)
+                .font(VibeTypography.titleMedium)
+                .padding(.top, VibeSpacing.lg)
 
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: VibeSpacing.lg), GridItem(.flexible(), spacing: VibeSpacing.lg)], spacing: VibeSpacing.lg) {
                 ForEach(ReminderType.allCases, id: \.self) { type in
                     TypeCard(type: type, isSelected: selectedType == type) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        withAnimation(VibeAnimation.bouncy) {
                             selectedType = type
                             emoji = type.emoji
                         }
+                        VibeHaptic.selection()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             withAnimation { step = 2 }
                         }
                     }
                 }
             }
-            .padding(.horizontal, 20)
+            .padding(.horizontal, VibeSpacing.lg)
 
             Spacer()
         }
@@ -68,39 +69,38 @@ struct AddReminderSheet: View {
 
     private var detailsView: some View {
         ScrollView {
-            VStack(spacing: 24) {
+            VStack(spacing: VibeSpacing.xxl) {
                 // Emoji display
                 Button {
-                    // Could open emoji picker; for now just cycles default
+                    // Could open emoji picker
                 } label: {
                     Text(emoji)
                         .font(.system(size: 56))
                         .frame(width: 90, height: 90)
                         .background(
                             Circle()
-                                .fill((selectedType?.color ?? .blue).opacity(0.15))
+                                .fill((selectedType?.color ?? VibeTheme.accent).opacity(0.15))
                         )
                 }
-                .padding(.top, 16)
+                .padding(.top, VibeSpacing.lg)
 
                 // Title
                 TextField("What's happening?", text: $title)
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(VibeTypography.titleSmall)
                     .multilineTextAlignment(.center)
                     .padding()
-                    .background(Color.white)
-                    .cornerRadius(16)
-                    .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
-                    .padding(.horizontal, 20)
+                    .background(VibeTheme.cardBackground)
+                    .continuousCorner(VibeTheme.radiusMedium)
+                    .vibeShadow(.sm)
+                    .padding(.horizontal, VibeSpacing.lg)
 
                 // Quick date buttons
-                VStack(spacing: 12) {
+                VStack(spacing: VibeSpacing.md) {
                     Text("WHEN?")
-                        .font(.caption)
-                        .bold()
-                        .foregroundColor(.gray)
+                        .font(VibeTypography.overline)
+                        .foregroundColor(VibeTheme.textTertiary)
 
-                    HStack(spacing: 10) {
+                    HStack(spacing: VibeSpacing.xs) {
                         QuickDateButton(label: "Tomorrow", isSelected: isTomorrow) {
                             selectedDate = Calendar.current.startOfDay(for: Date()).addingTimeInterval(86400 + 43200)
                             showDatePicker = false
@@ -116,33 +116,34 @@ struct AddReminderSheet: View {
                     }
 
                     Button {
-                        withAnimation { showDatePicker.toggle() }
+                        withAnimation(VibeAnimation.snappy) { showDatePicker.toggle() }
                     } label: {
                         HStack {
                             Image(systemName: "calendar")
                             Text("Pick Date")
                         }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(showDatePicker ? .white : .primary)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(showDatePicker ? (selectedType?.color ?? .blue) : Color.white)
-                        .cornerRadius(12)
-                        .shadow(color: .black.opacity(0.04), radius: 3)
+                        .font(VibeTypography.captionLarge)
+                        .foregroundColor(showDatePicker ? .white : VibeTheme.textPrimary)
+                        .padding(.horizontal, VibeSpacing.lg)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(showDatePicker ? (selectedType?.color ?? VibeTheme.accent) : VibeTheme.cardBackground)
+                        .continuousCorner(VibeTheme.radiusSmall)
+                        .vibeShadow(.sm)
                     }
 
                     if showDatePicker {
                         DatePicker("", selection: $selectedDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
                             .datePickerStyle(.graphical)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(16)
-                            .padding(.horizontal, 20)
+                            .background(VibeTheme.cardBackground)
+                            .continuousCorner(VibeTheme.radiusMedium)
+                            .padding(.horizontal, VibeSpacing.lg)
                     }
                 }
 
                 // Add button
                 Button {
+                    VibeHaptic.success()
                     saveReminder()
                 } label: {
                     HStack {
@@ -151,35 +152,25 @@ struct AddReminderSheet: View {
                                 .tint(.white)
                         } else {
                             Text("Add \u{1F3AF}")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .font(VibeTypography.titleSmall)
                         }
                     }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(
-                        LinearGradient(
-                            colors: selectedType?.gradient ?? [.blue, .cyan],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(20)
-                    .shadow(color: (selectedType?.color ?? .blue).opacity(0.3), radius: 8, y: 4)
+                    .vibeButton(.primary)
                 }
+                .buttonStyle(VibePressStyle())
                 .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || isSaving)
                 .opacity(title.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, VibeSpacing.lg)
 
                 // Back button
                 Button {
                     withAnimation { step = 1 }
                 } label: {
                     Text("Back")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .font(VibeTypography.bodySmall)
+                        .foregroundColor(VibeTheme.textTertiary)
                 }
-                .padding(.bottom, 20)
+                .padding(.bottom, VibeSpacing.lg)
             }
         }
     }
@@ -257,11 +248,11 @@ struct TypeCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 12) {
+            VStack(spacing: VibeSpacing.md) {
                 Text(type.emoji)
                     .font(.system(size: 40))
                 Text(type.displayName)
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .font(VibeTypography.titleSmall)
                     .foregroundColor(.white)
             }
             .frame(maxWidth: .infinity)
@@ -269,10 +260,11 @@ struct TypeCard: View {
             .background(
                 LinearGradient(colors: type.gradient, startPoint: .topLeading, endPoint: .bottomTrailing)
             )
-            .cornerRadius(24)
+            .continuousCorner(VibeTheme.radiusLarge)
             .scaleEffect(isSelected ? 0.92 : 1.0)
-            .shadow(color: type.color.opacity(0.3), radius: isSelected ? 2 : 8, y: isSelected ? 1 : 4)
+            .vibeShadow(isSelected ? .sm : .lg)
         }
+        .buttonStyle(VibePressStyle())
     }
 }
 
@@ -282,15 +274,18 @@ struct QuickDateButton: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            VibeHaptic.selection()
+            onTap()
+        }) {
             Text(label)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(isSelected ? .white : .primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(isSelected ? Color.blue : Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.04), radius: 3)
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(isSelected ? .white : VibeTheme.textPrimary)
+                .padding(.horizontal, VibeSpacing.md)
+                .padding(.vertical, VibeSpacing.xs)
+                .background(isSelected ? VibeTheme.accent : VibeTheme.cardBackground)
+                .continuousCorner(VibeTheme.radiusSmall)
+                .vibeShadow(.sm)
         }
     }
 }

@@ -1,6 +1,7 @@
 import express, { Request, Response, Router } from 'express';
 import Reminder from '../models/Reminder';
 import { ReminderType } from '../types';
+import { authMiddleware } from '../middleware/auth';
 
 const router: Router = express.Router();
 
@@ -18,7 +19,7 @@ interface DeleteReminderRequest {
 }
 
 // POST /api/reminders — create a reminder
-router.post('/', async (req: Request<{}, {}, CreateReminderRequest>, res: Response) => {
+router.post('/', authMiddleware, async (req: Request<{}, {}, CreateReminderRequest>, res: Response) => {
   try {
     const { chatId, userId, type, emoji, title, date } = req.body;
 
@@ -53,7 +54,7 @@ router.get('/:chatId', async (req: Request<{ chatId: string }>, res: Response) =
 });
 
 // DELETE /api/reminders/:id — delete a reminder (creator only)
-router.delete('/:id', async (req: Request<{ id: string }, {}, DeleteReminderRequest>, res: Response) => {
+router.delete('/:id', authMiddleware, async (req: Request<{ id: string }, {}, DeleteReminderRequest>, res: Response) => {
   try {
     const { userId } = req.body;
     const reminder = await Reminder.findById(req.params.id);

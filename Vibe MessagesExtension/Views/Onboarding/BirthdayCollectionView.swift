@@ -12,7 +12,7 @@ struct BirthdayCollectionView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.blue.opacity(0.15), Color.purple.opacity(0.1), Color.white],
+                colors: [VibeTheme.accent.opacity(0.15), VibeTheme.accentSecondary.opacity(0.1), VibeTheme.background],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -25,12 +25,11 @@ struct BirthdayCollectionView: View {
             }
         }
         .task {
-            // Start a timeout - if contacts lookup takes too long, show manual input
             loadingTask = Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 second timeout
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
                 if !Task.isCancelled && isLoading {
                     await MainActor.run {
-                        withAnimation(.easeInOut(duration: 0.3)) {
+                        withAnimation(VibeAnimation.smooth) {
                             isLoading = false
                         }
                     }
@@ -38,8 +37,6 @@ struct BirthdayCollectionView: View {
             }
 
             await resolveBirthdayFromContacts()
-
-            // Cancel the timeout if we finished normally
             loadingTask?.cancel()
         }
     }
@@ -47,26 +44,28 @@ struct BirthdayCollectionView: View {
     // MARK: - Loading View
 
     private var loadingView: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: VibeSpacing.lg) {
             ProgressView()
                 .scaleEffect(1.5)
+                .tint(VibeTheme.accent)
             Text("Setting up your profile...")
-                .font(.system(size: 18, weight: .medium, design: .rounded))
-                .foregroundColor(.secondary)
+                .font(VibeTypography.bodyLarge)
+                .foregroundColor(VibeTheme.textSecondary)
         }
     }
 
     // MARK: - Manual Input View
 
     private var manualInputView: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: VibeSpacing.xxl) {
             Spacer()
 
             Text("When's your birthday? \u{1F382}")
-                .font(.system(size: 28, weight: .black, design: .rounded))
+                .font(VibeTypography.displayMedium)
+                .foregroundColor(VibeTheme.textPrimary)
                 .multilineTextAlignment(.center)
 
-            HStack(spacing: 16) {
+            HStack(spacing: VibeSpacing.md) {
                 Picker("Month", selection: $selectedMonth) {
                     ForEach(1...12, id: \.self) { month in
                         Text(monthName(month)).tag(month)
@@ -83,35 +82,33 @@ struct BirthdayCollectionView: View {
                 .pickerStyle(.wheel)
                 .frame(width: 80)
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, VibeSpacing.xl)
+            .vibeGlassCard(radius: VibeTheme.radiusMedium)
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
 
             Spacer()
 
-            VStack(spacing: 12) {
+            VStack(spacing: VibeSpacing.sm) {
                 Button {
+                    VibeHaptic.success()
                     appState.saveBirthday(month: selectedMonth, day: selectedDay)
                 } label: {
                     Text("Continue")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            LinearGradient(colors: [.blue, .purple], startPoint: .leading, endPoint: .trailing)
-                        )
-                        .cornerRadius(16)
+                        .vibeButton(.primary)
                 }
-                .padding(.horizontal, 40)
+                .buttonStyle(VibePressStyle())
+                .padding(.horizontal, VibeSpacing.xxxl)
 
                 Button {
+                    VibeHaptic.light()
                     appState.skipBirthday()
                 } label: {
                     Text("Skip")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(.secondary)
+                        .font(VibeTypography.bodyMedium)
+                        .foregroundColor(VibeTheme.textSecondary)
                 }
             }
-            .padding(.bottom, 40)
+            .padding(.bottom, VibeSpacing.xxxl)
         }
     }
 
@@ -129,8 +126,6 @@ struct BirthdayCollectionView: View {
 
             let keysToFetch: [CNKeyDescriptor] = [CNContactBirthdayKey as CNKeyDescriptor]
 
-            // Attempt to find the user's own contact card ("me" card)
-            // Search by the user's first name from Apple Sign In as a heuristic
             if let firstName = appState.userFirstName, !firstName.isEmpty {
                 let predicate = CNContact.predicateForContacts(matchingName: firstName)
                 let contacts = try store.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
@@ -154,8 +149,8 @@ struct BirthdayCollectionView: View {
 
     @MainActor
     private func showManualInput() {
-        guard isLoading else { return } // Already showing manual input
-        withAnimation(.easeInOut(duration: 0.3)) {
+        guard isLoading else { return }
+        withAnimation(VibeAnimation.smooth) {
             isLoading = false
         }
     }

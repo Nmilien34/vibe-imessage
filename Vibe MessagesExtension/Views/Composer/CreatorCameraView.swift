@@ -124,9 +124,9 @@ struct CreatorCameraView: View {
 
                     // Shutter row
                     shutterRow
-                        .padding(.bottom, 20)
+                        .padding(.bottom, VibeSpacing.xl)
                 }
-                .padding(.top, 10)
+                .padding(.top, VibeSpacing.sm)
             }
 
             // Layer 4: Recording timer (top center)
@@ -135,12 +135,11 @@ struct CreatorCameraView: View {
                     Text(String(format: "%02d:%02d / 00:15",
                                 Int(viewModel.recordingTime) / 60,
                                 Int(viewModel.recordingTime) % 60))
-                        .font(.system(.subheadline, design: .rounded))
+                        .font(VibeTypography.bodyMedium)
                         .monospacedDigit()
-                        .fontWeight(.medium)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, VibeSpacing.lg)
+                        .padding(.vertical, VibeSpacing.sm)
                         .background(Color.red.opacity(0.8))
                         .clipShape(Capsule())
                         .padding(.top, 60)
@@ -170,7 +169,6 @@ struct CreatorCameraView: View {
         }
         .onDisappear {
             viewModel.stopSession()
-            // Turn off flash when leaving
             if isFlashOn {
                 viewModel.toggleFlash(false)
                 isFlashOn = false
@@ -218,14 +216,14 @@ struct CreatorCameraView: View {
                 Color.black
                     .edgesIgnoringSafeArea(.all)
                     .overlay(
-                        VStack(spacing: 16) {
+                        VStack(spacing: VibeSpacing.lg) {
                             Image(systemName: "camera.aperture")
                                 .font(.system(size: 80))
-                                .foregroundColor(.gray.opacity(0.3))
+                                .foregroundColor(VibeTheme.textTertiary)
                             if viewModel.isUnauthorized {
                                 Text("Camera access required")
                                     .foregroundColor(.white)
-                                    .font(.caption)
+                                    .font(VibeTypography.captionLarge)
                             }
                         }
                     )
@@ -239,12 +237,13 @@ struct CreatorCameraView: View {
         HStack(alignment: .top) {
             // Close
             Button {
+                VibeHaptic.light()
                 appState.dismissComposer()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.white)
-                    .padding(10)
+                    .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
             }
@@ -255,25 +254,25 @@ struct CreatorCameraView: View {
             Button {
                 showMusicPicker = true
             } label: {
-                HStack(spacing: 6) {
+                HStack(spacing: VibeSpacing.xs) {
                     Image(systemName: "music.note")
                         .font(.system(size: 13))
                     if let song = selectedSong {
                         Text("\(song.artist) - \(song.title)")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(VibeTypography.captionLarge)
                             .lineLimit(1)
                             .frame(maxWidth: 180)
                     } else {
                         Text("Pick a song")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .font(VibeTypography.captionLarge)
                     }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .bold))
                         .opacity(0.7)
                 }
                 .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
+                .padding(.horizontal, VibeSpacing.lg)
+                .padding(.vertical, VibeSpacing.sm)
                 .background(.ultraThinMaterial)
                 .clipShape(Capsule())
             }
@@ -281,20 +280,19 @@ struct CreatorCameraView: View {
             Spacer()
 
             // Balance spacer
-            Color.clear.frame(width: 40, height: 40)
+            Color.clear.frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
         }
-        .padding(.horizontal)
+        .padding(.horizontal, VibeSpacing.md)
     }
 
     // MARK: - Sidebar Tools
 
     private var sidebarTools: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.xl) {
             // Flip
             CameraToolButton(icon: "arrow.triangle.2.circlepath", label: "Flip") {
                 viewModel.flipCamera()
-                let gen = UIImpactFeedbackGenerator(style: .light)
-                gen.impactOccurred()
+                VibeHaptic.light()
             }
 
             // Text
@@ -325,8 +323,7 @@ struct CreatorCameraView: View {
             ) {
                 isFlashOn.toggle()
                 viewModel.toggleFlash(isFlashOn)
-                let gen = UIImpactFeedbackGenerator(style: .light)
-                gen.impactOccurred()
+                VibeHaptic.light()
             }
 
             // Timer
@@ -353,32 +350,31 @@ struct CreatorCameraView: View {
                 showFiltersSheet = true
             }
         }
-        .padding(.trailing, 12)
-        .padding(.bottom, 20)
+        .padding(.trailing, VibeSpacing.sm)
+        .padding(.bottom, VibeSpacing.xl)
     }
 
     // MARK: - Mode Slider
 
     private var modeSlider: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 30) {
+            HStack(spacing: VibeSpacing.xxl) {
                 ForEach(CameraMode.allCases) { mode in
                     Text(mode.rawValue)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .font(VibeTypography.captionLarge)
                         .foregroundColor(selectedMode == mode ? .yellow : .white.opacity(0.7))
                         .shadow(color: .black.opacity(0.5), radius: 1)
                         .onTapGesture {
-                            withAnimation(.spring()) {
+                            withAnimation(VibeAnimation.snappy) {
                                 selectedMode = mode
                             }
-                            let gen = UIImpactFeedbackGenerator(style: .soft)
-                            gen.impactOccurred()
+                            VibeHaptic.selection()
                         }
                 }
             }
             .padding(.horizontal, UIScreen.main.bounds.width / 2 - 40)
         }
-        .padding(.bottom, 20)
+        .padding(.bottom, VibeSpacing.xl)
     }
 
     // MARK: - Shutter Row
@@ -389,9 +385,9 @@ struct CreatorCameraView: View {
             PhotosPicker(selection: $selectedItem, matching: .any(of: [.videos, .images])) {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(Color.white, lineWidth: 2)
-                    .frame(width: 44, height: 44)
+                    .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                     .background(Color.black.opacity(0.3))
-                    .cornerRadius(10)
+                    .continuousCorner(10)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.system(size: 20))
@@ -441,8 +437,7 @@ struct CreatorCameraView: View {
                         // Empty action block
                     }
                     .onTapGesture {
-                        let gen = UIImpactFeedbackGenerator(style: .medium)
-                        gen.impactOccurred()
+                        VibeHaptic.medium()
                         viewModel.takePhoto()
                     }
 
@@ -457,7 +452,7 @@ struct CreatorCameraView: View {
 
             // Right: Dice
             Button {
-                withAnimation {
+                withAnimation(VibeAnimation.bouncy) {
                     showPrompter.toggle()
                     let prompts = [
                         "Show us your fridge.",
@@ -470,13 +465,12 @@ struct CreatorCameraView: View {
                     ]
                     promptText = prompts.randomElement() ?? "Show us your fridge."
                 }
-                let gen = UIImpactFeedbackGenerator(style: .medium)
-                gen.impactOccurred()
+                VibeHaptic.medium()
             } label: {
                 Circle()
                     .stroke(Color.white.opacity(0.4), lineWidth: 1)
                     .background(Circle().fill(.ultraThinMaterial))
-                    .frame(width: 44, height: 44)
+                    .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                     .overlay(
                         Image(systemName: "dice.fill")
                             .font(.system(size: 20))
@@ -504,8 +498,7 @@ struct CreatorCameraView: View {
                 Spacer()
                 TextField("Add text...", text: $pendingOverlayText)
                     .focused($isTextFocused)
-                    .font(.system(.title, design: .rounded))
-                    .fontWeight(.bold)
+                    .font(VibeTypography.displaySmall)
                     .foregroundColor(.white)
                     .multilineTextAlignment(.center)
                     .padding()
@@ -553,24 +546,29 @@ struct CreatorCameraView: View {
     private var filterSelectionSheet: some View {
         NavigationView {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: VibeSpacing.lg) {
                     FilterOption(name: "None", color: .gray, isSelected: selectedFilter == nil) {
+                        VibeHaptic.selection()
                         selectedFilter = nil
                         showFiltersSheet = false
                     }
                     FilterOption(name: "Warm", color: .orange, isSelected: selectedFilter == "Warm") {
+                        VibeHaptic.selection()
                         selectedFilter = "Warm"
                         showFiltersSheet = false
                     }
                     FilterOption(name: "Cool", color: .blue, isSelected: selectedFilter == "Cool") {
+                        VibeHaptic.selection()
                         selectedFilter = "Cool"
                         showFiltersSheet = false
                     }
                     FilterOption(name: "B&W", color: .white, isSelected: selectedFilter == "B&W") {
+                        VibeHaptic.selection()
                         selectedFilter = "B&W"
                         showFiltersSheet = false
                     }
                     FilterOption(name: "Vibez", color: .purple, isSelected: selectedFilter == "Vibez") {
+                        VibeHaptic.selection()
                         selectedFilter = "Vibez"
                         showFiltersSheet = false
                     }
@@ -592,12 +590,9 @@ struct CreatorCameraView: View {
 
     private func beginRecording() {
         if selectedTimerDuration > 0 && !countdownActive {
-            // Start countdown
             countdownActive = true
             countdownValue = selectedTimerDuration
-            let gen = UIImpactFeedbackGenerator(style: .heavy)
-            gen.impactOccurred()
-
+            VibeHaptic.heavy()
             startCountdown()
         } else if !countdownActive {
             viewModel.startRecording()
@@ -612,11 +607,10 @@ struct CreatorCameraView: View {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            withAnimation(.spring()) {
+            withAnimation(VibeAnimation.bouncy) {
                 countdownValue -= 1
             }
-            let gen = UIImpactFeedbackGenerator(style: .medium)
-            gen.impactOccurred()
+            VibeHaptic.medium()
 
             if countdownValue > 0 {
                 startCountdown()
@@ -638,21 +632,22 @@ struct FilterOption: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 12)
+            VStack(spacing: VibeSpacing.sm) {
+                RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                     .fill(color.opacity(0.3))
                     .frame(height: 80)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                             .stroke(isSelected ? Color.yellow : Color.clear, lineWidth: 3)
                     )
                     .overlay(
                         Text(name)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(VibeTypography.captionLarge)
                             .foregroundColor(.primary)
                     )
             }
         }
+        .buttonStyle(VibePressStyle())
     }
 }
 
@@ -667,7 +662,7 @@ struct CameraToolButton: View {
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 4) {
+            VStack(spacing: VibeSpacing.xxxs) {
                 if let custom = customContent {
                     custom
                 } else if let icon = icon {

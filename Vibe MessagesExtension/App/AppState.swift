@@ -20,6 +20,12 @@ enum NavigationDestination: Equatable {
     case viewer(startIndex: Int)
     case composer
     case unlockComposer  // Special composer mode for unlock flow
+    case profile
+    case auraHub
+    case betDetail
+    case betList
+    case teaGuess
+    case teaReveal
 }
 
 /// Parameters for a locked message that was tapped
@@ -57,6 +63,26 @@ class AppState: ObservableObject {
     // News Data (Moved from BentoDashboardView)
     @Published var newsItems: [NewsItem] = []
     @Published var isLoadingNews = false
+
+    // MARK: - Aura Economy
+    @Published var auraBalance: Int = 0
+    @Published var vibeScore: Int = 100
+    @Published var auraStats: AuraStats?
+    @Published var auraTransactions: [AuraTransaction] = []
+    @Published var leaderboard: [LeaderboardEntry] = []
+
+    // MARK: - Betting
+    @Published var activeBets: [Bet] = []
+    @Published var isLoadingBets = false
+
+    // MARK: - Tea Spills
+    @Published var activeTeaSpills: [TeaSpill] = []
+    @Published var isLoadingTea = false
+
+    // MARK: - Detail View State
+    @Published var selectedBet: Bet?
+    @Published var selectedTea: TeaSpill?
+    @Published var teaRevealResponse: TeaRevealResponse?
 
     // MARK: - Network Error State
     @Published var networkError: VibeError?
@@ -227,31 +253,61 @@ class AppState: ObservableObject {
         conversationId = identifier
         print("AppState Debug: Set Conversation ID to: \(conversationId ?? "nil")")
 
-        // Set loading state IMMEDIATELY (synchronously) so UI shows spinner
+        // Use a fallback chat ID immediately so the UI can render right away.
+        // The real chat ID will be resolved in the background.
+        let fallbackChatId = "fallback_\(conversation.localParticipantIdentifier.uuidString)"
+        self.currentChatId = fallbackChatId
         self.isLoading = true
 
-        // Resolve the virtual chat ID using ConversationManager
-        // Use a detached task to avoid blocking the UI
+        // Show welcome vibe immediately so the user never sees a blank screen
+        if vibes.isEmpty {
+            vibes = [teamWelcomeVibe]
+        }
+
         Task {
-            // Step 1: Resolve chat ID (required before loading chat-specific data)
-            // Increased timeout for Render cold starts
-            let chatId = await withTimeout(seconds: 20) {
+            // Step 1: Resolve real chat ID with a SHORT timeout (3s).
+            // If backend is cold/down, we proceed with fallback and retry later.
+            let resolvedChatId = await withTimeout(seconds: 3) {
                 await ConversationManager.shared.resolveChatID(
                     conversation: conversation,
                     userId: self.userId
                 )
-            } ?? "fallback_\(conversation.localParticipantIdentifier.uuidString)"
+            }
 
-            self.currentChatId = chatId
-            print("AppState Debug: Resolved Chat ID to: \(chatId)")
+            if let chatId = resolvedChatId {
+                self.currentChatId = chatId
+                print("AppState Debug: Resolved Chat ID to: \(chatId)")
+            } else {
+                print("AppState Debug: Chat ID resolution timed out, using fallback: \(fallbackChatId)")
+                // Retry resolution in background with longer timeout (won't block UI)
+                Task {
+                    let retryId = await withTimeout(seconds: 20) {
+                        await ConversationManager.shared.resolveChatID(
+                            conversation: conversation,
+                            userId: self.userId
+                        )
+                    }
+                    if let retryId = retryId {
+                        self.currentChatId = retryId
+                        print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
+                        // Reload chat-specific data with correct ID
+                        async let reminders: () = loadReminders()
+                        async let bets: () = loadBets()
+                        async let tea: () = loadTeaSpills()
+                        _ = await (reminders, bets, tea)
+                    }
+                }
+            }
 
-            // Step 2: Load vibes, reminders, and news IN PARALLEL
+            // Step 2: Load all data IN PARALLEL — don't wait for chat ID retry
             async let vibesTask: () = loadVibes()
             async let remindersTask: () = loadReminders()
             async let newsTask: () = loadNews()
+            async let auraTask: () = loadAuraStats()
+            async let betsTask: () = loadBets()
+            async let teaTask: () = loadTeaSpills()
 
-            // Wait for all to complete concurrently
-            _ = await (vibesTask, remindersTask, newsTask)
+            _ = await (vibesTask, remindersTask, newsTask, auraTask, betsTask, teaTask)
 
             self.isLoading = false
         }
@@ -297,10 +353,14 @@ class AppState: ObservableObject {
      * and group chats in one feed, sorted by most recent.
      */
     func loadVibes() async {
-        isLoading = true
         error = nil
         networkError = nil
         showNetworkErrorBanner = false
+
+        defer {
+            // Guarantee loading state is cleared even if something unexpected happens
+            isLoading = false
+        }
 
         do {
             // Use the unified feed endpoint - gets vibes from ALL joined chats
@@ -342,13 +402,11 @@ class AppState: ObservableObject {
             self.networkError = .networkFailure(underlying: error)
             self.showNetworkErrorBanner = true
 
-            // Fallback to team vibe only if error
-            if vibes.isEmpty {
+            // Fallback to team vibe only if error and no vibes loaded yet
+            if vibes.isEmpty || (vibes.count == 1 && vibes.first?.id == "team_welcome") {
                 vibes = [teamWelcomeVibe]
             }
         }
-
-        isLoading = false
     }
 
     /**
@@ -390,6 +448,8 @@ class AppState: ObservableObject {
         isLoading = true
         error = nil
 
+        defer { isLoading = false }
+
         do {
             let chatVibes = try await APIService.shared.getChatFeed(chatId: chatId, userId: userId)
 
@@ -418,8 +478,6 @@ class AppState: ObservableObject {
                 vibes = [teamWelcomeVibe]
             }
         }
-
-        isLoading = false
     }
 
     func refreshVibes() async {
@@ -471,6 +529,137 @@ class AppState: ObservableObject {
         }
     }
 
+    // MARK: - Aura Economy
+
+    func loadAuraStats() async {
+        do {
+            let stats = try await AuraService.shared.getStats()
+            self.auraStats = stats
+            self.auraBalance = stats.balance
+        } catch {
+            print("AppState Error: Loading aura stats failed: \(error)")
+        }
+    }
+
+    func loadAuraTransactions(limit: Int = 20) async {
+        do {
+            self.auraTransactions = try await AuraService.shared.getTransactions(limit: limit)
+        } catch {
+            print("AppState Error: Loading aura transactions failed: \(error)")
+        }
+    }
+
+    func claimDailyBonus() async -> DailyClaimResponse? {
+        do {
+            let response = try await AuraService.shared.claimDailyBonus()
+            if response.claimed, let newBalance = response.newBalance {
+                self.auraBalance = newBalance
+            }
+            return response
+        } catch {
+            print("AppState Error: Claiming daily bonus failed: \(error)")
+            return nil
+        }
+    }
+
+    func loadLeaderboard(sortBy: String = "auraBalance") async {
+        do {
+            self.leaderboard = try await AuraService.shared.getLeaderboard(sortBy: sortBy)
+        } catch {
+            print("AppState Error: Loading leaderboard failed: \(error)")
+        }
+    }
+
+    // MARK: - Betting
+
+    func loadBets() async {
+        guard let chatId = currentChatId else { return }
+        isLoadingBets = true
+        do {
+            let response = try await BettingService.shared.getBetsForChat(chatId: chatId, status: .active)
+            self.activeBets = response.bets
+        } catch {
+            print("AppState Error: Loading bets failed: \(error)")
+        }
+        isLoadingBets = false
+    }
+
+    func createBet(betType: BetType, description: String, deadline: Date, targetUserId: String? = nil) async throws -> Bet {
+        guard let chatId = currentChatId else {
+            throw APIError.invalidURL
+        }
+        let bet = try await BettingService.shared.createBet(
+            chatId: chatId,
+            betType: betType,
+            description: description,
+            deadline: deadline,
+            targetUserId: targetUserId
+        )
+        activeBets.insert(bet, at: 0)
+        // Refresh aura after bet creation
+        await loadAuraStats()
+        return bet
+    }
+
+    func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
+        let participant = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
+        // Refresh aura after staking
+        await loadAuraStats()
+        return participant
+    }
+
+    func resolveBet(betId: String, outcome: BetOutcome, notes: String? = nil) async throws {
+        _ = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
+        // Remove from active bets
+        activeBets.removeAll { $0.betId == betId }
+        // Refresh aura after resolution
+        await loadAuraStats()
+    }
+
+    // MARK: - Tea Spills
+
+    func loadTeaSpills() async {
+        guard let chatId = currentChatId else { return }
+        isLoadingTea = true
+        do {
+            let response = try await TeaSpillService.shared.getTeaSpills(chatId: chatId, status: .active)
+            self.activeTeaSpills = response.teas
+        } catch {
+            print("AppState Error: Loading tea spills failed: \(error)")
+        }
+        isLoadingTea = false
+    }
+
+    func createTeaSpill(mysteryText: String, answer: String, options: [String], deadline: Date) async throws -> TeaSpill {
+        guard let chatId = currentChatId else {
+            throw APIError.invalidURL
+        }
+        let tea = try await TeaSpillService.shared.createTeaSpill(
+            chatId: chatId,
+            mysteryText: mysteryText,
+            answer: answer,
+            options: options,
+            deadline: deadline
+        )
+        activeTeaSpills.insert(tea, at: 0)
+        await loadAuraStats()
+        return tea
+    }
+
+    func guessTeaSpill(teaId: String, guess: String, amount: Int) async throws -> TeaGuess {
+        let teaGuess = try await TeaSpillService.shared.guessTeaSpill(teaId: teaId, guess: guess, amount: amount)
+        await loadAuraStats()
+        return teaGuess
+    }
+
+    func revealTeaSpill(teaId: String) async throws -> TeaRevealResponse {
+        let response = try await TeaSpillService.shared.revealTeaSpill(teaId: teaId)
+        // Move from active to resolved
+        activeTeaSpills.removeAll { $0.teaId == teaId }
+        await loadAuraStats()
+        return response
+    }
+
     // MARK: - Authentication
 
     func handleAppleSignIn(identityToken: String, firstName: String?, lastName: String?) async {
@@ -515,7 +704,11 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
             
             print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
-            
+
+            // Load aura stats after successful auth
+            await loadAuraStats()
+            _ = await claimDailyBonus()
+
         } catch {
             self.error = "Sign in failed: \(error.localizedDescription)"
             print("Auth Debug: Apple Auth Error: \(error)")
@@ -612,6 +805,10 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
 
             print("Auth Debug: Dev login successful. UserID: \(self.userId)")
+
+            // Load aura stats after successful auth
+            await loadAuraStats()
+            _ = await claimDailyBonus()
 
         } catch {
             self.error = "Dev login failed: \(error.localizedDescription)"
@@ -831,6 +1028,40 @@ class AppState: ObservableObject {
 
     func navigateToFeed() {
         currentDestination = .feed
+    }
+
+    func navigateToProfile() {
+        currentDestination = .profile
+        requestExpand()
+    }
+
+    func navigateToAuraHub() {
+        currentDestination = .auraHub
+        requestExpand()
+    }
+
+    func navigateToBetDetail(bet: Bet) {
+        selectedBet = bet
+        currentDestination = .betDetail
+        requestExpand()
+    }
+
+    func navigateToBetList() {
+        currentDestination = .betList
+        requestExpand()
+    }
+
+    func navigateToTeaGuess(tea: TeaSpill) {
+        selectedTea = tea
+        currentDestination = .teaGuess
+        requestExpand()
+    }
+
+    func navigateToTeaReveal(tea: TeaSpill, response: TeaRevealResponse) {
+        selectedTea = tea
+        teaRevealResponse = response
+        currentDestination = .teaReveal
+        requestExpand()
     }
 
     func dismissComposer() {

@@ -4,93 +4,86 @@ import MapKit
 struct ETAComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var selectedStatus: String?
-    
-    let options = [
-        ("Leaving Now 🏃‍♂️", Color.blue),
-        ("5 Mins Out 🚗", Color.orange),
-        ("Here 📍", Color.green),
-        ("Stuck in Traffic 🛑", Color.red)
+
+    let options: [(String, Color)] = [
+        ("Leaving Now", .blue),
+        ("5 Mins Out", .orange),
+        ("Here", .green),
+        ("Stuck in Traffic", .red)
     ]
-    
+
     var body: some View {
-        VStack(spacing: 24) {
-            // Map Preview Placeholder
+        VStack(spacing: VibeSpacing.xl) {
+            // Map Preview
             ZStack {
-                // Mock Map Background
-                Rectangle()
-                    .fill(Color(.systemGray6))
+                RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
+                    .fill(.ultraThinMaterial)
                     .overlay(
                         Image(systemName: "map.fill")
                             .font(.system(size: 80))
-                            .foregroundColor(.gray.opacity(0.3))
+                            .foregroundColor(VibeTheme.textTertiary)
                     )
-                    .cornerRadius(24)
-                
+
                 if let status = selectedStatus {
                     VStack {
                         Text(status)
-                            .font(.system(size: 24, weight: .black, design: .rounded))
+                            .font(VibeTypography.displaySmall)
                             .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.7))
-                            .cornerRadius(16)
+                            .padding(VibeSpacing.md)
+                            .background(.ultraThinMaterial)
+                            .continuousCorner(VibeTheme.radiusMedium)
                     }
                     .transition(.scale.combined(with: .opacity))
                 }
             }
             .frame(height: 250)
-            .padding(.horizontal)
-            
-            // Options Grid
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
+
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: VibeSpacing.md) {
                 ForEach(options, id: \.0) { option, color in
                     Button {
-                        withAnimation(.spring()) {
+                        VibeHaptic.selection()
+                        withAnimation(VibeAnimation.bouncy) {
                             selectedStatus = option
                         }
                     } label: {
                         Text(option)
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-                            .foregroundColor(selectedStatus == option ? .white : .primary)
+                            .font(VibeTypography.titleSmall)
+                            .foregroundColor(selectedStatus == option ? .white : VibeTheme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .frame(height: 80)
-                            .background(selectedStatus == option ? color : Color(.secondarySystemBackground))
-                            .cornerRadius(16)
+                            .background(selectedStatus == option ? color : Color.clear)
+                            .background(.ultraThinMaterial)
+                            .continuousCorner(VibeTheme.radiusMedium)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16)
+                                RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
                                     .stroke(color, lineWidth: 2)
                             )
                     }
+                    .buttonStyle(VibePressStyle())
                 }
             }
-            .padding(.horizontal)
-            
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
+
             Spacer()
-            
-            // Share Button
+
             Button {
-                Task {
-                    await shareETA()
-                }
+                VibeHaptic.success()
+                Task { await shareETA() }
             } label: {
-                Text("Share Status 📍")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue)
-                    .cornerRadius(12)
+                Text("Share Status")
+                    .vibeButton(.primary)
             }
-            .padding(.horizontal)
+            .buttonStyle(VibePressStyle())
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
             .disabled(selectedStatus == nil)
             .opacity(selectedStatus == nil ? 0.5 : 1.0)
         }
-        .padding(.top, 16)
+        .padding(.top, VibeSpacing.md)
     }
-    
+
     private func shareETA() async {
         guard let status = selectedStatus else { return }
         do {

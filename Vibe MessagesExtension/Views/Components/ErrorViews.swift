@@ -116,8 +116,7 @@ struct ErrorView: View {
     }
 
     private var fullView: some View {
-        VStack(spacing: 24) {
-            // Icon
+        VStack(spacing: VibeSpacing.xl) {
             ZStack {
                 Circle()
                     .fill(Color.red.opacity(0.1))
@@ -128,96 +127,85 @@ struct ErrorView: View {
                     .foregroundColor(.red.opacity(0.8))
             }
 
-            // Text
-            VStack(spacing: 8) {
+            VStack(spacing: VibeSpacing.xs) {
                 Text(error.errorDescription ?? "Error")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                    .font(VibeTypography.titleLarge)
+                    .foregroundColor(VibeTheme.textPrimary)
 
                 Text(error.recoverySuggestion ?? "")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                    .padding(.horizontal, VibeSpacing.xxl)
             }
 
-            // Actions
-            VStack(spacing: 12) {
+            VStack(spacing: VibeSpacing.sm) {
                 if error.canRetry, let onRetry = onRetry {
-                    Button(action: onRetry) {
+                    Button(action: {
+                        VibeHaptic.medium()
+                        onRetry()
+                    }) {
                         HStack {
                             Image(systemName: "arrow.clockwise")
                             Text("Try Again")
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(12)
+                        .vibeButton(.primary)
                     }
-                    .padding(.horizontal, 48)
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.xxxl + VibeSpacing.xs)
                 }
 
                 if error.requiresSettings, let onOpenSettings = onOpenSettings {
-                    Button(action: onOpenSettings) {
+                    Button(action: {
+                        VibeHaptic.light()
+                        onOpenSettings()
+                    }) {
                         HStack {
                             Image(systemName: "gear")
                             Text("Open Settings")
                         }
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .cornerRadius(12)
+                        .vibeButton(.secondary)
                     }
-                    .padding(.horizontal, 48)
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.xxxl + VibeSpacing.xs)
                 }
             }
         }
-        .padding()
+        .padding(VibeSpacing.lg)
     }
 
     private var compactView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: VibeSpacing.sm) {
             Image(systemName: error.icon)
-                .font(.title3)
+                .font(.system(size: 20))
                 .foregroundColor(.red.opacity(0.8))
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                 Text(error.errorDescription ?? "Error")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                    .font(VibeTypography.titleSmall)
+                    .foregroundColor(VibeTheme.textPrimary)
 
                 Text(error.recoverySuggestion ?? "")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
                     .lineLimit(2)
             }
 
             Spacer()
 
             if error.canRetry, let onRetry = onRetry {
-                Button(action: onRetry) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    onRetry()
+                }) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.title3)
-                        .foregroundColor(.blue)
+                        .font(.system(size: 20))
+                        .foregroundColor(VibeTheme.accent)
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.1), radius: 5, y: 2)
+        .padding(VibeSpacing.md)
+        .vibeCard(radius: VibeTheme.radiusMedium)
     }
 }
 
@@ -230,8 +218,7 @@ struct CameraPermissionDeniedView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                // Animated camera icon
+            VStack(spacing: VibeSpacing.xxl) {
                 ZStack {
                     Circle()
                         .fill(
@@ -246,36 +233,29 @@ struct CameraPermissionDeniedView: View {
 
                     Image(systemName: "camera.fill")
                         .font(.system(size: 60))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [.pink, .red],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .foregroundStyle(VibeTheme.brandGradient)
 
-                    // Slash overlay
                     Rectangle()
                         .fill(Color.red)
                         .frame(width: 4, height: 80)
                         .rotationEffect(.degrees(45))
                 }
 
-                VStack(spacing: 12) {
+                VStack(spacing: VibeSpacing.sm) {
                     Text("Camera Access Needed")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(VibeTypography.displaySmall)
                         .foregroundColor(.white)
 
                     Text("To share vibes, Vibe needs access to your camera. Enable it in Settings to start recording.")
-                        .font(.subheadline)
+                        .font(VibeTypography.bodyMedium)
                         .foregroundColor(.white.opacity(0.8))
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+                        .padding(.horizontal, VibeSpacing.xxl)
                 }
 
-                VStack(spacing: 16) {
+                VStack(spacing: VibeSpacing.md) {
                     Button {
+                        VibeHaptic.medium()
                         if let url = URL(string: UIApplication.openSettingsURLString) {
                             openURL(url)
                         }
@@ -284,25 +264,20 @@ struct CameraPermissionDeniedView: View {
                             Image(systemName: "gear")
                             Text("Open Settings")
                         }
-                        .font(.headline)
+                        .font(VibeTypography.titleMedium)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(12)
+                        .frame(height: VibeSpacing.minTouchTarget)
+                        .background(VibeTheme.brandGradient)
+                        .continuousCorner(VibeTheme.radiusMedium)
                     }
-                    .padding(.horizontal, 48)
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.xxxl + VibeSpacing.xs)
 
                     if let onDismiss = onDismiss {
                         Button(action: onDismiss) {
                             Text("Not Now")
-                                .font(.subheadline)
+                                .font(VibeTypography.bodyMedium)
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     }
@@ -319,42 +294,45 @@ struct NetworkErrorBanner: View {
     var onDismiss: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: VibeSpacing.sm) {
             Image(systemName: "wifi.exclamationmark")
-                .font(.title3)
+                .font(.system(size: 20))
                 .foregroundColor(.white)
+                .symbolEffect(.pulse)
 
             Text(message)
-                .font(.subheadline)
+                .font(VibeTypography.bodySmall)
                 .foregroundColor(.white)
 
             Spacer()
 
             if let onRetry = onRetry {
-                Button(action: onRetry) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    onRetry()
+                }) {
                     Text("Retry")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
+                        .padding(.horizontal, VibeSpacing.sm)
+                        .padding(.vertical, VibeSpacing.xs)
                         .background(Color.white.opacity(0.2))
-                        .cornerRadius(8)
+                        .continuousCorner(VibeTheme.radiusSmall)
                 }
             }
 
             if let onDismiss = onDismiss {
                 Button(action: onDismiss) {
                     Image(systemName: "xmark")
-                        .font(.caption)
+                        .font(.system(size: 12))
                         .foregroundColor(.white.opacity(0.7))
                 }
             }
         }
-        .padding()
-        .background(Color.red.opacity(0.9))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.2), radius: 5, y: 2)
+        .padding(VibeSpacing.md)
+        .background(Color.red.gradient)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .vibeShadow(.md)
     }
 }
 
@@ -365,8 +343,7 @@ struct UploadErrorView: View {
     var onCancel: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Error icon
+        VStack(spacing: VibeSpacing.lg) {
             ZStack {
                 Circle()
                     .fill(Color.red.opacity(0.1))
@@ -377,57 +354,57 @@ struct UploadErrorView: View {
                     .foregroundColor(.red)
             }
 
-            VStack(spacing: 8) {
+            VStack(spacing: VibeSpacing.xs) {
                 Text("Upload Failed")
-                    .font(.headline)
+                    .font(VibeTypography.titleMedium)
                     .foregroundColor(.white)
 
                 Text(error ?? "Something went wrong. Please try again.")
-                    .font(.subheadline)
+                    .font(VibeTypography.bodySmall)
                     .foregroundColor(.white.opacity(0.7))
                     .multilineTextAlignment(.center)
             }
 
-            HStack(spacing: 16) {
+            HStack(spacing: VibeSpacing.md) {
                 if let onCancel = onCancel {
-                    Button(action: onCancel) {
+                    Button(action: {
+                        VibeHaptic.light()
+                        onCancel()
+                    }) {
                         Text("Cancel")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
+                            .font(VibeTypography.titleSmall)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 12)
+                            .padding(.horizontal, VibeSpacing.xl)
+                            .padding(.vertical, VibeSpacing.sm)
                             .background(Color.white.opacity(0.2))
-                            .cornerRadius(10)
+                            .continuousCorner(VibeTheme.radiusSmall)
                     }
+                    .buttonStyle(VibePressStyle())
                 }
 
                 if let onRetry = onRetry {
-                    Button(action: onRetry) {
+                    Button(action: {
+                        VibeHaptic.medium()
+                        onRetry()
+                    }) {
                         HStack {
                             Image(systemName: "arrow.clockwise")
                             Text("Try Again")
                         }
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(
-                                colors: [.pink, .purple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(10)
+                        .padding(.horizontal, VibeSpacing.xl)
+                        .padding(.vertical, VibeSpacing.sm)
+                        .background(VibeTheme.brandGradient)
+                        .continuousCorner(VibeTheme.radiusSmall)
                     }
+                    .buttonStyle(VibePressStyle())
                 }
             }
         }
-        .padding(32)
+        .padding(VibeSpacing.xxl)
         .background(Color.black.opacity(0.8))
-        .cornerRadius(20)
+        .continuousCorner(VibeTheme.radiusLarge)
     }
 }
 
@@ -436,32 +413,36 @@ struct VideoPlaybackErrorView: View {
     var onRetry: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: VibeSpacing.md) {
             Image(systemName: "video.slash")
                 .font(.system(size: 48))
                 .foregroundColor(.gray)
 
             Text("Video Unavailable")
-                .font(.headline)
+                .font(VibeTypography.titleMedium)
                 .foregroundColor(.white)
 
             Text("This video couldn't be played")
-                .font(.subheadline)
+                .font(VibeTypography.bodySmall)
                 .foregroundColor(.gray)
 
             if let onRetry = onRetry {
-                Button(action: onRetry) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    onRetry()
+                }) {
                     HStack {
                         Image(systemName: "arrow.clockwise")
                         Text("Retry")
                     }
-                    .font(.subheadline)
+                    .font(VibeTypography.titleSmall)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, VibeSpacing.lg)
+                    .padding(.vertical, VibeSpacing.xs)
                     .background(Color.white.opacity(0.2))
-                    .cornerRadius(8)
+                    .continuousCorner(VibeTheme.radiusSmall)
                 }
+                .buttonStyle(VibePressStyle())
             }
         }
     }
@@ -477,24 +458,27 @@ struct ImageLoadErrorView: View {
             ZStack {
                 Color.gray.opacity(0.3)
                 Image(systemName: "photo")
-                    .font(.title)
+                    .font(.system(size: 28))
                     .foregroundColor(.gray)
             }
         } else {
-            VStack(spacing: 12) {
+            VStack(spacing: VibeSpacing.sm) {
                 Image(systemName: "photo")
                     .font(.system(size: 40))
                     .foregroundColor(.gray)
 
                 Text("Image couldn't be loaded")
-                    .font(.subheadline)
+                    .font(VibeTypography.bodySmall)
                     .foregroundColor(.gray)
 
                 if let onRetry = onRetry {
-                    Button(action: onRetry) {
+                    Button(action: {
+                        VibeHaptic.light()
+                        onRetry()
+                    }) {
                         Text("Tap to retry")
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.accent)
                     }
                 }
             }

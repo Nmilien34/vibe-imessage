@@ -18,6 +18,7 @@ import vibeWireRoutes from './routes/vibewire';
 import userRoutes from './routes/user';
 import betRoutes from './routes/bet';
 import auraRoutes from './routes/aura';
+import teaRoutes from './routes/tea';
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use('/api/vibewire', vibeWireRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/bets', betRoutes);
 app.use('/api/aura', auraRoutes);
+app.use('/api/tea', teaRoutes);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

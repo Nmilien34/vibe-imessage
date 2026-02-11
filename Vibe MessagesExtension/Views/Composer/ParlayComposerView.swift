@@ -13,12 +13,6 @@ struct ParlayComposerView: View {
 
     let isLocked: Bool
 
-    // Theme Colors
-    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
-    let vibezPurple = Color(red: 0.6, green: 0.2, blue: 1.0)
-    let bgOffWhite = Color(red: 0.96, green: 0.96, blue: 0.97)
-
-    // State
     @State private var betTitle = ""
     @State private var selectedAmountIndex = 2
     @State private var showCustomAmountSheet = false
@@ -29,7 +23,6 @@ struct ParlayComposerView: View {
 
     let amounts = ["$5", "$10", "$20", "$30", "$50", "$100", "Other..."]
     let quickBets = ["Sports Game", "Weather tmrw", "Finish pizza", "FIFA match", "Who pays dinner"]
-    let friends = ["Mike", "Sarah", "Jess", "Davon", "Alex"]
 
     var finalDisplayAmount: String {
         if amounts[selectedAmountIndex] == "Other..." {
@@ -41,209 +34,205 @@ struct ParlayComposerView: View {
 
     var body: some View {
         ZStack {
-            bgOffWhite.ignoresSafeArea()
+            VibeTheme.groupedBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Header
                 HStack {
                     Button {
+                        VibeHaptic.light()
                         appState.dismissComposer()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(10)
-                            .background(Color.white)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(VibeTheme.textPrimary)
+                            .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                            .background(.ultraThinMaterial)
                             .clipShape(Circle())
                     }
 
                     Spacer()
 
                     Text("New Parlay")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(VibeTypography.titleLarge)
+                        .foregroundColor(VibeTheme.textPrimary)
 
                     Spacer()
 
-                    Text("💸")
-                        .font(.title2)
-                        .padding(10)
+                    // Aura cost indicator
+                    HStack(spacing: VibeSpacing.xxs) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(red: 1.0, green: 0.84, blue: 0.0))
+                        Text("\(appState.auraBalance)")
+                            .font(VibeTypography.captionLarge)
+                    }
+                    .padding(.horizontal, VibeSpacing.sm)
+                    .padding(.vertical, VibeSpacing.xs)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 20)
-                .padding(.bottom, 12)
-                .background(bgOffWhite)
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
+                .padding(.top, VibeSpacing.lg)
+                .padding(.bottom, VibeSpacing.sm)
 
                 ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
+                    VStack(spacing: VibeSpacing.xl) {
 
-                    // MARK: 1. The Bet Input
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("WHAT'S THE PARLAY?")
-                            .font(.caption).bold().foregroundColor(.gray)
+                        // MARK: 1. The Bet Input
+                        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                            Text("WHAT'S THE PARLAY?")
+                                .vibeSectionHeader()
 
-                        TextField("E.g., I bet I can beat you in 1v1...", text: $betTitle)
-                            .padding()
-                            .background(Color.white)
-                            .cornerRadius(20)
-                            .font(.system(size: 16, weight: .medium, design: .rounded))
+                            TextField("E.g., I bet I can beat you in 1v1...", text: $betTitle)
+                                .font(VibeTypography.bodyLarge)
+                                .padding(VibeSpacing.md)
+                                .background(.ultraThinMaterial)
+                                .continuousCorner(VibeTheme.radiusLarge)
 
-                        // Quick Bet Chips
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 10) {
-                                ForEach(quickBets, id: \.self) { bet in
-                                    Button {
-                                        betTitle = bet
-                                        selectedQuickBet = bet
-                                    } label: {
-                                        Text(bet)
-                                            .font(.system(size: 12, weight: .bold))
-                                            .padding(.horizontal, 16)
-                                            .padding(.vertical, 10)
-                                            .background(Color.white)
-                                            .foregroundColor(selectedQuickBet == bet ? vibezPink : .black.opacity(0.7))
-                                            .cornerRadius(30)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 30)
-                                                    .stroke(selectedQuickBet == bet ? vibezPink.opacity(0.3) : Color.clear, lineWidth: 1)
-                                            )
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: VibeSpacing.sm) {
+                                    ForEach(quickBets, id: \.self) { bet in
+                                        Button {
+                                            VibeHaptic.selection()
+                                            betTitle = bet
+                                            selectedQuickBet = bet
+                                        } label: {
+                                            Text(bet)
+                                                .font(VibeTypography.captionLarge)
+                                                .padding(.horizontal, VibeSpacing.md)
+                                                .padding(.vertical, VibeSpacing.sm)
+                                                .background(.ultraThinMaterial)
+                                                .foregroundColor(selectedQuickBet == bet ? VibeTheme.accent : VibeTheme.textPrimary)
+                                                .continuousCorner(VibeTheme.radiusXL)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: VibeTheme.radiusXL, style: .continuous)
+                                                        .stroke(selectedQuickBet == bet ? VibeTheme.accent.opacity(0.3) : Color.clear, lineWidth: 1)
+                                                )
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
-                    .padding(.horizontal)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
 
-                    // MARK: 2. The Wager Roller
-                    VStack(spacing: 12) {
-                        Text("THE WAGER")
-                            .font(.caption).bold().foregroundColor(.gray)
+                        // MARK: 2. The Wager Roller
+                        VStack(spacing: VibeSpacing.sm) {
+                            Text("THE WAGER")
+                                .vibeSectionHeader()
+                                .padding(.horizontal, VibeSpacing.screenHorizontal)
 
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 24)
-                                .fill(Color.white)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
+                                    .fill(.ultraThinMaterial)
+                                    .frame(height: 180)
+                                    .vibeShadow(.sm)
+
+                                RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                                    .fill(VibeTheme.accent.opacity(0.1))
+                                    .frame(height: 40)
+                                    .padding(.horizontal, VibeSpacing.md)
+
+                                Picker("Amount", selection: $selectedAmountIndex) {
+                                    ForEach(0..<amounts.count, id: \.self) { index in
+                                        Text(amounts[index])
+                                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                                            .foregroundColor(index == selectedAmountIndex ? VibeTheme.accent : VibeTheme.textPrimary)
+                                            .tag(index)
+                                    }
+                                }
+                                .pickerStyle(.wheel)
                                 .frame(height: 180)
-                                .shadow(color: Color.black.opacity(0.05), radius: 10, y: 5)
-
-                            // Highlight bar
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(
-                                    LinearGradient(
-                                        colors: [vibezPink.opacity(0.15), vibezPurple.opacity(0.15)],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .frame(height: 40)
-                                .padding(.horizontal)
-
-                            Picker("Amount", selection: $selectedAmountIndex) {
-                                ForEach(0..<amounts.count, id: \.self) { index in
-                                    Text(amounts[index])
-                                        .font(.system(size: 22, weight: .heavy, design: .rounded))
-                                        .foregroundColor(index == selectedAmountIndex ? vibezPink : .black)
-                                        .tag(index)
+                                .onChange(of: selectedAmountIndex) { _, newValue in
+                                    VibeHaptic.selection()
+                                    if amounts[newValue] == "Other..." {
+                                        showCustomAmountSheet = true
+                                    }
                                 }
                             }
-                            .pickerStyle(.wheel)
-                            .frame(height: 180)
-                            .onChange(of: selectedAmountIndex) { _, newValue in
-                                if amounts[newValue] == "Other..." {
-                                    showCustomAmountSheet = true
-                                }
-                            }
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
                         }
-                    }
-                    .padding(.horizontal)
 
-                    // MARK: 3. Pick Opponent
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("VS WHO?")
-                            .font(.caption).bold().foregroundColor(.gray)
+                        // MARK: 3. Pick Opponent
+                        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                            Text("VS WHO?")
+                                .vibeSectionHeader()
 
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(friends, id: \.self) { friend in
-                                    VStack {
-                                        ZStack {
-                                            if selectedFriend == friend {
-                                                Circle()
-                                                    .fill(
-                                                        LinearGradient(
-                                                            colors: [vibezPink, vibezPurple],
-                                                            startPoint: .topLeading,
-                                                            endPoint: .bottomTrailing
-                                                        )
-                                                    )
-                                                    .frame(width: 60, height: 60)
-                                            } else {
-                                                Circle()
-                                                    .fill(Color.gray.opacity(0.1))
-                                                    .frame(width: 60, height: 60)
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: VibeSpacing.md) {
+                                    let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false, includeTeam: true)
+                                    let friendNames = groupedVibes.compactMap { $0.first }.map { appState.nameForUser($0.userId) }
+                                    let displayNames = friendNames.isEmpty ? ["Anyone"] : friendNames
+
+                                    ForEach(displayNames, id: \.self) { friend in
+                                        VStack(spacing: VibeSpacing.xs) {
+                                            ZStack {
+                                                if selectedFriend == friend {
+                                                    Circle()
+                                                        .fill(VibeTheme.brandGradient)
+                                                        .frame(width: 60, height: 60)
+                                                } else {
+                                                    Circle()
+                                                        .fill(.ultraThinMaterial)
+                                                        .frame(width: 60, height: 60)
+                                                }
+
+                                                Text(String(friend.prefix(1)))
+                                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                                                    .foregroundColor(selectedFriend == friend ? .white : VibeTheme.textSecondary)
                                             }
-
-                                            Text(String(friend.prefix(1)))
-                                                .font(.system(size: 24, weight: .bold))
-                                                .foregroundColor(selectedFriend == friend ? .white : .gray)
+                                            Text(friend)
+                                                .font(VibeTypography.captionSmall)
+                                                .foregroundColor(selectedFriend == friend ? VibeTheme.accent : VibeTheme.textPrimary)
                                         }
-                                        Text(friend)
-                                            .font(.caption)
-                                            .bold()
-                                            .foregroundColor(selectedFriend == friend ? vibezPink : .primary)
-                                    }
-                                    .onTapGesture {
-                                        withAnimation(.spring()) {
-                                            selectedFriend = friend
+                                        .onTapGesture {
+                                            VibeHaptic.selection()
+                                            withAnimation(VibeAnimation.bouncy) {
+                                                selectedFriend = friend
+                                            }
                                         }
                                     }
                                 }
-                            }
-                            .padding(.horizontal, 4)
-                        }
-                    }
-                    .padding(.horizontal)
-
-                    Spacer(minLength: 20)
-
-                    // MARK: 4. Send Button
-                    Button {
-                        Task {
-                            await sendParlay()
-                        }
-                    } label: {
-                        HStack {
-                            if isSending {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Send Parlay")
-                                Spacer()
-                                Text(finalDisplayAmount)
+                                .padding(.horizontal, VibeSpacing.xxs)
                             }
                         }
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(20)
-                        .background(
-                            LinearGradient(
-                                colors: [vibezPink, vibezPurple],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(24)
-                        .shadow(color: vibezPink.opacity(0.3), radius: 10, x: 0, y: 5)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+
+                        Spacer(minLength: VibeSpacing.lg)
+
+                        // MARK: 4. Send Button
+                        Button {
+                            VibeHaptic.success()
+                            Task { await sendParlay() }
+                        } label: {
+                            HStack {
+                                if isSending {
+                                    ProgressView().tint(.white)
+                                } else {
+                                    Text("Send Parlay")
+                                    Spacer()
+                                    Text(finalDisplayAmount)
+                                }
+                            }
+                            .font(VibeTypography.titleMedium)
+                            .foregroundColor(.white)
+                            .padding(VibeSpacing.lg)
+                            .background(VibeTheme.brandGradient)
+                            .continuousCorner(VibeTheme.radiusLarge)
+                            .vibeShadow(.lg)
+                        }
+                        .buttonStyle(VibePressStyle())
+                        .disabled(betTitle.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
+                        .opacity(betTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+                        .padding(.bottom, VibeSpacing.xxl)
                     }
-                    .disabled(betTitle.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
-                    .opacity(betTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
-                    .padding(.horizontal)
-                    .padding(.bottom, 30)
+                    .padding(.top, VibeSpacing.xs)
                 }
-                .padding(.top, 8)
-            }
             }
         }
         .sheet(isPresented: $showCustomAmountSheet) {
-            CustomAmountSheet(amount: $customAmount, vibezPink: vibezPink, vibezPurple: vibezPurple)
+            CustomAmountSheet(amount: $customAmount)
                 .presentationDetents([.medium])
         }
         .onAppear {
@@ -254,7 +243,6 @@ struct ParlayComposerView: View {
     private func sendParlay() async {
         let title = betTitle.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty else { return }
-
         isSending = true
 
         do {
@@ -295,48 +283,36 @@ struct ParlayComposerView: View {
 struct CustomAmountSheet: View {
     @Binding var amount: String
     @Environment(\.dismiss) var dismiss
-    let vibezPink: Color
-    let vibezPurple: Color
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: VibeSpacing.lg) {
             Text("Enter Amount")
-                .font(.headline)
-                .padding(.top, 20)
+                .font(VibeTypography.titleMedium)
+                .padding(.top, VibeSpacing.lg)
 
             HStack {
                 Text("$")
-                    .font(.title)
-                    .bold()
-                    .foregroundColor(.gray)
+                    .font(VibeTypography.displayLarge)
+                    .foregroundColor(VibeTheme.textSecondary)
                 TextField("0", text: $amount)
                     .keyboardType(.decimalPad)
                     .font(.system(size: 40, weight: .heavy, design: .rounded))
-                    .foregroundColor(vibezPink)
+                    .foregroundColor(VibeTheme.accent)
             }
-            .padding()
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(20)
-            .padding(.horizontal)
+            .padding(VibeSpacing.md)
+            .background(.ultraThinMaterial)
+            .continuousCorner(VibeTheme.radiusLarge)
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
 
             Button {
+                VibeHaptic.light()
                 dismiss()
             } label: {
                 Text("Done")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        LinearGradient(
-                            colors: [vibezPink, vibezPurple],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(20)
+                    .vibeButton(.primary)
             }
-            .padding(.horizontal)
+            .buttonStyle(VibePressStyle())
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
 
             Spacer()
         }

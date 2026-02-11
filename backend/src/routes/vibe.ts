@@ -3,6 +3,7 @@ import multer from 'multer';
 import Vibe, { FEED_EXPIRATION_DAYS, HISTORY_RETENTION_DAYS } from '../models/Vibe';
 import { uploadToS3 } from '../utils/s3Upload';
 import { IVibe } from '../types';
+import { authMiddleware } from '../middleware/auth';
 
 const router: Router = express.Router();
 
@@ -36,7 +37,7 @@ interface ChatParams {
  * @route   POST /api/vibe/upload
  * @desc    Upload a video vibe (Multipart)
  */
-router.post('/upload', upload.single('video'), async (req: Request<{}, {}, UploadRequestBody>, res: Response) => {
+router.post('/upload', authMiddleware, upload.single('video'), async (req: Request<{}, {}, UploadRequestBody>, res: Response) => {
   try {
     const { userId, chatId, isLocked } = req.body;
     const file = req.file;
@@ -107,7 +108,7 @@ router.get('/:videoId', async (req: Request<VideoParams>, res: Response) => {
  * @route   POST /api/vibe/:videoId/unlock
  * @desc    Marks story as unlocked for a user
  */
-router.post('/:videoId/unlock', async (req: Request<VideoParams, {}, UnlockRequest>, res: Response) => {
+router.post('/:videoId/unlock', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { videoId } = req.params;
     const { userId } = req.body;

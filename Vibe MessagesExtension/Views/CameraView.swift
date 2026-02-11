@@ -13,21 +13,21 @@ struct CameraView: View {
     @StateObject private var model = CameraViewModel()
     @Environment(\.openURL) var openURL
     @Environment(\.dismiss) var dismiss
-    
+
     // Callback for when a video is recorded
     var onFinish: ((Data?, UIImage?) -> Void)?
-    
+
     // Internal state to track if we've handled the recording completion
     @State private var hasFinished = false
-    
+
     init(onFinish: ((Data?, UIImage?) -> Void)? = nil) {
         self.onFinish = onFinish
     }
-    
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
+
             if model.session != nil || model.isSimulator {
                 // Preview Layer
                 if let session = model.session {
@@ -42,41 +42,48 @@ struct CameraView: View {
                             .foregroundColor(.white)
                     }
                 }
-                
+
                 // Top Bar
                 VStack {
                     HStack {
                         Button {
+                            VibeHaptic.light()
                             dismiss()
                         } label: {
                             Image(systemName: "xmark")
-                                .font(.title)
+                                .font(.system(size: 22, weight: .semibold))
                                 .foregroundColor(.white)
-                                .padding()
-                        }
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                
-                // Controls Overlay
-                VStack {
-                    Spacer()
-                    
-                    HStack(spacing: 40) {
-                        Button {
-                            model.flipCamera()
-                        } label: {
-                            Image(systemName: "arrow.triangle.2.circlepath.camera")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .padding()
+                                .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                                 .background(.ultraThinMaterial)
                                 .clipShape(Circle())
                         }
-                        
+                        Spacer()
+                    }
+                    .padding(.horizontal, VibeSpacing.lg)
+                    .padding(.top, VibeSpacing.md)
+                    Spacer()
+                }
+
+                // Controls Overlay
+                VStack {
+                    Spacer()
+
+                    HStack(spacing: 40) {
+                        Button {
+                            VibeHaptic.medium()
+                            model.flipCamera()
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath.camera")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+
                         // Recording Button
                         Button {
+                            VibeHaptic.medium()
                             if model.isRecording {
                                 model.stopRecording()
                             } else {
@@ -87,28 +94,28 @@ struct CameraView: View {
                                 Circle()
                                     .stroke(Color.white, lineWidth: 4)
                                     .frame(width: 80, height: 80)
-                                
+
                                 Rectangle()
                                     .fill(Color.red)
                                     .frame(width: model.isRecording ? 30 : 70, height: model.isRecording ? 30 : 70)
                                     .cornerRadius(model.isRecording ? 4 : 35)
-                                    .animation(.easeInOut, value: model.isRecording)
+                                    .animation(VibeAnimation.snappy, value: model.isRecording)
                             }
                         }
-                        
+
                         // Timer / Duration
                         if model.isRecording {
                             Text(String(format: "%.1f", model.recordingTime))
-                                .font(.headline)
+                                .font(VibeTypography.titleSmall)
                                 .foregroundColor(.white)
+                                .contentTransition(.numericText())
                                 .frame(width: 50)
                         } else {
-                            // Placeholder for balance
                             Spacer()
                                 .frame(width: 50)
                         }
                     }
-                    .padding(.bottom, 30)
+                    .padding(.bottom, VibeSpacing.xxxl)
                 }
             } else {
                 if model.isUnauthorized {
@@ -120,9 +127,9 @@ struct CameraView: View {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         Text("Starting camera...")
-                            .font(.caption)
+                            .font(VibeTypography.captionLarge)
                             .foregroundColor(.white.opacity(0.7))
-                            .padding(.top, 8)
+                            .padding(.top, VibeSpacing.sm)
                     }
                 }
             }
@@ -136,53 +143,49 @@ struct CameraView: View {
         .onChange(of: model.recordedVideo) { _, newVideo in
             guard let video = newVideo, !hasFinished else { return }
             hasFinished = true
-            
+
             // Generate thumbnail and data
             Task {
                 let videoData = try? Data(contentsOf: video.url)
                 var thumbnail = await generateThumbnail(for: video.url)
-                
+
                 // Simulator fallback: if thumbnail generation fails, use a placeholder
                 if thumbnail == nil {
-                    // Create a simple colored placeholder image
                     let size = CGSize(width: 300, height: 400)
                     let renderer = UIGraphicsImageRenderer(size: size)
                     thumbnail = renderer.image { context in
-                        // Gradient background
                         let colors = [UIColor.systemPink.cgColor, UIColor.systemPurple.cgColor]
                         let colorSpace = CGColorSpaceCreateDeviceRGB()
                         let gradient = CGGradient(colorsSpace: colorSpace, colors: colors as CFArray, locations: [0.0, 1.0])!
-                        context.cgContext.drawLinearGradient(gradient, 
-                                                            start: CGPoint(x: 0, y: 0), 
-                                                            end: CGPoint(x: size.width, y: size.height), 
+                        context.cgContext.drawLinearGradient(gradient,
+                                                            start: CGPoint(x: 0, y: 0),
+                                                            end: CGPoint(x: size.width, y: size.height),
                                                             options: [])
-                        
-                        // Draw "SIMULATOR" text
-                        let text = "🎬 Test Vibe"
+
+                        let text = "Test Vibe"
                         let font = UIFont.boldSystemFont(ofSize: 24)
                         let textAttributes: [NSAttributedString.Key: Any] = [
                             .font: font,
                             .foregroundColor: UIColor.white
                         ]
                         let textSize = text.size(withAttributes: textAttributes)
-                        let textPoint = CGPoint(x: (size.width - textSize.width) / 2, 
+                        let textPoint = CGPoint(x: (size.width - textSize.width) / 2,
                                                y: (size.height - textSize.height) / 2)
                         text.draw(at: textPoint, withAttributes: textAttributes)
                     }
                 }
-                
-                // If no video data (simulator), just pass nil - the flow will still work
+
                 onFinish?(videoData, thumbnail)
                 dismiss()
             }
         }
     }
-    
+
     private func generateThumbnail(for url: URL) async -> UIImage? {
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
         generator.appliesPreferredTrackTransform = true
-        
+
         do {
             let (cgImage, _) = try await generator.image(at: .zero)
             return UIImage(cgImage: cgImage)

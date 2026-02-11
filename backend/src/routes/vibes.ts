@@ -4,6 +4,7 @@ import Streak from '../models/Streak';
 import User from '../models/User';
 import Chat from '../models/Chat';
 import { VibeType, IVibe, ISongData, IMood, IParlay } from '../types';
+import { authMiddleware } from '../middleware/auth';
 
 const router: Router = express.Router();
 
@@ -179,7 +180,7 @@ router.get('/:conversationId/history', async (req: Request<VibeQueryParams>, res
  * @route   POST /api/vibes
  * @desc    Create a new vibe
  */
-router.post('/', async (req: Request<{}, {}, CreateVibeRequest>, res: Response) => {
+router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>, res: Response) => {
   try {
     const {
       userId,
@@ -264,7 +265,7 @@ router.post('/', async (req: Request<{}, {}, CreateVibeRequest>, res: Response) 
  * @route   POST /api/vibes/:vibeId/react
  * @desc    Add reaction to a vibe
  */
-router.post('/:vibeId/react', async (req: Request<{ vibeId: string }, {}, ReactRequest>, res: Response) => {
+router.post('/:vibeId/react', authMiddleware, async (req: Request<{ vibeId: string }, {}, ReactRequest>, res: Response) => {
   try {
     const { vibeId } = req.params;
     const { userId, emoji } = req.body;
@@ -289,7 +290,7 @@ router.post('/:vibeId/react', async (req: Request<{ vibeId: string }, {}, ReactR
  * @route   POST /api/vibes/:vibeId/view
  * @desc    Mark vibe as viewed
  */
-router.post('/:vibeId/view', async (req: Request<{ vibeId: string }, {}, ViewRequest>, res: Response) => {
+router.post('/:vibeId/view', authMiddleware, async (req: Request<{ vibeId: string }, {}, ViewRequest>, res: Response) => {
   try {
     const { vibeId } = req.params;
     const { userId } = req.body;
@@ -309,7 +310,7 @@ router.post('/:vibeId/view', async (req: Request<{ vibeId: string }, {}, ViewReq
  * @route   POST /api/vibes/:vibeId/vote
  * @desc    Vote on a poll
  */
-router.post('/:vibeId/vote', async (req: Request<{ vibeId: string }, {}, VoteRequest>, res: Response) => {
+router.post('/:vibeId/vote', authMiddleware, async (req: Request<{ vibeId: string }, {}, VoteRequest>, res: Response) => {
   try {
     const { vibeId } = req.params;
     const { userId, optionIndex } = req.body;
@@ -359,7 +360,7 @@ router.get('/:conversationId/streak', async (req: Request<{ conversationId: stri
  * @route   POST /api/vibes/:vibeId/parlay/respond
  * @desc    Accept or decline a parlay bet
  */
-router.post('/:vibeId/parlay/respond', async (req: Request<{ vibeId: string }>, res: Response) => {
+router.post('/:vibeId/parlay/respond', authMiddleware, async (req: Request<{ vibeId: string }>, res: Response) => {
   try {
     const { vibeId } = req.params;
     const { userId, status } = req.body;

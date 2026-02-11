@@ -14,71 +14,66 @@ struct LockedBubbleView: View {
     var body: some View {
         ZStack {
             // Blurred gradient background
-            LinearGradient(
-                colors: [
-                    Color(red: 0.2, green: 0, blue: 0.6), // Purple
-                    Color(red: 0, green: 0.2, blue: 0.8), // Blue
-                    Color(red: 0.8, green: 0.3, blue: 0)  // Orange hints
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .blur(radius: 10)
-            .overlay(
-                Color.black.opacity(0.3)
-            )
+            VibeTheme.brandGradient
+                .blur(radius: 10)
+                .overlay(
+                    Color.black.opacity(0.3)
+                )
 
-            VStack(spacing: 16) {
+            VStack(spacing: VibeSpacing.lg) {
                 // Profile Picture (Placeholder)
                 Circle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(Color.white.opacity(0.15))
                     .frame(width: 40, height: 40)
                     .overlay(
                         Image(systemName: "person.fill")
                             .foregroundColor(.white)
                     )
-                    .shadow(radius: 4)
+                    .vibeShadow(.sm)
 
                 // Lock Icon
                 Image(systemName: "lock.fill")
                     .font(.system(size: 48))
                     .foregroundColor(.white)
-                    .shadow(color: .purple, radius: 10)
+                    .shadow(color: VibeTheme.accent, radius: 10)
+                    .symbolEffect(.pulse)
 
-                VStack(spacing: 8) {
-                    Text("Tap to Unveil 🔒")
-                        .font(.headline)
-                        .fontWeight(.bold)
+                VStack(spacing: VibeSpacing.sm) {
+                    Text("Tap to Unveil")
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
 
                     Text("Unlock \(senderName)'s update by posting your own.")
-                        .font(.caption)
+                        .font(VibeTypography.captionLarge)
                         .multilineTextAlignment(.center)
                         .foregroundColor(.white.opacity(0.9))
                         .padding(.horizontal)
                 }
-                
+
                 Spacer()
 
                 // Bottom hint
-                Button(action: onUnlock) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    onUnlock()
+                }) {
                     Text("Tap to participate")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
+                        .font(VibeTypography.captionSmall)
                         .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.white.opacity(0.2))
+                        .padding(.horizontal, VibeSpacing.lg)
+                        .padding(.vertical, VibeSpacing.sm)
+                        .background(.ultraThinMaterial)
                         .clipShape(Capsule())
                 }
-                .padding(.bottom, 12)
+                .buttonStyle(VibePressStyle())
+                .padding(.bottom, VibeSpacing.md)
             }
-            .padding(.top, 24)
+            .padding(.top, VibeSpacing.xxl)
         }
         .frame(width: 250, height: 350)
-        .cornerRadius(24)
+        .continuousCorner(VibeTheme.radiusLarge)
         .overlay(
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
     }

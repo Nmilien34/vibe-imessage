@@ -29,12 +29,10 @@ struct VibeViewerView: View {
                 Color.black.ignoresSafeArea()
 
                 if isInitialLoading {
-                    // Skeleton loading state
                     ViewerSkeletonView()
                 } else if appState.viewerVibes.isEmpty {
                     emptyState
                 } else {
-                    // Main content
                     ZStack {
                         TabView(selection: $currentIndex) {
                             ForEach(Array(appState.viewerVibes.enumerated()), id: \.element.id) { index, vibe in
@@ -45,34 +43,24 @@ struct VibeViewerView: View {
                         .tabViewStyle(.page(indexDisplayMode: .never))
                         .onChange(of: currentIndex) { oldIndex, newIndex in
                             markAsViewed(at: newIndex)
-
-                            // Restart timer for new vibe
                             startTimer()
 
-                            // Haptic on user change
                             if oldIndex < appState.viewerVibes.count && newIndex < appState.viewerVibes.count {
                                 if appState.viewerVibes[oldIndex].userId != appState.viewerVibes[newIndex].userId {
-                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                    generator.impactOccurred()
+                                    VibeHaptic.medium()
                                 }
                             }
                         }
 
                         // Tap Navigation Overlay
                         HStack(spacing: 0) {
-                            // Left side (Previous)
                             Color.clear
                                 .contentShape(Rectangle())
-                                .onTapGesture {
-                                    goToPrevious()
-                                }
+                                .onTapGesture { goToPrevious() }
 
-                            // Right side (Next)
                             Color.clear
                                 .contentShape(Rectangle())
-                                .onTapGesture {
-                                    goToNext()
-                                }
+                                .onTapGesture { goToNext() }
                         }
                     }
 
@@ -89,12 +77,10 @@ struct VibeViewerView: View {
             currentIndex = startIndex
             markAsViewed(at: startIndex)
             appState.requestExpand()
-            // Brief delay to ensure content is ready, then hide skeleton
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(VibeAnimation.snappy) {
                     isInitialLoading = false
                 }
-                // Start auto-advance timer after loading
                 startTimer()
             }
         }
@@ -102,25 +88,22 @@ struct VibeViewerView: View {
             stopTimer()
         }
     }
-    
+
     private func goToNext() {
         if currentIndex < appState.viewerVibes.count - 1 {
-            withAnimation {
+            withAnimation(VibeAnimation.snappy) {
                 currentIndex += 1
             }
         } else {
-            // End of all vibes, close viewer
             appState.navigateToFeed()
         }
     }
-    
+
     private func goToPrevious() {
         if currentIndex > 0 {
-            withAnimation {
+            withAnimation(VibeAnimation.snappy) {
                 currentIndex -= 1
             }
-        } else {
-            // At start, maybe just stay or close? Instagram stays.
         }
     }
 
@@ -133,16 +116,13 @@ struct VibeViewerView: View {
         guard currentIndex < appState.viewerVibes.count else { return }
         let vibe = appState.viewerVibes[currentIndex]
 
-        // Determine duration based on vibe type
         let duration: Double = vibe.type == .photo ? 5.0 : 10.0
-        let interval = 0.05 // Update every 50ms for smooth animation
+        let interval = 0.05
 
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
             progress += (interval / duration)
-
             if progress >= 1.0 {
                 stopTimer()
-                // Auto-advance to next vibe
                 goToNext()
             }
         }
@@ -155,25 +135,22 @@ struct VibeViewerView: View {
 
     private func progressWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
         if index < currentIndex {
-            // Already viewed - full width
             return totalWidth
         } else if index == currentIndex {
-            // Currently viewing - animated progress
             return totalWidth * progress
         } else {
-            // Not yet viewed - empty
             return 0
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: VibeSpacing.lg) {
             Image(systemName: "sparkles")
                 .font(.system(size: 50))
-                .foregroundColor(.gray)
+                .foregroundColor(VibeTheme.textTertiary)
             Text("No vibes to show")
-                .font(.headline)
-                .foregroundColor(.gray)
+                .font(VibeTypography.titleMedium)
+                .foregroundColor(VibeTheme.textSecondary)
         }
     }
 
@@ -215,31 +192,30 @@ struct VibeViewerView: View {
                         }
                     }
                     .transition(.opacity)
-                    
-                    // Text Overlay (Instagram Style)
+
+                    // Text Overlay
                     if let text = vibe.textStatus, !text.isEmpty {
                         VStack {
                             Spacer()
                             Text(text)
-                                .font(.system(.title2, design: .rounded))
-                                .fontWeight(.bold)
+                                .font(VibeTypography.titleLarge)
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
+                                .padding(.horizontal, VibeSpacing.lg)
+                                .padding(.vertical, VibeSpacing.sm)
                                 .background(.ultraThinMaterial)
-                                .cornerRadius(12)
-                                .shadow(radius: 4)
+                                .continuousCorner(VibeTheme.radiusMedium)
+                                .vibeShadow(.sm)
                             Spacer()
                         }
                         .padding(.bottom, 100)
                     }
                 }
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: vibe.isUnlocked(for: appState.userId))
+                .animation(VibeAnimation.smooth, value: vibe.isUnlocked(for: appState.userId))
             }
         }
-        .scaleEffect(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.95)
+        .scaleEffect(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.92)
         .opacity(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.7)
-        .animation(.interactiveSpring(), value: currentIndex)
+        .animation(VibeAnimation.snappy, value: currentIndex)
         .onAppear {
             if let song = vibe.songData, let previewUrl = song.previewUrl, let url = URL(string: previewUrl) {
                 musicPlayer = AVPlayer(url: url)
@@ -253,21 +229,19 @@ struct VibeViewerView: View {
     }
 
     private var topBar: some View {
-        VStack(spacing: 12) {
-            // 1. Progress indicators (Full width at the very top) - Instagram style
+        VStack(spacing: VibeSpacing.sm) {
+            // Progress indicators
             if !appState.viewerVibes.isEmpty {
-                HStack(spacing: 4) {
+                HStack(spacing: VibeSpacing.xxxs) {
                     ForEach(0..<appState.viewerVibes.count, id: \.self) { index in
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
-                                // Background
                                 Capsule()
                                     .fill(Color.white.opacity(0.3))
-
-                                // Progress fill
                                 Capsule()
                                     .fill(Color.white)
                                     .frame(width: progressWidth(for: index, totalWidth: geo.size.width))
+                                    .animation(.linear(duration: 0.05), value: progress)
                             }
                         }
                         .frame(height: 3)
@@ -275,93 +249,94 @@ struct VibeViewerView: View {
                 }
             }
 
-            // 2. User Info & Close Button
-            HStack(spacing: 12) {
+            // User Info & Close Button
+            HStack(spacing: VibeSpacing.sm) {
                 if currentIndex < appState.viewerVibes.count {
                     let vibe = appState.viewerVibes[currentIndex]
-                    
-                    // Profile Bubble (Simplified Avatar)
+
+                    // Profile Bubble
                     Circle()
                         .fill(vibe.type.color.opacity(0.3))
                         .frame(width: 36, height: 36)
                         .overlay {
-                            Text(String(nameForUser(vibe.userId).prefix(1)))
-                                .font(.system(size: 16, weight: .bold))
+                            Text(String(appState.nameForUser(vibe.userId).prefix(1)))
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                         }
-                    
+
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(nameForUser(vibe.userId))
-                            .font(.system(size: 14, weight: .bold))
+                        Text(appState.nameForUser(vibe.userId))
+                            .font(VibeTypography.titleSmall)
                             .foregroundColor(.white)
-                        
+
                         Text(timeAgo(from: vibe.createdAt))
-                            .font(.system(size: 11))
+                            .font(VibeTypography.captionSmall)
                             .foregroundColor(.white.opacity(0.7))
                     }
                 }
 
                 Spacer()
 
-                // Streak (Task 9.2) - 🔥 count
+                // Streak badge
                 if let streak = appState.streak, streak.currentStreak > 0 {
-                    HStack(spacing: 2) {
+                    HStack(spacing: VibeSpacing.xxxs) {
                         Text("🔥")
                             .font(.system(size: 16))
                         Text("\(streak.currentStreak)")
-                            .font(.system(size: 16, weight: .black, design: .rounded))
+                            .font(VibeTypography.numericLarge)
                             .foregroundColor(.white)
+                            .contentTransition(.numericText())
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, VibeSpacing.sm)
+                    .padding(.vertical, VibeSpacing.xs)
                     .background(Color.orange.opacity(0.8))
                     .clipShape(Capsule())
                     .scaleEffect(streakScale)
                     .onAppear {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.4, blendDuration: 0)) {
+                        withAnimation(VibeAnimation.bouncy) {
                             streakScale = 1.2
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation {
+                            withAnimation(VibeAnimation.smooth) {
                                 streakScale = 1.0
                             }
                         }
                     }
                     .onChange(of: streak.currentStreak) { _, _ in
-                        // Animate on increase
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.4, blendDuration: 0)) {
+                        withAnimation(VibeAnimation.bouncy) {
                             streakScale = 1.4
                         }
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation {
+                            withAnimation(VibeAnimation.smooth) {
                                 streakScale = 1.0
                             }
                         }
                     }
                 }
 
-                // Timer (Now part of the user row)
+                // Timer
                 if currentIndex < appState.viewerVibes.count {
                     CountdownTimer(expiresAt: appState.viewerVibes[currentIndex].expiresAt)
                         .scaleEffect(0.8)
                 }
 
-                // Close button (Moved to right)
+                // Close button
                 Button {
+                    VibeHaptic.light()
                     appState.navigateToFeed()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(width: 28, height: 28)
-                        .background(Color.white.opacity(0.15))
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                        .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
+        .padding(.horizontal, VibeSpacing.md)
+        .padding(.top, VibeSpacing.lg)
+        .padding(.bottom, VibeSpacing.sm)
         .background(
             LinearGradient(
                 colors: [.black.opacity(0.6), .clear],
@@ -373,16 +348,6 @@ struct VibeViewerView: View {
         )
     }
 
-    private func nameForUser(_ id: String) -> String {
-        if id == appState.userId { return "You" }
-        if id.contains("friend_1") { return "Sarah" }
-        if id.contains("friend_2") { return "Mike" }
-        if id.contains("friend_3") { return "Alex" }
-        if id.contains("friend_4") { return "Sam" }
-        if id.contains("friend_5") { return "Jordan" }
-        return "Friend"
-    }
-
     private func timeAgo(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
@@ -390,28 +355,27 @@ struct VibeViewerView: View {
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 16) {
-            // Reactions
+        VStack(spacing: VibeSpacing.lg) {
             if currentIndex < appState.viewerVibes.count {
                 let vibe = appState.viewerVibes[currentIndex]
 
-                // Show existing reactions
+                // Existing reactions
                 if !vibe.reactions.isEmpty {
                     HStack(spacing: -8) {
                         ForEach(Array(vibe.reactions.prefix(5)), id: \.userId) { reaction in
                             Text(reaction.emoji)
-                                .font(.title3)
-                                .padding(6)
-                                .background(Color.white.opacity(0.2))
+                                .font(.system(size: 20))
+                                .padding(VibeSpacing.xs)
+                                .background(.ultraThinMaterial)
                                 .clipShape(Circle())
                         }
 
                         if vibe.reactions.count > 5 {
                             Text("+\(vibe.reactions.count - 5)")
-                                .font(.caption)
+                                .font(VibeTypography.captionSmall)
                                 .foregroundColor(.white)
-                                .padding(8)
-                                .background(Color.white.opacity(0.2))
+                                .padding(VibeSpacing.sm)
+                                .background(.ultraThinMaterial)
                                 .clipShape(Circle())
                         }
                     }
@@ -422,6 +386,7 @@ struct VibeViewerView: View {
                     ReactionPicker(
                         selectedEmoji: vibe.userReaction(appState.userId)?.emoji
                     ) { emoji in
+                        VibeHaptic.selection()
                         Task {
                             await appState.addReaction(to: vibe, emoji: emoji)
                         }
@@ -431,40 +396,42 @@ struct VibeViewerView: View {
                 }
 
                 // Action buttons
-                HStack(spacing: 32) {
+                HStack(spacing: VibeSpacing.xxxl) {
                     // React button
                     Button {
-                        withAnimation(.spring()) {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.bouncy) {
                             showReactions.toggle()
                         }
                     } label: {
-                        VStack(spacing: 4) {
+                        VStack(spacing: VibeSpacing.xxxs) {
                             Image(systemName: vibe.userReaction(appState.userId) != nil ? "heart.fill" : "heart")
-                                .font(.title2)
+                                .font(.system(size: 22))
                                 .foregroundColor(vibe.userReaction(appState.userId) != nil ? .red : .white)
                             Text("React")
-                                .font(.caption)
+                                .font(VibeTypography.captionSmall)
                                 .foregroundColor(.white.opacity(0.8))
                         }
                     }
 
                     // Views count
-                    VStack(spacing: 4) {
-                        HStack(spacing: 4) {
+                    VStack(spacing: VibeSpacing.xxxs) {
+                        HStack(spacing: VibeSpacing.xxxs) {
                             Image(systemName: "eye")
                             Text("\(vibe.viewedBy.count)")
+                                .contentTransition(.numericText())
                         }
-                        .font(.title3)
+                        .font(.system(size: 20))
                         .foregroundColor(.white)
                         Text("Views")
-                            .font(.caption)
+                            .font(VibeTypography.captionSmall)
                             .foregroundColor(.white.opacity(0.8))
                     }
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 20)
+        .padding(.horizontal, VibeSpacing.md)
+        .padding(.bottom, VibeSpacing.xl)
         .background(
             LinearGradient(
                 colors: [.clear, .black.opacity(0.5)],
@@ -491,15 +458,15 @@ struct ReactionPicker: View {
     let onSelect: (String) -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: VibeSpacing.sm) {
             ForEach(Reaction.availableEmojis, id: \.self) { emoji in
                 Button {
                     onSelect(emoji)
                 } label: {
                     Text(emoji)
-                        .font(.title)
+                        .font(.system(size: 28))
                         .scaleEffect(selectedEmoji == emoji ? 1.3 : 1.0)
-                        .padding(8)
+                        .padding(VibeSpacing.sm)
                         .background(
                             selectedEmoji == emoji
                                 ? Color.white.opacity(0.3)
@@ -509,7 +476,7 @@ struct ReactionPicker: View {
                 }
             }
         }
-        .padding()
+        .padding(VibeSpacing.md)
         .background(.ultraThinMaterial)
         .clipShape(Capsule())
     }
@@ -572,7 +539,6 @@ struct VideoVibeContent: View {
         ZStack {
             if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
                 if playerError != nil {
-                    // Error state
                     VideoPlaybackErrorView {
                         retryPlayback(url: url)
                     }
@@ -614,7 +580,6 @@ struct VideoVibeContent: View {
     private func setupPlayer(url: URL) {
         let playerItem = AVPlayerItem(url: url)
 
-        // Observe player item status
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemFailedToPlayToEndTime,
             object: playerItem,
@@ -627,7 +592,6 @@ struct VideoVibeContent: View {
 
         player = AVPlayer(playerItem: playerItem)
 
-        // Observe when player is ready
         playerItem.publisher(for: \.status)
             .receive(on: DispatchQueue.main)
             .sink { status in
@@ -669,7 +633,6 @@ struct SongVibeContent: View {
 
     var body: some View {
         ZStack {
-            // Album art background
             if let albumArt = vibe.songData?.albumArt, let url = URL(string: albumArt) {
                 AsyncImage(url: url) { image in
                     image
@@ -683,22 +646,21 @@ struct SongVibeContent: View {
                 .ignoresSafeArea()
             }
 
-            VStack(spacing: 24) {
-                // Album art
+            VStack(spacing: VibeSpacing.xl) {
                 if let albumArt = vibe.songData?.albumArt, let url = URL(string: albumArt) {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.gray.opacity(0.3))
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
+                            .fill(VibeTheme.surfaceOverlay)
                     }
                     .frame(width: 250, height: 250)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(radius: 20)
+                    .clipShape(RoundedRectangle(cornerRadius: VibeTheme.radiusMedium))
+                    .vibeShadow(.xl)
                 } else {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                         .fill(Color.green.opacity(0.3))
                         .frame(width: 250, height: 250)
                         .overlay {
@@ -708,22 +670,18 @@ struct SongVibeContent: View {
                         }
                 }
 
-                // Song info
-                VStack(spacing: 8) {
+                VStack(spacing: VibeSpacing.sm) {
                     Text(vibe.songData?.title ?? "Unknown Song")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(VibeTypography.titleLarge)
                         .foregroundColor(.white)
 
                     Text(vibe.songData?.artist ?? "Unknown Artist")
-                        .font(.subheadline)
+                        .font(VibeTypography.bodyMedium)
                         .foregroundColor(.white.opacity(0.8))
                 }
 
-                // Play preview button (if available)
                 if vibe.songData?.previewUrl != nil {
                     Button {
-                        // Audio preview would go here
                         isPlaying.toggle()
                     } label: {
                         Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
@@ -754,7 +712,6 @@ struct BatteryVibeContent: View {
 
     var body: some View {
         ZStack {
-            // Animated background
             LinearGradient(
                 colors: [batteryColor.opacity(0.3), .black],
                 startPoint: .top,
@@ -762,21 +719,17 @@ struct BatteryVibeContent: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                // Battery visualization
+            VStack(spacing: VibeSpacing.xxl) {
                 ZStack {
-                    // Battery outline
                     RoundedRectangle(cornerRadius: 20)
                         .stroke(Color.white.opacity(0.5), lineWidth: 4)
                         .frame(width: 120, height: 200)
 
-                    // Battery cap
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.white.opacity(0.5))
                         .frame(width: 40, height: 10)
                         .offset(y: -105)
 
-                    // Battery fill
                     VStack {
                         Spacer()
                         RoundedRectangle(cornerRadius: 16)
@@ -793,14 +746,13 @@ struct BatteryVibeContent: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18))
                 }
 
-                // Percentage
                 Text("\(batteryLevel)%")
                     .font(.system(size: 72, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
+                    .contentTransition(.numericText())
 
-                // Status text
                 Text(batteryStatusText)
-                    .font(.title3)
+                    .font(VibeTypography.titleSmall)
                     .foregroundColor(.white.opacity(0.8))
             }
         }
@@ -821,12 +773,10 @@ struct BatteryVibeContent: View {
 // MARK: - Mood Vibe Content
 struct MoodVibeContent: View {
     let vibe: Vibe
-
     @State private var animateEmoji = false
 
     var body: some View {
         ZStack {
-            // Gradient background
             LinearGradient(
                 colors: [.purple, .pink, .orange],
                 startPoint: .topLeading,
@@ -834,8 +784,7 @@ struct MoodVibeContent: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 32) {
-                // Large emoji
+            VStack(spacing: VibeSpacing.xxl) {
                 Text(vibe.mood?.emoji ?? "😊")
                     .font(.system(size: 150))
                     .scaleEffect(animateEmoji ? 1.1 : 1.0)
@@ -844,11 +793,9 @@ struct MoodVibeContent: View {
                         value: animateEmoji
                     )
 
-                // Mood text
                 if let text = vibe.mood?.text, !text.isEmpty {
                     Text(text)
-                        .font(.title)
-                        .fontWeight(.medium)
+                        .font(VibeTypography.displaySmall)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
@@ -868,7 +815,6 @@ struct PollVibeContent: View {
 
     var body: some View {
         ZStack {
-            // Background
             LinearGradient(
                 colors: [.blue.opacity(0.8), .purple.opacity(0.8)],
                 startPoint: .topLeading,
@@ -877,17 +823,14 @@ struct PollVibeContent: View {
             .ignoresSafeArea()
 
             if let poll = vibe.poll {
-                VStack(spacing: 24) {
-                    // Question
+                VStack(spacing: VibeSpacing.xl) {
                     Text(poll.question ?? "Vote")
-                        .font(.title2)
-                        .fontWeight(.bold)
+                        .font(VibeTypography.titleLarge)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
 
-                    // Options
-                    VStack(spacing: 12) {
+                    VStack(spacing: VibeSpacing.sm) {
                         ForEach(Array(poll.options.enumerated()), id: \.element.id) { index, option in
                             PollOptionView(
                                 option: option,
@@ -896,6 +839,7 @@ struct PollVibeContent: View {
                                 userId: appState.userId,
                                 hasVoted: poll.hasVoted(userId: appState.userId)
                             ) {
+                                VibeHaptic.selection()
                                 Task {
                                     await appState.vote(on: vibe, optionId: option.id)
                                 }
@@ -904,9 +848,8 @@ struct PollVibeContent: View {
                     }
                     .padding(.horizontal)
 
-                    // Total votes
                     Text("\(poll.totalVotes) votes")
-                        .font(.caption)
+                        .font(VibeTypography.captionSmall)
                         .foregroundColor(.white.opacity(0.7))
                 }
             }
@@ -917,7 +860,7 @@ struct PollVibeContent: View {
 // MARK: - Tea Vibe Content
 struct TeaVibeContent: View {
     let vibe: Vibe
-    
+
     var body: some View {
         ZStack {
             if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
@@ -934,15 +877,15 @@ struct TeaVibeContent: View {
                 backgroundGradient
                     .ignoresSafeArea()
             }
-            
+
             Text(vibe.textStatus ?? "")
                 .font(.system(size: 40, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .multilineTextAlignment(.center)
-                .padding(40)
+                .padding(VibeSpacing.xxxl)
         }
     }
-    
+
     private var backgroundGradient: LinearGradient {
         switch vibe.styleName {
         case "Noir": return LinearGradient(colors: [.black, .gray], startPoint: .topLeading, endPoint: .bottomTrailing)
@@ -955,11 +898,11 @@ struct TeaVibeContent: View {
 // MARK: - Sketch Vibe Content
 struct SketchVibeContent: View {
     let vibe: Vibe
-    
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            
+
             if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
                 AsyncImage(url: url) { phase in
                     switch phase {
@@ -971,24 +914,26 @@ struct SketchVibeContent: View {
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                     case .failure:
-                        VStack {
+                        VStack(spacing: VibeSpacing.md) {
                             Image(systemName: "hand.draw.fill")
                                 .font(.system(size: 80))
                                 .foregroundColor(.orange.opacity(0.3))
                             Text("Doodle failed to load")
-                                .foregroundColor(.white.opacity(0.5))
+                                .font(VibeTypography.bodyMedium)
+                                .foregroundColor(VibeTheme.textTertiary)
                         }
                     @unknown default:
                         EmptyView()
                     }
                 }
             } else {
-                VStack {
+                VStack(spacing: VibeSpacing.md) {
                     Image(systemName: "hand.draw.fill")
                         .font(.system(size: 80))
                         .foregroundColor(.orange.opacity(0.3))
                     Text("Doodle incoming...")
-                        .foregroundColor(.white.opacity(0.5))
+                        .font(VibeTypography.bodyMedium)
+                        .foregroundColor(VibeTheme.textTertiary)
                 }
             }
         }
@@ -998,25 +943,25 @@ struct SketchVibeContent: View {
 // MARK: - ETA Vibe Content
 struct ETAVibeContent: View {
     let vibe: Vibe
-    
+
     var body: some View {
         ZStack {
-            Color(.systemGray6).ignoresSafeArea()
-            
-            VStack(spacing: 40) {
+            VibeTheme.groupedBackground.ignoresSafeArea()
+
+            VStack(spacing: VibeSpacing.xxxl) {
                 ZStack {
                     Circle()
                         .fill(Color.blue.opacity(0.1))
                         .frame(width: 300, height: 300)
-                    
+
                     Image(systemName: "location.north.circle.fill")
                         .font(.system(size: 150))
                         .foregroundColor(.blue)
                 }
-                
+
                 Text(vibe.etaStatus ?? "On my way!")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                    .foregroundColor(.primary)
+                    .font(VibeTypography.displaySmall)
+                    .foregroundColor(VibeTheme.textPrimary)
             }
         }
     }
@@ -1041,32 +986,29 @@ struct PollOptionView: View {
     var body: some View {
         Button(action: onVote) {
             ZStack(alignment: .leading) {
-                // Background
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                     .fill(Color.white.opacity(0.2))
 
-                // Progress fill
                 if hasVoted {
                     GeometryReader { geometry in
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                             .fill(isSelected ? Color.white.opacity(0.4) : Color.white.opacity(0.2))
                             .frame(width: geometry.size.width * (percentage / 100))
                     }
                 }
 
-                // Content
                 HStack {
                     Text(option.text)
-                        .font(.headline)
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
 
                     Spacer()
 
                     if hasVoted {
                         Text("\(Int(percentage))%")
-                            .font(.subheadline)
-                            .fontWeight(.bold)
+                            .font(VibeTypography.bodyMedium)
                             .foregroundColor(.white)
+                            .contentTransition(.numericText())
                     }
 
                     if isSelected {
@@ -1074,7 +1016,7 @@ struct PollOptionView: View {
                             .foregroundColor(.white)
                     }
                 }
-                .padding()
+                .padding(VibeSpacing.md)
             }
             .frame(height: 56)
         }
@@ -1083,7 +1025,7 @@ struct PollOptionView: View {
     }
 }
 
-// MARK: - Viewer Skeleton View (Loading Placeholder)
+// MARK: - Viewer Skeleton View
 struct ViewerSkeletonView: View {
     @State private var isAnimating = false
 
@@ -1093,9 +1035,8 @@ struct ViewerSkeletonView: View {
 
             VStack(spacing: 0) {
                 // Top bar skeleton
-                VStack(spacing: 12) {
-                    // Progress indicators
-                    HStack(spacing: 4) {
+                VStack(spacing: VibeSpacing.sm) {
+                    HStack(spacing: VibeSpacing.xxxs) {
                         ForEach(0..<4, id: \.self) { _ in
                             Capsule()
                                 .fill(Color.white.opacity(0.2))
@@ -1103,17 +1044,15 @@ struct ViewerSkeletonView: View {
                         }
                     }
 
-                    // User info skeleton
-                    HStack(spacing: 12) {
+                    HStack(spacing: VibeSpacing.sm) {
                         Circle()
                             .fill(Color.white.opacity(0.2))
                             .frame(width: 36, height: 36)
 
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.white.opacity(0.2))
                                 .frame(width: 80, height: 12)
-
                             RoundedRectangle(cornerRadius: 4)
                                 .fill(Color.white.opacity(0.15))
                                 .frame(width: 50, height: 8)
@@ -1121,42 +1060,35 @@ struct ViewerSkeletonView: View {
 
                         Spacer()
 
-                        // Timer skeleton
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusSmall)
                             .fill(Color.white.opacity(0.2))
                             .frame(width: 60, height: 24)
 
-                        // Close button skeleton
                         Circle()
                             .fill(Color.white.opacity(0.15))
-                            .frame(width: 28, height: 28)
+                            .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                     }
                 }
-                .padding(.horizontal)
-                .padding(.top, 10)
+                .padding(.horizontal, VibeSpacing.md)
+                .padding(.top, VibeSpacing.sm)
 
                 Spacer()
 
-                // Content skeleton (center area)
-                VStack(spacing: 16) {
-                    // Main content placeholder
-                    RoundedRectangle(cornerRadius: 12)
+                VStack(spacing: VibeSpacing.lg) {
+                    RoundedRectangle(cornerRadius: VibeTheme.radiusMedium)
                         .fill(Color.white.opacity(0.1))
                         .frame(width: 200, height: 200)
 
-                    // Text placeholder
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: VibeTheme.radiusSmall)
                         .fill(Color.white.opacity(0.15))
                         .frame(width: 150, height: 20)
                 }
 
                 Spacer()
 
-                // Bottom bar skeleton
-                VStack(spacing: 16) {
-                    // Reaction buttons skeleton
-                    HStack(spacing: 32) {
-                        VStack(spacing: 4) {
+                VStack(spacing: VibeSpacing.lg) {
+                    HStack(spacing: VibeSpacing.xxl) {
+                        VStack(spacing: VibeSpacing.xxxs) {
                             Circle()
                                 .fill(Color.white.opacity(0.2))
                                 .frame(width: 32, height: 32)
@@ -1164,8 +1096,7 @@ struct ViewerSkeletonView: View {
                                 .fill(Color.white.opacity(0.15))
                                 .frame(width: 40, height: 10)
                         }
-
-                        VStack(spacing: 4) {
+                        VStack(spacing: VibeSpacing.xxxs) {
                             Circle()
                                 .fill(Color.white.opacity(0.2))
                                 .frame(width: 32, height: 32)
@@ -1175,17 +1106,10 @@ struct ViewerSkeletonView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(VibeSpacing.md)
             }
         }
-        .opacity(isAnimating ? 0.6 : 1.0)
-        .animation(
-            .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
-            value: isAnimating
-        )
-        .onAppear {
-            isAnimating = true
-        }
+        .vibeShimmer()
     }
 }
 

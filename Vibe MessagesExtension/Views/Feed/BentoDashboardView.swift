@@ -3,32 +3,17 @@ import SwiftUI
 struct BentoDashboardView: View {
     @EnvironmentObject var appState: AppState
 
-    // Theme Colors
-    let bgOffWhite = Color(red: 0.96, green: 0.96, blue: 0.97)
-
     var body: some View {
         ZStack {
-            // Background
-            bgOffWhite.edgesIgnoringSafeArea(.all)
+            VibeTheme.groupedBackground.edgesIgnoringSafeArea(.all)
 
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 24) {
-
-                    // ============================================
-                    // MARK: PART 1 - THE UPPER SCREEN
-                    // ============================================
-
+                VStack(spacing: VibeSpacing.sectionGap) {
                     UpperSectionView()
-
-                    // ============================================
-                    // MARK: PART 2 - THE LOWER SCREEN
-                    // ============================================
-
                     LowerSectionView()
-
-                    Spacer(minLength: 40)
+                    Spacer(minLength: VibeSpacing.xxxl)
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, VibeSpacing.xxxl)
             }
         }
         .fullScreenCover(isPresented: $appState.shouldShowVibePicker) {
@@ -38,16 +23,11 @@ struct BentoDashboardView: View {
 }
 
 // =====================================================================
-// MARK: - PART 1 VIEW (UPPER SCREEN)
+// MARK: - UPPER SECTION
 // =====================================================================
 
 struct UpperSectionView: View {
     @EnvironmentObject var appState: AppState
-
-    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
-    let vibezPurple = Color(red: 0.6, green: 0.2, blue: 1.0)
-    let vibezCyan = Color(red: 0.2, green: 0.7, blue: 1.0)
-    let vibezBlue = Color(red: 0.1, green: 0.4, blue: 0.9)
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
@@ -59,306 +39,372 @@ struct UpperSectionView: View {
         }
     }
 
-    private var currentBatteryLevel: Int {
-        UIDevice.current.isBatteryMonitoringEnabled = true
-        let level = UIDevice.current.batteryLevel
-        return level < 0 ? 78 : Int(level * 100) // Default to 78 if unknown
-    }
-
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.xl) {
 
-            // 1. HEADER
-            HStack {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 40, height: 40)
-                        .overlay(
-                            Text(String(appState.userFirstName?.prefix(1) ?? "V"))
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                        )
-                    Text("Hi, \(appState.userFirstName ?? "there")")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                }
-
-                Spacer()
-
-                HStack(spacing: 8) {
-                    // Streak Badge
-                    if let streak = appState.streak, streak.currentStreak > 0 {
-                        Text("🔥 \(streak.currentStreak)")
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.white)
-                            .clipShape(Capsule())
-                            .shadow(color: .black.opacity(0.05), radius: 3)
-                    }
-
-                    // New Updates Badge
-                    if appState.newVibesCount > 0 {
-                        Button {
-                            if let firstUnseen = appState.vibes.first(where: {
-                                !appState.seenVibeIds.contains($0.id) && $0.userId != appState.userId
-                            }) {
-                                appState.navigateToViewer(opening: firstUnseen.id)
-                            }
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "bell.fill")
-                                Text("\(appState.newVibesCount)")
-                            }
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                LinearGradient(colors: [vibezPink, vibezPurple], startPoint: .leading, endPoint: .trailing)
-                            )
-                            .clipShape(Capsule())
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal)
-            .padding(.top, 10)
+            // 1. HEADER — Avatar, Greeting, Aura Balance, Streak, Notifications
+            headerBar
 
             // 2. STORY RAIL
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    // My Story (Add Button or View My Vibes)
-                    VStack(spacing: 8) {
-                        let myVibes = appState.vibes.filter { $0.userId == appState.userId }
-                        let hasMyVibes = !myVibes.isEmpty
+            storyRail
 
-                        ZStack(alignment: .bottomTrailing) {
-                            if hasMyVibes {
-                                // Show story ring if user has vibes
-                                Circle()
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [vibezPink, vibezPurple],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 3
-                                    )
-                                    .frame(width: 68, height: 68)
-                            } else {
-                                // Show dashed circle if no vibes
-                                Circle()
-                                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                                    .foregroundColor(.gray.opacity(0.5))
-                                    .frame(width: 68, height: 68)
-                            }
+            // 3. BENTO GRID
+            bentoGrid
 
-                            // Show user's latest vibe thumbnail if exists
-                            if let myVibe = myVibes.first,
-                               let thumbUrl = myVibe.thumbnailUrl ?? myVibe.mediaUrl,
-                               let url = URL(string: thumbUrl) {
-                                AsyncImage(url: url) { image in
-                                    image.resizable().aspectRatio(contentMode: .fill)
-                                } placeholder: {
-                                    Color.gray.opacity(0.2)
-                                }
-                                .frame(width: 62, height: 62)
-                                .clipShape(Circle())
-                            }
-
-                            Image(systemName: hasMyVibes ? "plus.circle.fill" : "plus.circle.fill")
-                                .foregroundStyle(.white, hasMyVibes ? vibezPink : .blue)
-                                .font(.system(size: 22))
-                        }
-                        .onTapGesture {
-                            if hasMyVibes, let firstVibe = myVibes.first {
-                                // If user has vibes, open viewer to show them
-                                appState.navigateToViewer(opening: firstVibe.id)
-                            } else {
-                                // If no vibes, open composer
-                                appState.navigateToComposer(type: .video)
-                            }
-                        }
-
-                        Text("My Vibes")
-                            .font(.caption)
-                            .foregroundColor(hasMyVibes ? .primary : .gray)
-                    }
-                    .padding(.leading)
-
-                    // Friends' Stories
-                    let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false)
-                    ForEach(groupedVibes, id: \.first?.userId) { userVibes in
-                        if let firstVibe = userVibes.first {
-                            StoryRingItem(
-                                vibes: userVibes,
-                                name: appState.nameForUser(firstVibe.userId),
-                                hasUnviewed: userVibes.contains { !$0.hasViewed(appState.userId) }
-                            ) {
-                                appState.navigateToViewer(opening: firstVibe.id)
-                            }
-                        }
-                    }
-                }
+            // 4. ACTIVE GAMES STRIP (Bets + Tea)
+            if !appState.activeBets.isEmpty || !appState.activeTeaSpills.isEmpty {
+                activeGamesStrip
             }
-
-            // 3. BENTO GRID (Hero Left + Triple Stack Right)
-            HStack(alignment: .top, spacing: 12) {
-                // Left: Post Vibe
-                Button {
-                    appState.navigateToComposer(type: .video)
-                } label: {
-                    VStack {
-                        Spacer()
-                        Image(systemName: "plus")
-                            .font(.system(size: 40, weight: .bold))
-                            .foregroundColor(.white)
-                        Spacer()
-                        HStack(alignment: .bottom) {
-                            Text("Post Vibe")
-                                .font(.system(size: 18, weight: .heavy, design: .rounded))
-                                .foregroundColor(.white)
-                            Spacer()
-                            if appState.newVibesCount > 0 {
-                                Text("\(appState.newVibesCount) waiting")
-                                    .font(.caption)
-                                    .bold()
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                        }
-                    }
-                    .padding(20)
-                    .frame(height: 220)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        LinearGradient(colors: [vibezPink, vibezPurple], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .cornerRadius(24)
-                    .shadow(color: vibezPink.opacity(0.3), radius: 8, y: 4)
-                }
-
-                // Right: Triple Stack
-                VStack(spacing: 12) {
-                    // POV (Top)
-                    Button {
-                        appState.navigateToComposer(type: .video, isLocked: true)
-                    } label: {
-                        HStack {
-                            Image(systemName: "eye.fill")
-                            Text("POV").bold()
-                            Spacer()
-                            Image(systemName: "lock.fill").opacity(0.5)
-                        }
-                        .padding(.horizontal)
-                        .frame(height: 65)
-                        .background(
-                            LinearGradient(colors: [vibezCyan, vibezBlue], startPoint: .leading, endPoint: .trailing)
-                        )
-                        .foregroundColor(.white)
-                        .cornerRadius(20)
-                    }
-
-                    // Parlay (Middle)
-                    Button {
-                        appState.navigateToComposer(type: .parlay)
-                    } label: {
-                        HStack {
-                            Image(systemName: "dollarsign.circle.fill")
-                                .foregroundColor(vibezPink)
-                            Text("Parlay")
-                                .bold()
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Text("💸")
-                        }
-                        .padding(.horizontal)
-                        .frame(height: 65)
-                        .background(Color(UIColor.secondarySystemGroupedBackground))
-                        .cornerRadius(20)
-                        .shadow(color: .black.opacity(0.03), radius: 3)
-                    }
-
-                    // Explore (Bottom)
-                    Button {
-                        appState.shouldShowVibePicker = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "square.grid.2x2.fill")
-                            Text("Explore").bold()
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundColor(.gray)
-                        }
-                        .padding(.horizontal)
-                        .frame(height: 65)
-                        .background(Color(UIColor.secondarySystemGroupedBackground))
-                        .cornerRadius(20)
-                        .shadow(color: .black.opacity(0.03), radius: 3)
-                    }
-                    .foregroundColor(.primary)
-                }
-            }
-            .padding(.horizontal)
-
-            // 4. DAILY DROP
-            Button {
-                appState.navigateToComposer(type: .dailyDrop)
-            } label: {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("DAILY DROP 🎲")
-                        .font(.caption)
-                        .bold()
-                        .foregroundColor(.gray)
-                        Text("Show us your fridge")
-                        .font(.title3)
-                        .bold()
-                        .foregroundColor(.white)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .padding(10)
-                        .background(Color.white)
-                        .clipShape(Circle())
-                        .foregroundColor(.black)
-                }
-                .padding(24)
-                .background(Color.black)
-                .cornerRadius(24)
-            }
-            .padding(.horizontal)
 
             // 5. LEADERBOARD
-            VStack(alignment: .leading) {
-                Text("LEADERBOARD")
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.gray)
-                    .padding(.leading)
+            leaderboardSection
+        }
+    }
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        // MVP
+    // MARK: - Header Bar
+
+    private var headerBar: some View {
+        HStack {
+            // Left: Avatar + Greeting
+            HStack(spacing: VibeSpacing.sm) {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [VibeTheme.accent, VibeTheme.accentSecondary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Text(String(appState.userFirstName?.prefix(1) ?? "V"))
+                            .font(VibeTypography.titleMedium)
+                            .foregroundColor(.white)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(greeting)
+                        .font(VibeTypography.captionLarge)
+                        .foregroundColor(VibeTheme.textSecondary)
+                    Text(appState.userFirstName ?? "there")
+                        .font(VibeTypography.titleLarge)
+                        .foregroundColor(VibeTheme.textPrimary)
+                }
+            }
+
+            Spacer()
+
+            HStack(spacing: VibeSpacing.xs) {
+                // Aura Balance Pill
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12))
+                    Text("\(appState.auraBalance)")
+                        .font(VibeTypography.captionLarge)
+                        .contentTransition(.numericText())
+                }
+                .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.0))
+                .padding(.horizontal, VibeSpacing.sm)
+                .padding(.vertical, VibeSpacing.xs)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+
+                // Streak Badge
+                if let streak = appState.streak, streak.currentStreak > 0 {
+                    HStack(spacing: 4) {
+                        Text("🔥")
+                        Text("\(streak.currentStreak)")
+                            .font(VibeTypography.captionLarge)
+                            .contentTransition(.numericText())
+                    }
+                    .padding(.horizontal, VibeSpacing.sm)
+                    .padding(.vertical, VibeSpacing.xs)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                }
+
+                // New Updates Badge
+                if appState.newVibesCount > 0 {
+                    Button {
+                        if let firstUnseen = appState.vibes.first(where: {
+                            !appState.seenVibeIds.contains($0.id) && $0.userId != appState.userId
+                        }) {
+                            appState.navigateToViewer(opening: firstUnseen.id)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bell.fill")
+                            Text("\(appState.newVibesCount)")
+                                .contentTransition(.numericText())
+                        }
+                        .font(VibeTypography.captionLarge)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, VibeSpacing.sm)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(VibeTheme.brandGradient)
+                        .clipShape(Capsule())
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, VibeSpacing.screenHorizontal)
+        .padding(.top, 10)
+    }
+
+    // MARK: - Story Rail
+
+    private var storyRail: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: VibeSpacing.md) {
+                // My Story
+                myStoryRing
+                    .padding(.leading, VibeSpacing.screenHorizontal)
+
+                // Friends' Stories
+                let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false)
+                ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                    if let firstVibe = userVibes.first {
+                        StoryRingItem(
+                            vibes: userVibes,
+                            name: appState.nameForUser(firstVibe.userId),
+                            hasUnviewed: userVibes.contains { !$0.hasViewed(appState.userId) }
+                        ) {
+                            VibeHaptic.light()
+                            appState.navigateToViewer(opening: firstVibe.id)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var myStoryRing: some View {
+        let myVibes = appState.vibes.filter { $0.userId == appState.userId }
+        let hasMyVibes = !myVibes.isEmpty
+
+        return VStack(spacing: VibeSpacing.xs) {
+            ZStack(alignment: .bottomTrailing) {
+                if hasMyVibes {
+                    Circle()
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [VibeTheme.accent, VibeTheme.accentSecondary],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 3
+                        )
+                        .frame(width: VibeSpacing.avatarLarge, height: VibeSpacing.avatarLarge)
+                } else {
+                    Circle()
+                        .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
+                        .foregroundColor(VibeTheme.textTertiary)
+                        .frame(width: VibeSpacing.avatarLarge, height: VibeSpacing.avatarLarge)
+                }
+
+                if let myVibe = myVibes.first,
+                   let thumbUrl = myVibe.thumbnailUrl ?? myVibe.mediaUrl,
+                   let url = URL(string: thumbUrl) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color(UIColor.systemGray5)
+                    }
+                    .frame(width: 66, height: 66)
+                    .clipShape(Circle())
+                }
+
+                Image(systemName: "plus.circle.fill")
+                    .foregroundStyle(.white, hasMyVibes ? VibeTheme.accent : VibeTheme.accentBlue)
+                    .font(.system(size: 24))
+                    .symbolEffect(.bounce, value: hasMyVibes)
+            }
+            .onTapGesture {
+                VibeHaptic.selection()
+                if hasMyVibes, let firstVibe = myVibes.first {
+                    appState.navigateToViewer(opening: firstVibe.id)
+                } else {
+                    appState.navigateToComposer(type: .video)
+                }
+            }
+
+            Text("My Vibes")
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(hasMyVibes ? VibeTheme.textPrimary : VibeTheme.textTertiary)
+        }
+    }
+
+    // MARK: - Bento Grid
+
+    private var bentoGrid: some View {
+        HStack(alignment: .top, spacing: VibeSpacing.sm) {
+            // Left: Post Vibe Hero
+            Button {
+                VibeHaptic.medium()
+                appState.navigateToComposer(type: .video)
+            } label: {
+                VStack {
+                    Spacer()
+                    Image(systemName: "plus")
+                        .font(.system(size: 36, weight: .bold))
+                        .foregroundColor(.white)
+                    Spacer()
+                    HStack(alignment: .bottom) {
+                        Text("Post Vibe")
+                            .font(VibeTypography.titleMedium)
+                            .foregroundColor(.white)
+                        Spacer()
+                        if appState.newVibesCount > 0 {
+                            Text("\(appState.newVibesCount) waiting")
+                                .font(VibeTypography.captionSmall)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+                }
+                .padding(VibeSpacing.lg)
+                .frame(height: 220)
+                .frame(maxWidth: .infinity)
+                .background(VibeTheme.brandGradient)
+                .continuousCorner(VibeTheme.radiusLarge)
+                .vibeShadow(.lg)
+            }
+
+            // Right: Triple Stack
+            VStack(spacing: VibeSpacing.sm) {
+                // POV
+                Button {
+                    VibeHaptic.light()
+                    appState.navigateToComposer(type: .video, isLocked: true)
+                } label: {
+                    HStack {
+                        Image(systemName: "eye.fill")
+                        Text("POV").font(VibeTypography.titleSmall)
+                        Spacer()
+                        Image(systemName: "lock.fill").opacity(0.5)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, VibeSpacing.md)
+                    .frame(height: 65)
+                    .background(
+                        LinearGradient(colors: [VibeTheme.accentCyan, VibeTheme.accentBlue], startPoint: .leading, endPoint: .trailing)
+                    )
+                    .continuousCorner(VibeTheme.radiusMedium)
+                }
+
+                // Parlay
+                Button {
+                    VibeHaptic.light()
+                    appState.navigateToComposer(type: .parlay)
+                } label: {
+                    HStack {
+                        Image(systemName: "dollarsign.circle.fill")
+                            .foregroundColor(VibeTheme.accent)
+                        Text("Parlay")
+                            .font(VibeTypography.titleSmall)
+                            .foregroundColor(VibeTheme.textPrimary)
+                        Spacer()
+                        Text("💸")
+                    }
+                    .padding(.horizontal, VibeSpacing.md)
+                    .frame(height: 65)
+                    .background(.ultraThinMaterial)
+                    .continuousCorner(VibeTheme.radiusMedium)
+                }
+
+                // Explore
+                Button {
+                    VibeHaptic.light()
+                    appState.shouldShowVibePicker = true
+                } label: {
+                    HStack {
+                        Image(systemName: "square.grid.2x2.fill")
+                        Text("Explore").font(VibeTypography.titleSmall)
+                        Spacer()
+                        Image(systemName: "chevron.right").foregroundColor(VibeTheme.textTertiary)
+                    }
+                    .foregroundColor(VibeTheme.textPrimary)
+                    .padding(.horizontal, VibeSpacing.md)
+                    .frame(height: 65)
+                    .background(.ultraThinMaterial)
+                    .continuousCorner(VibeTheme.radiusMedium)
+                }
+            }
+        }
+        .padding(.horizontal, VibeSpacing.screenHorizontal)
+    }
+
+    // MARK: - Active Games Strip
+
+    private var activeGamesStrip: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("ACTIVE GAMES")
+                .vibeSectionHeader()
+                .padding(.leading, VibeSpacing.screenHorizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: VibeSpacing.sm) {
+                    // Active Bets
+                    ForEach(appState.activeBets.prefix(5)) { bet in
+                        ActiveGameCard(
+                            icon: "dice.fill",
+                            iconColor: .green,
+                            title: bet.description,
+                            subtitle: bet.timeRemainingFormatted,
+                            badge: "\(bet.creationCost ?? 10) ✨"
+                        )
+                    }
+
+                    // Active Tea Spills
+                    ForEach(appState.activeTeaSpills.prefix(5)) { tea in
+                        ActiveGameCard(
+                            icon: "cup.and.saucer.fill",
+                            iconColor: .brown,
+                            title: tea.mysteryText,
+                            subtitle: tea.timeRemainingFormatted,
+                            badge: "\(tea.options.count) options"
+                        )
+                    }
+                }
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
+            }
+        }
+    }
+
+    // MARK: - Leaderboard
+
+    private var leaderboardSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("LEADERBOARD")
+                .vibeSectionHeader()
+                .padding(.leading, VibeSpacing.screenHorizontal)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: VibeSpacing.sm) {
+                    if !appState.leaderboard.isEmpty {
+                        // Real leaderboard from Aura service
+                        ForEach(appState.leaderboard.prefix(5)) { entry in
+                            LeaderboardCardView(entry: entry)
+                        }
+                    } else {
+                        // Fallback to local MVP logic
                         if let (mvpId, count) = mvpData {
                             LeaderboardCardView(
                                 emoji: "👑",
                                 name: appState.nameForUser(mvpId),
                                 score: "+\(count)",
-                                isMVP: true
+                                rank: 1
                             )
                         }
 
-                        // Ghost (needs nudge)
                         if let ghostId = ghostUserId {
                             LeaderboardCardView(
                                 emoji: "👻",
                                 name: appState.nameForUser(ghostId),
                                 score: "Nudge",
-                                isMVP: false
+                                rank: 0
                             )
                         }
 
-                        // Third place or fallback
                         let thirdPlace = appState.vibesGroupedByUser(nil)
                             .compactMap { $0.first }
                             .filter { $0.userId != appState.userId && $0.userId != mvpData?.0 && $0.userId != ghostUserId }
@@ -370,34 +416,17 @@ struct UpperSectionView: View {
                                 emoji: "💅",
                                 name: appState.nameForUser(third.userId),
                                 score: "+\(count)",
-                                isMVP: false
+                                rank: 3
                             )
                         }
                     }
-                    .padding(.horizontal)
                 }
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
             }
         }
     }
 
     // MARK: - Helpers
-
-    private var batteryColor: Color {
-        switch currentBatteryLevel {
-        case 0..<20: return .red
-        case 20..<50: return .yellow
-        default: return .green
-        }
-    }
-
-    private var batteryIcon: String {
-        switch currentBatteryLevel {
-        case 0..<25: return "battery.25"
-        case 25..<50: return "battery.50"
-        case 50..<75: return "battery.75"
-        default: return "battery.100"
-        }
-    }
 
     private var mvpData: (String, Int)? {
         let friendsVibes = appState.vibes.filter { $0.userId != appState.userId }
@@ -420,7 +449,7 @@ struct UpperSectionView: View {
 }
 
 // =====================================================================
-// MARK: - PART 2 VIEW (LOWER SCREEN)
+// MARK: - LOWER SECTION
 // =====================================================================
 
 struct LowerSectionView: View {
@@ -429,62 +458,51 @@ struct LowerSectionView: View {
     @State private var showAllNews = false
 
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.sectionGap) {
 
-            // 6. VIBE WIRE (NEWS)
-            VStack(alignment: .leading, spacing: 12) {
+            // VIBE WIRE (NEWS)
+            VStack(alignment: .leading, spacing: VibeSpacing.sm) {
                 HStack {
                     Text("VIBE WIRE")
-                        .font(.caption)
-                        .bold()
-                        .foregroundColor(.gray)
+                        .vibeSectionHeader()
                     Spacer()
                     if appState.isLoadingNews {
                         ProgressView()
                             .scaleEffect(0.6)
                     }
 
-                    // See More Button
                     if !appState.newsItems.isEmpty {
                         Button {
-                            withAnimation(.spring()) {
+                            withAnimation(VibeAnimation.bouncy) {
                                 showAllNews.toggle()
                             }
                         } label: {
                             HStack(spacing: 4) {
                                 Text(showAllNews ? "Show Less" : "See More")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
                                 Image(systemName: showAllNews ? "chevron.up" : "chevron.down")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
                             }
-                            .foregroundColor(.blue)
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(VibeTheme.accentBlue)
                         }
                     }
                 }
-                .padding(.horizontal)
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
 
                 if showAllNews {
-                    // Grid View for all news
                     LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 12),
-                        GridItem(.flexible(), spacing: 12)
-                    ], spacing: 12) {
+                        GridItem(.flexible(), spacing: VibeSpacing.sm),
+                        GridItem(.flexible(), spacing: VibeSpacing.sm)
+                    ], spacing: VibeSpacing.sm) {
                         ForEach(appState.newsItems) { item in
                             NewsCardView(newsItem: item)
-                                .onTapGesture {
-                                    selectedNewsItem = item
-                                }
+                                .onTapGesture { selectedNewsItem = item }
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                 } else {
-                    // Horizontal Scroll View (Original)
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
+                        HStack(spacing: VibeSpacing.md) {
                             if appState.newsItems.isEmpty && !appState.isLoadingNews {
-                                // Fallback placeholder cards
                                 NewsCardView(
                                     tag: "VIRAL",
                                     headline: "New 'AirPods Max 2' colors just leaked",
@@ -500,86 +518,72 @@ struct LowerSectionView: View {
                             } else {
                                 ForEach(appState.newsItems) { item in
                                     NewsCardView(newsItem: item)
-                                        .onTapGesture {
-                                            selectedNewsItem = item
-                                        }
+                                        .onTapGesture { selectedNewsItem = item }
                                 }
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
                     }
                 }
             }
             .onAppear {
-                Task {
-                    await appState.loadNews()
-                }
+                Task { await appState.loadNews() }
             }
             .fullScreenCover(item: $selectedNewsItem) { item in
                 NewsDetailView(
                     newsItem: item,
-                    onBack: {
-                        selectedNewsItem = nil
-                    },
-                    onShare: {
-                        appState.shareNewsInChat(item)
-                    }
+                    onBack: { selectedNewsItem = nil },
+                    onShare: { appState.shareNewsInChat(item) }
                 )
-                .onAppear {
-                    appState.requestExpand()
-                }
+                .onAppear { appState.requestExpand() }
             }
 
-            // 7. UPCOMING REMINDERS
+            // UPCOMING REMINDERS
             UpcomingRemindersSection()
 
-            // 8. PAST VIBES (HISTORY)
-            VStack(alignment: .leading, spacing: 12) {
+            // PAST VIBES
+            VStack(alignment: .leading, spacing: VibeSpacing.sm) {
                 Text("PAST VIBES")
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.gray)
-                    .padding(.leading)
+                    .vibeSectionHeader()
+                    .padding(.leading, VibeSpacing.screenHorizontal)
 
                 let userVibes = appState.vibes.filter { $0.userId == appState.userId }
 
                 if userVibes.isEmpty {
-                    // Empty state
                     ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color(UIColor.secondarySystemGroupedBackground))
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
+                            .fill(VibeTheme.cardBackground)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 24)
+                                RoundedRectangle(cornerRadius: VibeTheme.radiusLarge, style: .continuous)
                                     .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                                    .foregroundColor(Color.gray.opacity(0.2))
+                                    .foregroundColor(Color(UIColor.systemGray4))
                             )
 
-                        VStack(spacing: 12) {
+                        VStack(spacing: VibeSpacing.sm) {
                             Image(systemName: "clock.arrow.circlepath")
                                 .font(.system(size: 30))
-                                .foregroundColor(.gray.opacity(0.5))
+                                .foregroundColor(VibeTheme.textSecondary)
                             Text("Your past vibes will appear here")
-                                .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .foregroundColor(.gray)
+                                .font(VibeTypography.bodyMedium)
+                                .foregroundColor(VibeTheme.textSecondary)
                             Text("Post a vibe to start your history.")
-                                .font(.caption)
-                                .foregroundColor(.gray.opacity(0.6))
+                                .font(VibeTypography.captionLarge)
+                                .foregroundColor(VibeTheme.textTertiary)
                         }
-                        .padding(40)
+                        .padding(VibeSpacing.xxxl)
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                     .frame(height: 180)
                 } else {
-                    // Show user's vibes in a horizontal scroll
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: VibeSpacing.sm) {
                             ForEach(userVibes.prefix(6)) { vibe in
                                 PastVibeCard(vibe: vibe) {
                                     appState.navigateToViewer(opening: vibe.id)
                                 }
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
                     }
                 }
             }
@@ -591,95 +595,171 @@ struct LowerSectionView: View {
 // MARK: - COMPONENTS
 // =====================================================================
 
+// MARK: - Active Game Card (NEW)
+
+struct ActiveGameCard: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let subtitle: String
+    let badge: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+            HStack {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(iconColor)
+                Spacer()
+                Text(badge)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+
+            Spacer()
+
+            Text(title)
+                .font(VibeTypography.captionLarge)
+                .foregroundColor(VibeTheme.textPrimary)
+                .lineLimit(2)
+
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.system(size: 9))
+                Text(subtitle)
+                    .font(VibeTypography.captionSmall)
+            }
+            .foregroundColor(VibeTheme.textTertiary)
+        }
+        .padding(VibeSpacing.sm)
+        .frame(width: 140, height: 110)
+        .background(.ultraThinMaterial)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .vibeShadow(.sm)
+    }
+}
+
+// MARK: - Story Ring Item
+
 struct StoryRingItem: View {
     let vibes: [Vibe]
     let name: String
     let hasUnviewed: Bool
     let onTap: () -> Void
 
-    let vibezPink = Color(red: 1.0, green: 0.2, blue: 0.6)
-
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: VibeSpacing.xs) {
             Button(action: onTap) {
                 ZStack {
-                    // Gradient ring
                     Circle()
                         .strokeBorder(
                             hasUnviewed ?
-                            LinearGradient(colors: [vibezPink, .orange], startPoint: .topTrailing, endPoint: .bottomLeading) :
-                            LinearGradient(colors: [.gray.opacity(0.3), .gray.opacity(0.3)], startPoint: .top, endPoint: .bottom),
+                            LinearGradient(colors: [VibeTheme.accent, .orange], startPoint: .topTrailing, endPoint: .bottomLeading) :
+                            LinearGradient(colors: [Color(UIColor.systemGray4), Color(UIColor.systemGray4)], startPoint: .top, endPoint: .bottom),
                             lineWidth: 3
                         )
-                        .frame(width: 68, height: 68)
+                        .frame(width: VibeSpacing.avatarLarge, height: VibeSpacing.avatarLarge)
 
-                    // Content
                     if let firstVibe = vibes.first,
                        let thumbUrl = firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
                        let url = URL(string: thumbUrl) {
                         AsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
-                            Circle().fill(Color.gray.opacity(0.1))
+                            Circle().fill(Color(UIColor.systemGray5))
                         }
-                        .frame(width: 60, height: 60)
+                        .frame(width: 66, height: 66)
                         .clipShape(Circle())
                     } else {
                         Circle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 60, height: 60)
+                            .fill(Color(UIColor.systemGray5))
+                            .frame(width: 66, height: 66)
                     }
 
-                    // Count badge
                     if vibes.count > 1 {
                         Text("\(vibes.count)")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(VibeTypography.captionSmall)
                             .foregroundColor(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Color.black.opacity(0.7))
+                            .background(.ultraThinMaterial.opacity(0.8))
+                            .environment(\.colorScheme, .dark)
                             .clipShape(Capsule())
-                            .offset(x: 22, y: -22)
+                            .offset(x: 24, y: -24)
                     }
                 }
             }
+            .buttonStyle(.plain)
 
             Text(name)
-                .font(.caption)
-                .bold()
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(hasUnviewed ? VibeTheme.textPrimary : VibeTheme.textSecondary)
+                .lineLimit(1)
         }
     }
 }
+
+// MARK: - Leaderboard Card
 
 struct LeaderboardCardView: View {
     var emoji: String
     var name: String
     var score: String
-    var isMVP: Bool
+    var rank: Int
+
+    // Init from LeaderboardEntry (real data)
+    init(entry: LeaderboardEntry) {
+        let medals = ["👑", "🥈", "🥉"]
+        self.emoji = entry.rank <= 3 ? medals[entry.rank - 1] : "💫"
+        self.name = entry.name
+        self.score = "\(entry.auraBalance) ✨"
+        self.rank = entry.rank
+    }
+
+    // Init for fallback (mock data)
+    init(emoji: String, name: String, score: String, rank: Int) {
+        self.emoji = emoji
+        self.name = name
+        self.score = score
+        self.rank = rank
+    }
+
+    private var accentColor: Color {
+        switch rank {
+        case 1: return Color(red: 1.0, green: 0.84, blue: 0.0)  // Gold
+        case 2: return Color(UIColor.systemGray3)                 // Silver
+        case 3: return Color(red: 0.8, green: 0.5, blue: 0.2)    // Bronze
+        default: return VibeTheme.accentBlue
+        }
+    }
 
     var body: some View {
-        VStack(alignment: .leading) {
+        VStack(alignment: .leading, spacing: VibeSpacing.xs) {
             Text(emoji)
-                .font(.title)
+                .font(.system(size: 28))
             Spacer()
             Text(name)
-                .font(.subheadline)
-                .bold()
+                .font(VibeTypography.titleSmall)
+                .foregroundColor(VibeTheme.textPrimary)
+                .lineLimit(1)
             Text(score)
-                .font(.caption)
-                .foregroundColor(isMVP ? .orange : .gray)
+                .font(VibeTypography.captionLarge)
+                .foregroundColor(rank == 1 ? accentColor : VibeTheme.textSecondary)
+                .contentTransition(.numericText())
         }
-        .padding(12)
-        .frame(width: 100, height: 100)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(16)
+        .padding(VibeSpacing.sm)
+        .frame(width: 110, height: 110)
+        .background(.ultraThinMaterial)
+        .continuousCorner(VibeTheme.radiusMedium)
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(isMVP ? Color.orange.opacity(0.3) : .clear, lineWidth: 2)
+            RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                .stroke(rank == 1 ? accentColor.opacity(0.4) : .clear, lineWidth: 2)
         )
-        .shadow(color: .black.opacity(0.03), radius: 3)
+        .vibeShadow(.sm)
     }
 }
+
+// MARK: - News Card
 
 struct NewsCardView: View {
     var tag: String
@@ -688,8 +768,7 @@ struct NewsCardView: View {
     var color: Color
     var imageUrl: String?
     var isJustIn: Bool
-    
-    // Original initializer for fallback/placeholder cards
+
     init(tag: String, headline: String, socialText: String, color: Color) {
         self.tag = tag
         self.headline = headline
@@ -698,8 +777,7 @@ struct NewsCardView: View {
         self.imageUrl = nil
         self.isJustIn = false
     }
-    
-    // New initializer for NewsItem
+
     init(newsItem: NewsItem) {
         self.tag = newsItem.source.uppercased().prefix(8).description
         self.headline = newsItem.headline
@@ -708,7 +786,7 @@ struct NewsCardView: View {
         self.imageUrl = newsItem.imageUrl
         self.isJustIn = newsItem.isJustIn
     }
-    
+
     private static func colorForBatch(_ batch: String) -> Color {
         switch batch {
         case "morning": return .orange
@@ -724,50 +802,49 @@ struct NewsCardView: View {
             ZStack(alignment: .topTrailing) {
                 if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
                     AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                        image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
                         color.opacity(0.1)
                     }
                 } else {
                     color.opacity(0.2)
                 }
-                
+
                 if isJustIn {
                     Text("⚡️")
                         .font(.system(size: 12))
                         .padding(5)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
-                        .padding(8)
+                        .padding(VibeSpacing.xs)
                 }
             }
             .frame(width: 170, height: 110)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            
+            .clipShape(RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous))
+
             // Content Section
             VStack(alignment: .leading, spacing: 6) {
                 Text(tag.uppercased())
-                    .font(.system(size: 10, weight: .heavy))
+                    .font(VibeTypography.overline)
                     .foregroundColor(color)
                     .lineLimit(1)
-                
+
                 Text(headline)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
+                    .font(VibeTypography.titleSmall)
+                    .foregroundColor(VibeTheme.textPrimary)
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)
-                
+
                 Spacer(minLength: 0)
-                
+
                 HStack(spacing: 4) {
                     Image(systemName: "clock")
-                        .font(.system(size: 10))
+                        .font(.system(size: 9))
                     Text(socialText)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(VibeTypography.captionSmall)
+                        .contentTransition(.numericText())
                 }
-                .foregroundColor(.gray)
+                .foregroundColor(VibeTheme.textSecondary)
                 .padding(.bottom, 2)
             }
             .padding(.top, 10)
@@ -775,54 +852,56 @@ struct NewsCardView: View {
         }
         .padding(10)
         .frame(width: 170, height: 210)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(24)
-        .shadow(color: Color.black.opacity(0.04), radius: 8, y: 4)
+        .background(.ultraThinMaterial)
+        .continuousCorner(VibeTheme.radiusLarge)
+        .vibeShadow(.sm)
     }
 }
+
+// MARK: - Upcoming Reminders
 
 struct UpcomingRemindersSection: View {
     @EnvironmentObject var appState: AppState
     @State private var showAddSheet = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
             HStack {
                 Text("UPCOMING")
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(.gray)
+                    .vibeSectionHeader()
                 Spacer()
                 Button {
+                    VibeHaptic.light()
                     showAddSheet = true
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 22))
-                        .foregroundStyle(.white, .blue)
+                        .foregroundStyle(.white, VibeTheme.accentBlue)
                 }
+                .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
             }
-            .padding(.horizontal)
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
 
             if appState.reminders.isEmpty {
                 HStack {
                     Spacer()
-                    VStack(spacing: 8) {
+                    VStack(spacing: VibeSpacing.xs) {
                         Text("Nothing coming up")
-                            .font(.system(size: 14, weight: .medium, design: .rounded))
-                            .foregroundColor(.gray)
+                            .font(VibeTypography.bodyMedium)
+                            .foregroundColor(VibeTheme.textSecondary)
                         Text("Tap + to add one")
-                            .font(.caption)
-                            .foregroundColor(.gray.opacity(0.6))
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(VibeTheme.textTertiary)
                     }
-                    .padding(.vertical, 24)
+                    .padding(.vertical, VibeSpacing.xl)
                     Spacer()
                 }
-                .background(Color(UIColor.secondarySystemGroupedBackground))
-                .cornerRadius(16)
-                .padding(.horizontal)
+                .background(.ultraThinMaterial)
+                .continuousCorner(VibeTheme.radiusMedium)
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: VibeSpacing.sm) {
                         ForEach(appState.reminders) { reminder in
                             ReminderCardView(
                                 emoji: reminder.emoji,
@@ -832,7 +911,7 @@ struct UpcomingRemindersSection: View {
                             )
                         }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                 }
             }
         }
@@ -843,6 +922,8 @@ struct UpcomingRemindersSection: View {
     }
 }
 
+// MARK: - Reminder Card
+
 struct ReminderCardView: View {
     var emoji: String
     var title: String
@@ -850,29 +931,31 @@ struct ReminderCardView: View {
     var accentColor: Color
 
     var body: some View {
-        HStack {
+        HStack(spacing: VibeSpacing.sm) {
             Circle()
                 .fill(accentColor.opacity(0.1))
                 .frame(width: 40, height: 40)
                 .overlay(
-                    Text(emoji)
-                        .font(.system(size: 20))
+                    Text(emoji).font(.system(size: 20))
                 )
-            VStack(alignment: .leading) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(VibeTypography.titleSmall)
+                    .foregroundColor(VibeTheme.textPrimary)
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                    .font(VibeTypography.captionLarge)
+                    .foregroundColor(VibeTheme.textSecondary)
             }
             Spacer()
         }
-        .padding(12)
-        .background(Color(UIColor.secondarySystemGroupedBackground))
-        .cornerRadius(16)
-        .shadow(color: Color.black.opacity(0.03), radius: 5, y: 2)
+        .padding(VibeSpacing.sm)
+        .background(.ultraThinMaterial)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .vibeShadow(.sm)
     }
 }
+
+// MARK: - Past Vibe Card
 
 struct PastVibeCard: View {
     let vibe: Vibe
@@ -881,35 +964,31 @@ struct PastVibeCard: View {
     var body: some View {
         Button(action: onTap) {
             ZStack(alignment: .bottomLeading) {
-                // Thumbnail
                 if let thumbUrl = vibe.thumbnailUrl ?? vibe.mediaUrl,
                    let url = URL(string: thumbUrl) {
                     AsyncImage(url: url) { image in
                         image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        Color.gray.opacity(0.2)
+                        Color(UIColor.systemGray5)
                     }
                 } else {
                     vibe.type.color.opacity(0.3)
                         .overlay(
                             Image(systemName: vibe.type.icon)
-                                .font(.title)
+                                .font(.system(size: 28))
                                 .foregroundColor(.white)
                         )
                 }
 
-                // Gradient overlay
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.6)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
-                // Time info
                 VStack(alignment: .leading, spacing: 2) {
                     Text(vibe.timeRemainingFormatted)
-                        .font(.caption2)
-                        .bold()
+                        .font(VibeTypography.captionSmall)
                     if vibe.isExpiredFromFeed == true {
                         Text("Expired")
                             .font(.system(size: 8))
@@ -917,27 +996,26 @@ struct PastVibeCard: View {
                     }
                 }
                 .foregroundColor(.white)
-                .padding(8)
+                .padding(VibeSpacing.xs)
             }
             .frame(width: 100, height: 140)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .clipShape(RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous))
+            .vibeShadow(.sm)
         }
+        .buttonStyle(.plain)
     }
 }
 
 // =====================================================================
-// MARK: - EXPLORE ALL VIBES VIEW (Vibe Type Picker)
+// MARK: - EXPLORE ALL VIBES VIEW
 // =====================================================================
 
 struct ExploreAllVibesView: View {
     @EnvironmentObject var appState: AppState
 
-    let bgOffWhite = Color(red: 0.96, green: 0.96, blue: 0.97)
-
     @State private var selectedVibeType: VibeType? = nil
     @State private var isLocked: Bool = false
 
-    // All available vibe types
     let vibeTypes: [(type: VibeType, title: String, icon: String, color: Color, locked: Bool)] = [
         (.video, "Video", "video.fill", .pink, false),
         (.photo, "Photo", "camera.fill", .blue, false),
@@ -956,55 +1034,55 @@ struct ExploreAllVibesView: View {
 
     var body: some View {
         ZStack {
-            bgOffWhite.ignoresSafeArea()
+            VibeTheme.groupedBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 // Header
                 HStack {
                     Button {
+                        VibeHaptic.light()
                         appState.shouldShowVibePicker = false
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(10)
-                            .background(Color.white)
+                            .font(VibeTypography.titleSmall)
+                            .foregroundColor(VibeTheme.textPrimary)
+                            .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                            .background(.ultraThinMaterial)
                             .clipShape(Circle())
                     }
 
                     Spacer()
 
                     Text("Choose a Vibe")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(VibeTypography.titleLarge)
 
                     Spacer()
 
-                    // Spacer for symmetry
                     Color.clear
-                        .frame(width: 38, height: 38)
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
-                .background(bgOffWhite)
+                .padding(.horizontal, VibeSpacing.md)
+                .padding(.top, VibeSpacing.xs)
+                .padding(.bottom, VibeSpacing.sm)
+                .background(VibeTheme.groupedBackground)
 
-                // Grid of all vibe types
+                // Grid
                 ScrollView(showsIndicators: false) {
                     LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 16),
-                        GridItem(.flexible(), spacing: 16),
-                        GridItem(.flexible(), spacing: 16)
-                    ], spacing: 20) {
+                        GridItem(.flexible(), spacing: VibeSpacing.md),
+                        GridItem(.flexible(), spacing: VibeSpacing.md),
+                        GridItem(.flexible(), spacing: VibeSpacing.md)
+                    ], spacing: VibeSpacing.lg) {
                         ForEach(vibeTypes, id: \.title) { item in
-                            VStack(spacing: 10) {
+                            VStack(spacing: VibeSpacing.xs) {
                                 Button {
+                                    VibeHaptic.selection()
                                     selectVibeType(item.type, locked: item.locked)
                                 } label: {
                                     ZStack {
                                         Circle()
-                                            .fill(item.color.opacity(0.15))
+                                            .fill(item.color.opacity(0.12))
                                             .frame(width: 70, height: 70)
-                                            .shadow(color: item.color.opacity(0.2), radius: 8, y: 4)
 
                                         Image(systemName: item.icon)
                                             .font(.system(size: 28))
@@ -1013,14 +1091,14 @@ struct ExploreAllVibesView: View {
                                 }
 
                                 Text(item.title)
-                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                    .foregroundColor(.primary)
+                                    .font(VibeTypography.captionLarge)
+                                    .foregroundColor(VibeTheme.textPrimary)
                             }
                         }
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 40)
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
+                    .padding(.top, VibeSpacing.lg)
+                    .padding(.bottom, VibeSpacing.xxxl)
                 }
             }
         }
@@ -1028,11 +1106,9 @@ struct ExploreAllVibesView: View {
             get: { selectedVibeType != nil },
             set: { if !$0 {
                 selectedVibeType = nil
-                // When composer is dismissed, also dismiss the explore view
                 appState.shouldShowVibePicker = false
             }}
         )) {
-            // Present the composer based on the selected vibe type
             if selectedVibeType != nil {
                 ComposerViewWrapper(vibeType: selectedVibeType, isLocked: isLocked)
             }
@@ -1045,7 +1121,8 @@ struct ExploreAllVibesView: View {
     }
 }
 
-// Wrapper to handle initializing ComposerView with proper state
+// MARK: - Composer Wrappers
+
 struct ComposerViewWrapper: View {
     @EnvironmentObject var appState: AppState
     let vibeType: VibeType?

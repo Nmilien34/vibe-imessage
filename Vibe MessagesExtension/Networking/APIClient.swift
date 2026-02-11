@@ -50,6 +50,17 @@ actor APIClient {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
+    // MARK: - Auth Token
+    private var authToken: String? {
+        UserDefaults.standard.string(forKey: "vibeAuthToken")
+    }
+
+    private func applyAuth(to request: inout URLRequest) {
+        if let token = authToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
     // MARK: - Mock Data Store
     private var mockVibes: [Vibe] = generateInitialMockVibes()
     private var mockUsers: [String: String] = ["user123": "You"]
@@ -430,6 +441,7 @@ actor APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
 
         return try await performRequest(request)
     }
@@ -439,7 +451,7 @@ actor APIClient {
         if useMockData {
             return try await performMockPost(path, body: body)
         }
-        
+
         let urlString = baseURL + path
         guard !path.isEmpty, let url = URL(string: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
@@ -449,6 +461,7 @@ actor APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
         request.httpBody = try encoder.encode(body)
 
         return try await performRequest(request)
@@ -458,7 +471,7 @@ actor APIClient {
         if useMockData {
             return try await performMockPost(path, body: EmptyBody())
         }
-        
+
         let urlString = baseURL + path
         guard !path.isEmpty, let url = URL(string: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
@@ -468,6 +481,7 @@ actor APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
 
         return try await performRequest(request)
     }
@@ -489,6 +503,7 @@ actor APIClient {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
         request.httpBody = try encoder.encode(body)
 
         return try await performRequest(request)

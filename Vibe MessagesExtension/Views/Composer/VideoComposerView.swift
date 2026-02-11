@@ -87,7 +87,7 @@ struct VideoComposerView: View {
                 
                 Text(uploadProgress < 0.9 ? "Uploading Vibe..." : "Almost there...")
                     .foregroundColor(.white)
-                    .font(.headline)
+                    .font(VibeTypography.titleSmall)
             }
         }
     }

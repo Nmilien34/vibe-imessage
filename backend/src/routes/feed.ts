@@ -12,6 +12,14 @@ import {
   StoriesByChatResponse,
   IUserDocument
 } from '../types';
+import { authMiddleware, optionalAuth } from '../middleware/auth';
+import {
+  generateFeed,
+  getVisibilitySettings,
+  grantVisibility,
+  revokeVisibility,
+  createConnection,
+} from '../services/feedService';
 
 const router: Router = express.Router();
 
@@ -145,9 +153,10 @@ async function groupVibesIntoStories(
  * @query   { userId, limit?, offset? }
  * @desc    Get unified feed - all vibes from all chats user belongs to
  */
-router.get('/my-feed', async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
+router.get('/my-feed', optionalAuth, async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
   try {
-    const { userId, limit = '50', offset = '0' } = req.query;
+    const userId = req.userId || req.query.userId;
+    const { limit = '50', offset = '0' } = req.query;
 
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
@@ -256,9 +265,9 @@ router.get('/history', async (req: Request<{}, {}, {}, FeedQuery>, res: Response
  * @query   { userId }
  * @desc    Get feed stats for a user
  */
-router.get('/stats', async (req: Request<{}, {}, {}, { userId?: string }>, res: Response) => {
+router.get('/stats', optionalAuth, async (req: Request<{}, {}, {}, { userId?: string }>, res: Response) => {
   try {
-    const { userId } = req.query;
+    const userId = req.userId || req.query.userId;
 
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
@@ -302,9 +311,10 @@ router.get('/stats', async (req: Request<{}, {}, {}, { userId?: string }>, res: 
  * @desc    Get vibes grouped by user as stories (for story ring UI)
  *          chatIds can be comma-separated list to filter specific chats
  */
-router.get('/stories', async (req: Request<{}, {}, {}, StoriesQuery>, res: Response) => {
+router.get('/stories', optionalAuth, async (req: Request<{}, {}, {}, StoriesQuery>, res: Response) => {
   try {
-    const { userId, chatIds, limit = '50' } = req.query;
+    const userId = req.userId || req.query.userId;
+    const { chatIds, limit = '50' } = req.query;
 
     if (!userId) {
       return res.status(400).json({ error: 'userId is required' });
@@ -431,6 +441,131 @@ router.get('/user/:oderId/vibes', async (req: Request<{ oderId: string }, {}, {}
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// DISCOVERY ENDPOINTS (powered by feedService)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * @route   GET /api/feed/discover
+ * @desc    Bet discovery feed with access levels
+ * @access  Private
+ */
+router.get('/discover', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { limit, offset, status } = req.query;
+
+    const result = await generateFeed({
+      userId,
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      status: status as 'active' | 'completed' | 'expired' | 'ducked' | undefined,
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Discover feed error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   GET /api/feed/visibility
+ * @desc    Get user's visibility settings
+ * @access  Private
+ */
+router.get('/visibility', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+
+    const settings = await getVisibilitySettings(userId);
+    res.json(settings);
+  } catch (error: any) {
+    console.error('Get visibility error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/feed/visibility/grant
+ * @desc    Grant visibility to another user
+ * @access  Private
+ */
+router.post('/visibility/grant', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { targetUserId, source } = req.body;
+
+    if (!targetUserId || !source) {
+      return res.status(400).json({ error: 'targetUserId and source are required' });
+    }
+
+    await grantVisibility({
+      userId,
+      visibleToUserId: targetUserId,
+      source,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Grant visibility error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/feed/visibility/revoke
+ * @desc    Revoke visibility from another user
+ * @access  Private
+ */
+router.post('/visibility/revoke', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { targetUserId } = req.body;
+
+    if (!targetUserId) {
+      return res.status(400).json({ error: 'targetUserId is required' });
+    }
+
+    await revokeVisibility({
+      userId,
+      visibleToUserId: targetUserId,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Revoke visibility error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/feed/connection
+ * @desc    Create a connection between two users
+ * @access  Private
+ */
+router.post('/connection', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { targetUserId, sourceChatId } = req.body;
+
+    if (!targetUserId || !sourceChatId) {
+      return res.status(400).json({ error: 'targetUserId and sourceChatId are required' });
+    }
+
+    await createConnection({
+      userId1: userId,
+      userId2: targetUserId,
+      sourceChatId,
+    });
+
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('Create connection error:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 

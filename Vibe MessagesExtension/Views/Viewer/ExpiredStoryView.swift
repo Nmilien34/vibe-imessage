@@ -2,51 +2,45 @@ import SwiftUI
 
 struct ExpiredStoryView: View {
     @EnvironmentObject var appState: AppState
-    
+
     var body: some View {
         ZStack {
-            // Requirement: Gray background
-            Color(.systemGray6)
+            VibeTheme.background
                 .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Requirement: Icon (Clock or crossed-out play button)
+
+            VStack(spacing: VibeSpacing.xxl) {
                 ZStack {
                     Circle()
-                        .fill(Color.gray.opacity(0.1))
+                        .fill(VibeTheme.surfaceOverlay)
                         .frame(width: 120, height: 120)
-                    
+
                     Image(systemName: "clock.badge.xmark")
                         .font(.system(size: 60))
-                        .foregroundColor(.gray)
+                        .foregroundColor(VibeTheme.textTertiary)
                 }
-                
-                VStack(spacing: 8) {
-                    // Requirement: Text
+
+                VStack(spacing: VibeSpacing.sm) {
                     Text("This story has expired")
-                        .font(.system(.title3, design: .rounded))
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                    
+                        .font(VibeTypography.titleMedium)
+                        .foregroundColor(VibeTheme.textPrimary)
+
                     Text("Vibes only last for 24 hours to keep things fresh.")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .font(VibeTypography.bodySmall)
+                        .foregroundColor(VibeTheme.textSecondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
+                        .padding(.horizontal, VibeSpacing.xxxl)
                 }
-                
+
                 Button {
+                    VibeHaptic.light()
                     appState.navigateToFeed()
                 } label: {
                     Text("Back to Feed")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .clipShape(Capsule())
+                        .vibeButton(.primary)
                 }
-                .padding(.top, 20)
+                .buttonStyle(VibePressStyle())
+                .padding(.horizontal, VibeSpacing.xxxl)
+                .padding(.top, VibeSpacing.lg)
             }
             .padding()
         }

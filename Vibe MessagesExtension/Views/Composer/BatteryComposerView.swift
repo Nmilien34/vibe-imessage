@@ -11,72 +11,64 @@ import UIKit
 struct BatteryComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var batteryLevel: Int = 0
     @State private var batteryState: UIDevice.BatteryState = .unknown
-    
+
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: VibeSpacing.xxxl) {
             Spacer()
-            
+
             Text("Current Vibe")
-                .font(.title2)
-                .fontWeight(.bold)
-            
+                .font(VibeTypography.titleLarge)
+                .foregroundColor(VibeTheme.textPrimary)
+
             ZStack {
-                // Battery shape
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(Color.primary, lineWidth: 4)
+                RoundedRectangle(cornerRadius: VibeTheme.radiusLarge)
+                    .stroke(VibeTheme.textPrimary, lineWidth: 4)
                     .frame(width: 150, height: 250)
-                
-                // Battery Cap
+
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.primary)
+                    .fill(VibeTheme.textPrimary)
                     .frame(width: 60, height: 10)
                     .offset(y: -135)
-                
-                // Fill
+
                 VStack {
                     Spacer()
                     RoundedRectangle(cornerRadius: 20)
-                        .fill(batteryColor)
+                        .fill(batteryGradient)
                         .frame(width: 138, height: CGFloat(batteryLevel) * 2.38)
-                        .animation(.spring(), value: batteryLevel)
+                        .animation(VibeAnimation.bouncy, value: batteryLevel)
                 }
                 .frame(width: 150, height: 238)
                 .padding(.bottom, 6)
-                
-                // Percentage Text
+
                 Text("\(batteryLevel)%")
-                    .font(.system(size: 50, weight: .bold))
+                    .font(VibeTypography.numericLarge)
                     .foregroundColor(.white)
                     .shadow(radius: 2)
+                    .contentTransition(.numericText())
             }
-            
+
             if batteryState == .charging {
-                HStack {
+                HStack(spacing: VibeSpacing.xxs) {
                     Image(systemName: "bolt.fill")
                     Text("Charging")
                 }
-                .font(.headline)
+                .font(VibeTypography.titleSmall)
                 .foregroundColor(.yellow)
             }
-            
+
             Button {
-                Task {
-                    await shareBattery()
-                }
+                VibeHaptic.success()
+                Task { await shareBattery() }
             } label: {
                 Text("Share Battery Vibe")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(batteryColor)
-                    .cornerRadius(12)
+                    .vibeButton(.primary)
             }
-            .padding(.horizontal, 40)
-            
+            .buttonStyle(VibePressStyle())
+            .padding(.horizontal, VibeSpacing.xxxl)
+
             Spacer()
         }
         .onAppear {
@@ -84,10 +76,9 @@ struct BatteryComposerView: View {
             updateBattery()
         }
     }
-    
+
     private func updateBattery() {
         let level = UIDevice.current.batteryLevel
-        // Simulator returns -1.0 so we mock it if needed
         if level < 0 {
             batteryLevel = 100
         } else {
@@ -95,15 +86,18 @@ struct BatteryComposerView: View {
         }
         batteryState = UIDevice.current.batteryState
     }
-    
-    private var batteryColor: Color {
+
+    private var batteryGradient: LinearGradient {
         switch batteryLevel {
-        case 0..<20: return .red
-        case 20..<50: return .yellow
-        default: return .green
+        case 0..<20:
+            return LinearGradient(colors: [.red, .orange], startPoint: .bottom, endPoint: .top)
+        case 20..<50:
+            return LinearGradient(colors: [.orange, .yellow], startPoint: .bottom, endPoint: .top)
+        default:
+            return LinearGradient(colors: [.green, .mint], startPoint: .bottom, endPoint: .top)
         }
     }
-    
+
     private func shareBattery() async {
         do {
             let vibe = try await appState.createVibe(

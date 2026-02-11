@@ -3,37 +3,42 @@ import AVFoundation
 
 struct PermissionRequestView: View {
     @EnvironmentObject var appState: AppState
-    
+
     @State private var cameraStatus: AVAuthorizationStatus = .notDetermined
     @State private var audioStatus: AVAuthorizationStatus = .notDetermined
-    
+    @State private var isVisible = false
+
     var body: some View {
-        VStack(spacing: 40) {
+        VStack(spacing: VibeSpacing.xxxl) {
             Spacer()
-            
-            VStack(spacing: 16) {
+
+            VStack(spacing: VibeSpacing.md) {
                 Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.blue)
-                
+                    .font(.system(size: 56))
+                    .foregroundStyle(VibeTheme.brandGradient)
+                    .symbolEffect(.bounce)
+
                 Text("One last thing...")
-                    .font(.system(size: 32, weight: .black, design: .rounded))
-                
+                    .font(VibeTypography.displayMedium)
+                    .foregroundColor(VibeTheme.textPrimary)
+
                 Text("Vibe needs access to your camera and audio to share your vibes with the squad.")
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .foregroundColor(.secondary)
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.textSecondary)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, VibeSpacing.xxxl)
             }
-            
-            VStack(spacing: 20) {
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : 20)
+
+            VStack(spacing: VibeSpacing.lg) {
                 PermissionRow(
                     title: "Camera",
                     icon: "camera.fill",
                     status: cameraStatus,
                     action: requestCamera
                 )
-                
+
                 PermissionRow(
                     title: "Microphone",
                     icon: "mic.fill",
@@ -41,60 +46,58 @@ struct PermissionRequestView: View {
                     action: requestAudio
                 )
             }
-            .padding(.horizontal, 40)
-            
+            .padding(.horizontal, VibeSpacing.xxxl)
+            .opacity(isVisible ? 1 : 0)
+            .offset(y: isVisible ? 0 : 30)
+
             Spacer()
-            
-            VStack(spacing: 16) {
+
+            VStack(spacing: VibeSpacing.md) {
                 Button {
+                    VibeHaptic.success()
                     appState.setPermissionsGranted()
                 } label: {
                     Text("Continue to Vibe")
-                        .font(.system(.title3, design: .rounded))
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 60)
-                        .background(
-                            allGranted ? Color.blue : Color.gray
-                        )
-                        .cornerRadius(20)
-                        .padding(.horizontal, 40)
+                        .vibeButton(.primary)
                 }
+                .buttonStyle(VibePressStyle())
                 .disabled(!allGranted)
-                .opacity(allGranted ? 1.0 : 0.6)
-                
+                .opacity(allGranted ? 1.0 : 0.5)
+                .padding(.horizontal, VibeSpacing.xxxl)
+
                 #if DEBUG
                 Button {
+                    VibeHaptic.light()
                     appState.setPermissionsGranted()
                 } label: {
                     Text("Dev: Skip Permissions")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.gray)
+                        .font(VibeTypography.captionLarge)
+                        .foregroundColor(VibeTheme.textTertiary)
                 }
                 #endif
             }
-            
+
             Spacer()
         }
-        .onAppear(perform: updateStatuses)
+        .onAppear {
+            updateStatuses()
+            withAnimation(VibeAnimation.smooth.delay(0.2)) {
+                isVisible = true
+            }
+        }
     }
-    
+
     private var allGranted: Bool {
-        // In a real app, we want both. In some environments, we might want to accept .authorized or .prohibited/etc if we can't change it.
-        // For Vibe, we really need .authorized for the core features.
         cameraStatus == .authorized && audioStatus == .authorized
     }
-    
+
     private func updateStatuses() {
         let newCameraStatus = AVCaptureDevice.authorizationStatus(for: .video)
         let newAudioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        
-        // Only update if changed to avoid unnecessary re-renders
         if newCameraStatus != cameraStatus { cameraStatus = newCameraStatus }
         if newAudioStatus != audioStatus { audioStatus = newAudioStatus }
     }
-    
+
     private func requestCamera() {
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         if status == .notDetermined {
@@ -104,12 +107,10 @@ struct PermissionRequestView: View {
                 }
             }
         } else {
-            // If already denied/restricted, the user must go to settings.
-            // But for now, just refresh to show the current state.
             updateStatuses()
         }
     }
-    
+
     private func requestAudio() {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         if status == .notDetermined {
@@ -129,38 +130,43 @@ struct PermissionRow: View {
     let icon: String
     let status: AVAuthorizationStatus
     let action: () -> Void
-    
+
     var body: some View {
         HStack {
             Image(systemName: icon)
-                .font(.title2)
-                .frame(width: 40)
-            
+                .font(.system(size: 20))
+                .foregroundColor(VibeTheme.accent)
+                .frame(width: VibeSpacing.minTouchTarget)
+
             Text(title)
-                .font(.headline)
-            
+                .font(VibeTypography.titleMedium)
+                .foregroundColor(VibeTheme.textPrimary)
+
             Spacer()
-            
+
             if status == .authorized {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
-                    .font(.title2)
+                    .font(.system(size: 24))
+                    .symbolEffect(.bounce)
             } else {
-                Button(action: action) {
+                Button(action: {
+                    VibeHaptic.medium()
+                    action()
+                }) {
                     Text("Allow")
-                        .font(.subheadline)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(Color.blue)
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .padding(.horizontal, VibeSpacing.md)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(VibeTheme.accent)
+                        .continuousCorner(VibeTheme.radiusSmall)
                 }
+                .buttonStyle(VibePressStyle())
             }
         }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(16)
+        .padding(VibeSpacing.md)
+        .vibeGlassCard(radius: VibeTheme.radiusMedium)
     }
 }
 

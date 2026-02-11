@@ -9,37 +9,39 @@ struct Line {
 struct SketchComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var lines: [Line] = []
     @State private var currentLine = Line(points: [], color: .cyan, lineWidth: 5)
     @State private var selectedColor: Color = .cyan
     @State private var isUploading = false
     @State private var showUploadError = false
     @State private var uploadError: String?
-    
+
     let colors: [Color] = [.cyan, .pink, .green, .yellow, .white]
-    
+
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.xl) {
             // Canvas Area
             canvasView
                 .frame(height: 400)
-                .padding(.horizontal)
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
                 .overlay(alignment: .topTrailing) {
                     Button {
+                        VibeHaptic.light()
                         lines = []
                     } label: {
                         Image(systemName: "arrow.uturn.backward.circle.fill")
-                            .font(.title)
+                            .font(.system(size: 28))
                             .foregroundColor(.white.opacity(0.5))
-                            .padding(24)
+                            .padding(VibeSpacing.xl)
                     }
                 }
-            
+
             // Tool Palette
-            HStack(spacing: 20) {
+            HStack(spacing: VibeSpacing.lg) {
                 ForEach(colors, id: \.self) { color in
                     Button {
+                        VibeHaptic.selection()
                         selectedColor = color
                         currentLine.color = color
                     } label: {
@@ -54,37 +56,36 @@ struct SketchComposerView: View {
                     }
                 }
             }
-            
+
             Spacer()
-            
+
             // Share Button
             Button {
-                Task {
-                    await shareSketch()
-                }
+                VibeHaptic.success()
+                Task { await shareSketch() }
             } label: {
                 if isUploading {
                     ProgressView()
                         .tint(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .frame(height: VibeSpacing.minTouchTarget)
                         .background(selectedColor)
-                        .cornerRadius(12)
+                        .continuousCorner(VibeTheme.radiusMedium)
                 } else {
-                    Text("Send Doodle 🎨")
-                        .font(.headline)
+                    Text("Send Doodle")
+                        .font(VibeTypography.titleSmall)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .frame(height: VibeSpacing.minTouchTarget)
                         .background(selectedColor)
-                        .cornerRadius(12)
+                        .continuousCorner(VibeTheme.radiusMedium)
                 }
             }
-            .padding(.horizontal)
+            .buttonStyle(VibePressStyle())
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
             .disabled(lines.isEmpty || isUploading)
             .opacity(lines.isEmpty || isUploading ? 0.5 : 1.0)
 
-            // Upload Error Overlay
             if showUploadError {
                 Color.black.opacity(0.6).ignoresSafeArea()
                 UploadErrorView(
@@ -101,22 +102,21 @@ struct SketchComposerView: View {
                 .padding()
             }
         }
-        .padding(.top, 16)
+        .padding(.top, VibeSpacing.md)
     }
 
-    // Extracted canvas view for rendering
     private var canvasView: some View {
         ZStack {
             Color.black
-                .cornerRadius(24)
-            
+                .continuousCorner(VibeTheme.radiusLarge)
+
             Canvas { context, size in
                 for line in lines {
                     var path = Path()
                     path.addLines(line.points)
                     context.stroke(path, with: .color(line.color), lineWidth: line.lineWidth)
                 }
-                
+
                 var path = Path()
                 path.addLines(currentLine.points)
                 context.stroke(path, with: .color(currentLine.color), lineWidth: currentLine.lineWidth)
@@ -134,36 +134,32 @@ struct SketchComposerView: View {
             )
         }
     }
-    
+
     private func shareSketch() async {
         isUploading = true
         showUploadError = false
         uploadError = nil
 
         do {
-            // 1. Render canvas to UIImage
             let renderer = ImageRenderer(content: canvasView.frame(width: 400, height: 400))
-            renderer.scale = 3.0 // High quality
-            
+            renderer.scale = 3.0
+
             guard let image = renderer.uiImage,
                   let imageData = image.jpegData(compressionQuality: 0.8) else {
                 throw NSError(domain: "SketchError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to render drawing"])
             }
 
-            // Define local response type to avoid any visibility issues
             struct LocalPresignedResponse: Decodable {
                 let uploadUrl: String
                 let publicUrl: String
                 let key: String
             }
 
-            // 2. Get Presigned URL
             let presignedResponse: LocalPresignedResponse = try await APIClient.shared.post("/api/upload/presigned-url", body: [
                 "fileType": "jpg",
                 "folder": "sketches"
             ])
 
-            // 3. Upload to S3
             guard let uploadUrl = URL(string: presignedResponse.uploadUrl) else {
                 throw NSError(domain: "UploadError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid upload URL"])
             }
@@ -171,20 +167,19 @@ struct SketchComposerView: View {
             var request = URLRequest(url: uploadUrl)
             request.httpMethod = "PUT"
             request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
-            
+
             let (_, response) = try await URLSession.shared.upload(for: request, from: imageData)
-            
+
             guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
                 throw NSError(domain: "S3Error", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to upload sketch to storage"])
             }
 
-            // 4. Create Vibe with the public URL
             let vibe = try await appState.createVibe(
                 type: .sketch,
                 mediaUrl: presignedResponse.publicUrl,
                 isLocked: isLocked
             )
-            
+
             appState.sendVibeMessage(vibeId: vibe.id, isLocked: isLocked, vibeType: .sketch)
             appState.dismissComposer()
         } catch {

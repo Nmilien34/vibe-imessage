@@ -7,55 +7,26 @@
 
 import SwiftUI
 
-// MARK: - Mock Data
-struct Friend: Identifiable {
-    let id = UUID()
-    let name: String
-    let imageName: String // System image for now, or asset
-    let hasPosted: Bool
-    
-    // Gradient for the ring if posted
-    var ringColors: [Color] {
-        if hasPosted {
-            return [.red, .orange, .pink, .purple, .blue]
-        } else {
-            return [.gray.opacity(0.3)]
-        }
-    }
-}
-
 struct ComposerView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.colorScheme) var colorScheme
-    
+
     @State private var selectedType: VibeType?
     @State private var isLocked = false
-    
-    // Sync with AppState when view appears or updates
+
     private var effectiveType: VibeType? {
         selectedType ?? appState.selectedVibeType
     }
-    
-    // Mock Data for Squad
-    let squad: [Friend] = [
-        Friend(name: "Sarah", imageName: "person.crop.circle.fill", hasPosted: true),
-        Friend(name: "Mike", imageName: "person.crop.circle", hasPosted: false),
-        Friend(name: "Jessica", imageName: "person.crop.circle.fill", hasPosted: true),
-        Friend(name: "David", imageName: "person.crop.circle", hasPosted: false),
-        Friend(name: "Emma", imageName: "person.crop.circle.fill", hasPosted: true)
-    ]
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Background
-                Color(uiColor: .systemGroupedBackground) // Or systemBackground depending on preference, spec said "standard Materials"
+                VibeTheme.groupedBackground
                     .ignoresSafeArea()
-                
+
                 if let type = effectiveType {
                     typeComposer(for: type)
                         .onAppear {
-                            // Sync locked state from AppState if we just arrived
                             if appState.composerIsLocked {
                                 self.isLocked = true
                             }
@@ -64,275 +35,288 @@ struct ComposerView: View {
                     dashboardContent
                 }
             }
-            .navigationBarHidden(true) // We building a custom header
+            .navigationBarHidden(true)
         }
         .onAppear {
             appState.requestExpand()
         }
     }
 
+    // MARK: - Dashboard Content
+
     private var dashboardContent: some View {
         VStack(spacing: 0) {
-            // 1. HEADER
+            // Header
             HStack {
                 Button {
+                    VibeHaptic.light()
                     appState.dismissComposer()
                 } label: {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.secondary)
-                        .frame(width: 36, height: 36)
-                        .background(Color(.systemGray5))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(VibeTheme.textSecondary)
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                        .background(.ultraThinMaterial)
                         .clipShape(Circle())
                 }
-                
+
                 Spacer()
-                
-                VStack(spacing: 2) {
-                    Text("How are you feeling?")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    Text("choose a vibe")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+
+                VStack(spacing: VibeSpacing.xxxs) {
+                    Text("New Vibe")
+                        .font(VibeTypography.titleLarge)
+                        .foregroundColor(VibeTheme.textPrimary)
+                    Text("choose your vibe type")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
                 }
-                
+
                 Spacer()
-                
-                // Profile settings placeholder
-                Button {
-                    // Action for profile
-                } label: {
-                    Image(systemName: "person.circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(.primary)
+
+                // Aura balance indicator
+                if appState.auraBalance > 0 {
+                    HStack(spacing: VibeSpacing.xxs) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(red: 1.0, green: 0.84, blue: 0.0))
+                        Text("\(appState.auraBalance)")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(VibeTheme.textPrimary)
+                    }
+                    .padding(.horizontal, VibeSpacing.sm)
+                    .padding(.vertical, VibeSpacing.xs)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                } else {
+                    Color.clear.frame(width: VibeSpacing.minTouchTarget)
                 }
             }
-            .padding(.horizontal)
-            .padding(.top, 16)
-            .padding(.bottom, 24)
-            
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
+            .padding(.top, VibeSpacing.md)
+            .padding(.bottom, VibeSpacing.lg)
+
             ScrollView(showsIndicators: false) {
-                VStack(spacing: 32) {
-                    // 2. ACTION GRID
-                    LazyVGrid(columns: [
-                        GridItem(.flexible(), spacing: 16),
-                        GridItem(.flexible(), spacing: 16)
-                    ], spacing: 16) {
-                        // Row 1
-                        MenuCard(
-                            title: "Video",
-                            icon: "video.fill",
-                            gradient: [.red, .pink]
-                        ) {
-                            selectVibe(.video, locked: false)
-                        }
-                        
-                        MenuCard(
-                            title: "POV",
-                            icon: "eye.fill",
-                            gradient: [.green, .teal]
-                        ) {
-                            selectVibe(.video, locked: true) // POV is Video + Locked
-                        }
-                        
-                        // Row 2
-                        MenuCard(
-                            title: "Battery",
-                            icon: "battery.100",
-                            gradient: [.yellow, .orange]
-                        ) {
-                            selectVibe(.battery)
-                        }
-                        
-                        MenuCard(
-                            title: "Mood",
-                            icon: "face.smiling",
-                            gradient: [.purple, .pink]
-                        ) {
-                            selectVibe(.mood)
-                        }
-                        
-                        // Row 3 (Single Item centered logic handled by grid automatically if count is odd? No, need to be explicit or use span)
-                        // Spec says "Row 3 Left: Poll", which implies a 5th item.
-                        MenuCard(
-                            title: "Poll",
-                            icon: "chart.bar.fill",
-                            gradient: [.blue, .cyan]
-                        ) {
-                            selectVibe(.poll)
-                        }
+                VStack(spacing: VibeSpacing.sectionGap) {
 
-                        // Row 4
-                        MenuCard(
-                            title: "Tea",
-                            icon: "quote.bubble.fill",
-                            gradient: [.brown, .orange]
-                        ) {
-                            selectVibe(.tea)
-                        }
+                    // MARK: Create Section
+                    VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                        Text("CREATE")
+                            .vibeSectionHeader()
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
 
-                        MenuCard(
-                            title: "Leak",
-                            icon: "shutter.releaser",
-                            gradient: [.red, .pink]
-                        ) {
-                            selectVibe(.leak)
-                        }
+                        HStack(spacing: VibeSpacing.sm) {
+                            MenuCard(
+                                title: "Video",
+                                icon: "video.fill",
+                                gradient: [.red, .pink],
+                                size: .large
+                            ) {
+                                selectVibe(.video, locked: false)
+                            }
 
-                        // Row 5
-                        MenuCard(
-                            title: "Sketch",
-                            icon: "hand.draw.fill",
-                            gradient: [.orange, .yellow]
-                        ) {
-                            selectVibe(.sketch)
-                        }
+                            MenuCard(
+                                title: "Photo",
+                                icon: "camera.fill",
+                                gradient: [.orange, .yellow],
+                                size: .large
+                            ) {
+                                selectVibe(.photo, locked: false)
+                            }
 
-                        MenuCard(
-                            title: "ETA",
-                            icon: "location.fill",
-                            gradient: [.blue, .teal]
-                        ) {
-                            selectVibe(.eta)
+                            MenuCard(
+                                title: "POV",
+                                icon: "eye.fill",
+                                gradient: [.green, .teal],
+                                size: .large
+                            ) {
+                                selectVibe(.video, locked: true)
+                            }
                         }
-
-                        // Row 6
-                        MenuCard(
-                            title: "Parlay",
-                            icon: "dollarsign.circle.fill",
-                            gradient: [Color(red: 1.0, green: 0.2, blue: 0.6), Color(red: 0.6, green: 0.2, blue: 1.0)]
-                        ) {
-                            selectVibe(.parlay)
-                        }
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
                     }
-                    .padding(.horizontal)
 
-                    // 3. SQUAD ROW
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Squad")
-                            .font(.system(.subheadline, design: .rounded))
-                            .fontWeight(.medium)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                        
+                    // MARK: Express Section
+                    VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                        Text("EXPRESS")
+                            .vibeSectionHeader()
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 16) {
-                                ForEach(squad) { friend in
-                                    SquadMemberView(friend: friend)
+                            HStack(spacing: VibeSpacing.lg) {
+                                ExpressItem(icon: "battery.100", label: "Battery", color: .yellow) {
+                                    selectVibe(.battery)
+                                }
+                                ExpressItem(icon: "face.smiling", label: "Mood", color: .purple) {
+                                    selectVibe(.mood)
+                                }
+                                ExpressItem(icon: "music.note", label: "Song", color: .green) {
+                                    selectVibe(.song)
+                                }
+                                ExpressItem(icon: "hand.draw.fill", label: "Sketch", color: .orange) {
+                                    selectVibe(.sketch)
                                 }
                             }
-                            .padding(.horizontal)
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
+                        }
+                    }
+
+                    // MARK: Social Section
+                    VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                        Text("SOCIAL")
+                            .vibeSectionHeader()
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
+
+                        LazyVGrid(columns: [
+                            GridItem(.flexible(), spacing: VibeSpacing.sm),
+                            GridItem(.flexible(), spacing: VibeSpacing.sm)
+                        ], spacing: VibeSpacing.sm) {
+                            CompactMenuCard(title: "Poll", icon: "chart.bar.fill", color: .blue) {
+                                selectVibe(.poll)
+                            }
+                            CompactMenuCard(title: "Tea", icon: "cup.and.saucer.fill", color: .brown) {
+                                selectVibe(.tea)
+                            }
+                            CompactMenuCard(title: "Parlay", icon: "dollarsign.circle.fill", color: VibeTheme.accent) {
+                                selectVibe(.parlay)
+                            }
+                            CompactMenuCard(title: "Leak", icon: "eye.slash.fill", color: .red) {
+                                selectVibe(.leak)
+                            }
+                            CompactMenuCard(title: "ETA", icon: "location.fill", color: .blue) {
+                                selectVibe(.eta)
+                            }
+                            CompactMenuCard(title: "Daily Drop", icon: "die.face.5.fill", color: .pink) {
+                                selectVibe(.dailyDrop)
+                            }
+                        }
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+                    }
+
+                    // MARK: Squad Section
+                    VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                        Text("SQUAD")
+                            .vibeSectionHeader()
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
+
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: VibeSpacing.md) {
+                                let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false, includeTeam: true)
+                                if groupedVibes.isEmpty {
+                                    Text("No squad members active yet")
+                                        .font(VibeTypography.bodySmall)
+                                        .foregroundColor(VibeTheme.textTertiary)
+                                        .padding(.horizontal, VibeSpacing.md)
+                                } else {
+                                    ForEach(groupedVibes, id: \.first?.userId) { userVibes in
+                                        if let firstVibe = userVibes.first {
+                                            SquadMemberView(
+                                                name: appState.nameForUser(firstVibe.userId),
+                                                hasPosted: true,
+                                                vibeType: firstVibe.type
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, VibeSpacing.screenHorizontal)
                         }
                     }
                 }
-                .padding(.bottom, 100) // Space for Anchor button
+                .padding(.bottom, 100)
             }
-            
+
             Spacer()
         }
         .overlay(alignment: .bottom) {
-            // 4. ANCHOR BUTTON
+            // Surprise Me FAB
             Button {
                 triggerSurpriseMe()
             } label: {
-                HStack {
+                HStack(spacing: VibeSpacing.xs) {
+                    Image(systemName: "dice.fill")
+                        .font(.system(size: 20))
                     Text("Surprise Me")
-                        .font(.system(.title3, design: .rounded))
-                        .fontWeight(.bold)
-                    Text("🎲")
-                        .font(.title3)
+                        .font(VibeTypography.titleSmall)
                 }
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 64)
-                .background(
-                    LinearGradient(
-                        colors: [.pink, .purple, .blue],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .clipShape(Capsule())
-                .shadow(color: .purple.opacity(0.4), radius: 10, x: 0, y: 5)
+                .frame(height: 56)
+                .background(VibeTheme.brandGradient)
+                .continuousCorner(VibeTheme.radiusLarge)
+                .vibeShadow(.lg)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 0) // SafeArea ignored by container? No we need to handle safe area manually or stick to it.
+            .buttonStyle(VibePressStyle())
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
+            .padding(.bottom, VibeSpacing.xs)
         }
     }
-    
+
+    // MARK: - Actions
+
     private func selectVibe(_ type: VibeType, locked: Bool = false) {
-        withAnimation {
+        VibeHaptic.selection()
+        withAnimation(VibeAnimation.snappy) {
             self.selectedType = type
             self.isLocked = locked
         }
     }
-    
+
     private func triggerSurpriseMe() {
+        VibeHaptic.heavy()
         let options: [(VibeType, Bool)] = [
-            (.video, false), // Video
-            (.video, true),  // POV
-            (.battery, false),
-            (.mood, false),
-            (.poll, false),
-            (.tea, false),
-            (.leak, false),
-            (.sketch, false),
-            (.eta, false)
+            (.video, false), (.video, true), (.battery, false),
+            (.mood, false), (.poll, false), (.tea, false),
+            (.leak, false), (.sketch, false), (.eta, false)
         ]
-        
         if let random = options.randomElement() {
             selectVibe(random.0, locked: random.1)
         }
     }
 
+    // MARK: - Type Composer Router
+
     @ViewBuilder
     private func typeComposer(for type: VibeType) -> some View {
         VStack(spacing: 0) {
-            // ARCADE HEADER (Hidden for Video/Photo which have custom UI)
             if type != .video && type != .photo {
                 HStack {
                     Button {
-                        withAnimation {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.snappy) {
                             if selectedType == nil && appState.selectedVibeType != nil {
-                                // User came directly from the Dashboard
                                 appState.dismissComposer()
                             } else {
-                                // User navigated from the internal "New Vibes" menu
                                 selectedType = nil
                                 appState.selectedVibeType = nil
                             }
                         }
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: VibeSpacing.xxs) {
                             Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .bold))
+                                .font(.system(size: 14, weight: .bold))
                             Text("Back")
-                                .font(.headline)
+                                .font(VibeTypography.titleSmall)
                         }
-                        .foregroundColor(.primary)
+                        .foregroundColor(VibeTheme.textPrimary)
                     }
-                    .frame(width: 80, alignment: .leading) // Fixed width for balance
+                    .frame(width: 80, alignment: .leading)
 
                     Spacer()
 
                     Text(type.displayName)
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                        .font(VibeTypography.titleMedium)
+                        .foregroundColor(VibeTheme.textPrimary)
 
                     Spacer()
 
-                    // Balance the header
-                    Color.clear
-                        .frame(width: 80)
+                    Color.clear.frame(width: 80)
                 }
-                .padding(.horizontal)
-                .padding(.top, 16)
-                .padding(.bottom, 16)
-                .background(Color(uiColor: .systemGroupedBackground))
-            } 
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
+                .padding(.top, VibeSpacing.md)
+                .padding(.bottom, VibeSpacing.md)
+                .background(VibeTheme.groupedBackground)
+            }
 
-            // COMPOSER CONTENT
             switch type {
             case .video, .photo:
                 VideoComposerView(isLocked: isLocked)
@@ -361,20 +345,22 @@ struct ComposerView: View {
     }
 }
 
-// MARK: - Subviews
+// MARK: - Menu Card (Large)
 
 struct MenuCard: View {
     let title: String
     let icon: String
     let gradient: [Color]
+    var size: CardSize = .standard
     let action: () -> Void
-    
-    @Environment(\.colorScheme) var colorScheme
-    
+
+    enum CardSize {
+        case standard, large
+    }
+
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .center, spacing: 12) {
-                // Icon Circle
+            VStack(spacing: VibeSpacing.xs) {
                 ZStack {
                     Circle()
                         .fill(
@@ -384,76 +370,126 @@ struct MenuCard: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 56, height: 56)
-                    
+                        .frame(width: size == .large ? VibeSpacing.iconCircleLarge : VibeSpacing.iconCircleMedium,
+                               height: size == .large ? VibeSpacing.iconCircleLarge : VibeSpacing.iconCircleMedium)
+                        .shadow(color: gradient.first?.opacity(0.3) ?? .clear, radius: 8, y: 4)
+
                     Image(systemName: icon)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: size == .large ? 28 : 22, weight: .semibold))
                         .foregroundColor(.white)
                 }
-                
-                // Label
+
                 Text(title)
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
+                    .font(VibeTypography.captionLarge)
+                    .foregroundColor(VibeTheme.textPrimary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(colorScheme == .dark ? Color(uiColor: .systemGray6) : .white)
-            )
-            .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+            .padding(.vertical, VibeSpacing.lg)
+            .background(.ultraThinMaterial)
+            .continuousCorner(VibeTheme.radiusLarge)
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(VibePressStyle())
     }
 }
 
-struct SquadMemberView: View {
-    let friend: Friend
-    
+// MARK: - Express Item (Circular)
+
+struct ExpressItem: View {
+    let icon: String
+    let label: String
+    let color: Color
+    let action: () -> Void
+
     var body: some View {
-        VStack(spacing: 8) {
-            // Avatar with ring
+        Button(action: action) {
+            VStack(spacing: VibeSpacing.xs) {
+                ZStack {
+                    Circle()
+                        .fill(color.opacity(0.15))
+                        .frame(width: VibeSpacing.iconCircleLarge, height: VibeSpacing.iconCircleLarge)
+
+                    Image(systemName: icon)
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(color)
+                }
+
+                Text(label)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+        .buttonStyle(VibePressStyle())
+    }
+}
+
+// MARK: - Compact Menu Card (Social Grid)
+
+struct CompactMenuCard: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: VibeSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(color)
+                    .frame(width: 32, height: 32)
+
+                Text(title)
+                    .font(VibeTypography.titleSmall)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                Spacer()
+            }
+            .padding(.horizontal, VibeSpacing.md)
+            .padding(.vertical, VibeSpacing.sm)
+            .background(.ultraThinMaterial)
+            .continuousCorner(VibeTheme.radiusMedium)
+        }
+        .buttonStyle(VibePressStyle())
+    }
+}
+
+// MARK: - Squad Member
+
+struct SquadMemberView: View {
+    let name: String
+    let hasPosted: Bool
+    var vibeType: VibeType = .video
+
+    var body: some View {
+        VStack(spacing: VibeSpacing.xs) {
             ZStack {
-                if friend.hasPosted {
+                if hasPosted {
                     Circle()
                         .strokeBorder(
-                            LinearGradient(
-                                colors: friend.ringColors,
-                                startPoint: .topTrailing,
-                                endPoint: .bottomLeading
-                            ),
+                            VibeTheme.brandGradient,
                             lineWidth: 3
                         )
                         .frame(width: 64, height: 64)
                 } else {
                     Circle()
-                        .strokeBorder(Color.gray.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6]))
+                        .strokeBorder(VibeTheme.divider, style: StrokeStyle(lineWidth: 2, dash: [6]))
                         .frame(width: 64, height: 64)
                 }
-                
-                Image(systemName: friend.imageName)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: 54, height: 54)
-                    .clipShape(Circle())
-                    .saturation(friend.hasPosted ? 1.0 : 0.0)
-            }
-            
-            Text(friend.name)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.secondary)
-        }
-    }
-}
 
-struct ScaleButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+                Circle()
+                    .fill(vibeType.color.opacity(0.15))
+                    .frame(width: 54, height: 54)
+                    .overlay(
+                        Image(systemName: vibeType.icon)
+                            .font(.system(size: 20))
+                            .foregroundColor(vibeType.color)
+                    )
+            }
+
+            Text(name)
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(VibeTheme.textSecondary)
+        }
     }
 }
 

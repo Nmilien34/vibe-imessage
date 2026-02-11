@@ -8,25 +8,25 @@ struct SquadStatCard<Center: View, Footer: View>: View {
     @ViewBuilder let footerContent: Footer
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
             // Top Row: Icon and Title
             HStack(alignment: .top) {
                 Text(icon)
                     .font(.system(size: 20))
                 Spacer()
             }
-            
+
             Spacer()
-            
+
             // Center Content
             HStack {
                 Spacer()
                 centerContent
                 Spacer()
             }
-            
+
             Spacer()
-            
+
             // Footer
             HStack {
                 Spacer()
@@ -34,14 +34,14 @@ struct SquadStatCard<Center: View, Footer: View>: View {
                 Spacer()
             }
         }
-        .padding(12)
+        .padding(VibeSpacing.md)
         .frame(width: 110, height: 130)
-        .background(Color.white)
-        .cornerRadius(20)
+        .background(VibeTheme.cardBackground)
+        .continuousCorner(VibeTheme.radiusMedium)
         .overlay(
-            RoundedRectangle(cornerRadius: 20)
+            RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
                 .stroke(accentColor.opacity(0.15), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.03), radius: 5, x: 0, y: 2)
+        .vibeShadow(.sm)
     }
 }

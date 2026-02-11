@@ -4,7 +4,7 @@ import PhotosUI
 struct LeakComposerView: View {
     @EnvironmentObject var appState: AppState
     let isLocked: Bool
-    
+
     @State private var selectedItem: PhotosPickerItem?
     @State private var mediaData: Data?
     @State private var thumbnailImage: UIImage?
@@ -12,108 +12,109 @@ struct LeakComposerView: View {
     @State private var showNoContextTag = true
     @State private var showUploadError = false
     @State private var uploadError: String?
-    
+
     var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: VibeSpacing.xl) {
             if let thumbnail = thumbnailImage {
-                // Selected Preview
-                VStack(spacing: 20) {
+                VStack(spacing: VibeSpacing.lg) {
                     ZStack(alignment: .topTrailing) {
                         Image(uiImage: thumbnail)
                             .resizable()
                             .aspectRatio(contentMode: .fit)
                             .frame(maxHeight: 400)
-                            .cornerRadius(12)
+                            .continuousCorner(VibeTheme.radiusMedium)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                                    .stroke(VibeTheme.divider, lineWidth: 1)
                             )
-                        
+
                         if showNoContextTag {
                             Text("NO CONTEXT")
-                                .font(.system(size: 10, weight: .black))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
+                                .font(VibeTypography.overline)
+                                .padding(.horizontal, VibeSpacing.xs)
+                                .padding(.vertical, VibeSpacing.xxs)
                                 .background(Color.red)
                                 .foregroundColor(.white)
-                                .cornerRadius(4)
-                                .padding(12)
+                                .continuousCorner(4)
+                                .padding(VibeSpacing.sm)
                         }
-                        
+
                         Button {
+                            VibeHaptic.light()
                             thumbnailImage = nil
                             mediaData = nil
                         } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.title)
+                                .font(.system(size: 28))
                                 .foregroundColor(.white)
                                 .shadow(radius: 2)
                         }
-                        .padding(8)
+                        .padding(VibeSpacing.xs)
                     }
-                    
+
                     Toggle("Add 'No Context' Tag", isOn: $showNoContextTag)
-                        .padding(.horizontal)
-                    
+                        .font(VibeTypography.bodyMedium)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                     Button {
-                        Task {
-                            await shareLeak()
-                        }
+                        VibeHaptic.success()
+                        Task { await shareLeak() }
                     } label: {
-                        HStack {
+                        HStack(spacing: VibeSpacing.xs) {
                             if isUploading {
-                                ProgressView()
-                                    .tint(.white)
+                                ProgressView().tint(.white)
                                 Text("Uploading...")
+                                    .font(VibeTypography.titleSmall)
                             } else {
                                 Image(systemName: "paperplane.fill")
-                                Text("Leak It 🫣")
+                                Text("Leak It")
+                                    .font(VibeTypography.titleSmall)
                             }
                         }
-                        .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding()
+                        .frame(height: VibeSpacing.minTouchTarget)
                         .background(isUploading ? Color.red.opacity(0.6) : Color.red)
-                        .cornerRadius(12)
+                        .continuousCorner(VibeTheme.radiusMedium)
                     }
-                    .padding(.horizontal)
+                    .buttonStyle(VibePressStyle())
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                     .disabled(isUploading)
                 }
             } else {
-                // Rapid Select / Empty State
-                VStack(spacing: 32) {
-                    Image(systemName: "shutter.releaser")
+                VStack(spacing: VibeSpacing.xxl) {
+                    Image(systemName: "eye.slash.fill")
                         .font(.system(size: 60))
                         .foregroundColor(.red.opacity(0.5))
-                    
+
                     Text("Select a receipt to leak...")
-                        .font(.headline)
-                    
+                        .font(VibeTypography.titleMedium)
+                        .foregroundColor(VibeTheme.textPrimary)
+
                     PhotosPicker(selection: $selectedItem, matching: .images) {
-                        VStack(spacing: 12) {
+                        VStack(spacing: VibeSpacing.sm) {
                             Image(systemName: "photo.on.rectangle.angled")
-                                .font(.title)
+                                .font(.system(size: 28))
                             Text("Open Gallery")
-                                .fontWeight(.bold)
+                                .font(VibeTypography.titleSmall)
                         }
+                        .foregroundColor(VibeTheme.textPrimary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 40)
-                        .background(Color(.secondarySystemBackground))
-                        .cornerRadius(20)
+                        .padding(.vertical, VibeSpacing.xxxl)
+                        .background(.ultraThinMaterial)
+                        .continuousCorner(VibeTheme.radiusLarge)
                     }
-                    .padding(.horizontal)
-                    
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
+
                     Text("Leaks are optimized for screenshots.")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textTertiary)
                 }
-                .padding(.top, 40)
+                .padding(.top, VibeSpacing.xxxl)
             }
-            
+
             Spacer()
 
-            // Upload Error Overlay
             if showUploadError {
                 Color.black.opacity(0.6).ignoresSafeArea()
                 UploadErrorView(
@@ -130,7 +131,7 @@ struct LeakComposerView: View {
                 .padding()
             }
         }
-        .padding(.top, 16)
+        .padding(.top, VibeSpacing.md)
         .onChange(of: selectedItem) { _, newValue in
             Task {
                 if let data = try? await newValue?.loadTransferable(type: Data.self) {
@@ -140,7 +141,7 @@ struct LeakComposerView: View {
             }
         }
     }
-    
+
     private func shareLeak() async {
         guard let data = mediaData else { return }
         isUploading = true
