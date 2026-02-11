@@ -60,6 +60,16 @@ enum VibeTheme {
         endPoint: .bottomTrailing
     )
 
+    // MARK: - Challenge Colors
+    static let stakeYes = Color(.systemGreen)
+    static let stakeNo = Color(.systemRed)
+    static let betAccent = Color(.systemIndigo)
+    static let challengeGradient = LinearGradient(
+        colors: [Color(.systemIndigo), Color(.systemPurple)],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
     // MARK: - Corner Radii
     static let radiusSmall: CGFloat = 8
     static let radiusMedium: CGFloat = 16

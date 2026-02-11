@@ -28,6 +28,14 @@ enum NavigationDestination: Equatable {
     case teaReveal
 }
 
+enum DashboardTab: Int, CaseIterable {
+    case feed, tea, board, me
+}
+
+enum BetStatusFilter: String, CaseIterable {
+    case all, active, completed
+}
+
 /// Parameters for a locked message that was tapped
 struct LockedMessageParams: Equatable {
     let vibeId: String
@@ -78,6 +86,19 @@ class AppState: ObservableObject {
     // MARK: - Tea Spills
     @Published var activeTeaSpills: [TeaSpill] = []
     @Published var isLoadingTea = false
+
+    // MARK: - Dashboard Tabs
+    @Published var activeTab: DashboardTab = .feed
+    @Published var showCreateSheet = false
+    @Published var betFilter: BetStatusFilter = .all
+
+    var filteredBets: [Bet] {
+        switch betFilter {
+        case .all: return activeBets
+        case .active: return activeBets.filter { $0.status == .active }
+        case .completed: return activeBets.filter { $0.status == .completed }
+        }
+    }
 
     // MARK: - Detail View State
     @Published var selectedBet: Bet?

@@ -41,7 +41,7 @@ struct FeedView: View {
     }
 }
 
-// MARK: - Compact Feed View (Drawer Style)
+// MARK: - Compact Feed View (Challenges-First Drawer)
 struct CompactFeedView: View {
     @EnvironmentObject var appState: AppState
 
@@ -53,129 +53,65 @@ struct CompactFeedView: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 16, y: -5)
                 .edgesIgnoringSafeArea(.bottom)
 
-            VStack(spacing: VibeSpacing.md) {
-
-                // 1. HANDLE & LIVE STATUS
+            VStack(spacing: 0) {
+                // 1. HANDLE + HEADER
                 VStack(spacing: VibeSpacing.xs) {
-                    // Drag Handle
                     Capsule()
                         .fill(VibeTheme.divider)
                         .frame(width: 36, height: 5)
                         .padding(.top, VibeSpacing.sm)
 
-                    // Status Row: Streak + Aura Balance + Active Users
-                    HStack(spacing: VibeSpacing.xs) {
-                        if let streak = appState.streak, streak.currentStreak > 0 {
-                            HStack(spacing: VibeSpacing.xxs) {
-                                Text("\(streak.currentStreak)")
-                                    .font(VibeTypography.captionLarge)
-                                    .foregroundColor(.orange)
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.orange)
-                            }
+                    // Brand + Aura
+                    HStack {
+                        Text("vibes")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(VibeTheme.textPrimary)
 
-                            Circle()
-                                .fill(VibeTheme.divider)
-                                .frame(width: 3, height: 3)
-                        }
+                        Spacer()
 
-                        // Aura balance pill
-                        if appState.auraBalance > 0 {
-                            HStack(spacing: VibeSpacing.xxs) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(Color(red: 1.0, green: 0.84, blue: 0.0))
-                                Text("\(appState.auraBalance)")
-                                    .font(VibeTypography.captionLarge)
-                                    .foregroundColor(VibeTheme.textPrimary)
-                                    .contentTransition(.numericText())
-                            }
-
-                            Circle()
-                                .fill(VibeTheme.divider)
-                                .frame(width: 3, height: 3)
-                        }
-
-                        Text(activeUsersText)
-                            .font(VibeTypography.captionSmall)
-                            .foregroundColor(VibeTheme.textSecondary)
+                        AuraBadge(amount: appState.auraBalance, size: .regular)
                     }
-
-                    // Daily Bonus Available indicator
-                    if appState.auraStats?.dailyBonusAvailable == true {
-                        HStack(spacing: VibeSpacing.xxs) {
-                            Image(systemName: "gift.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(VibeTheme.accent)
-                            Text("Daily Bonus Available")
-                                .font(VibeTypography.captionSmall)
-                                .foregroundColor(VibeTheme.accent)
-                        }
-                        .padding(.horizontal, VibeSpacing.sm)
-                        .padding(.vertical, VibeSpacing.xxs)
-                        .background(VibeTheme.accent.opacity(0.12))
-                        .clipShape(Capsule())
-                        .transition(.scale.combined(with: .opacity))
-                    }
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
                 }
                 .onTapGesture {
                     VibeHaptic.light()
                     appState.requestExpand()
                 }
 
-                // 2. ACTION RAIL
-                HStack(spacing: VibeSpacing.md) {
-
-                    // A. Post Vibe Button (Hero)
-                    Button {
-                        VibeHaptic.medium()
-                        appState.shouldShowVibePicker = true
-                        appState.requestExpand()
-                    } label: {
-                        VStack(spacing: VibeSpacing.xxs) {
-                            ZStack {
-                                Circle()
-                                    .fill(VibeTheme.brandGradient)
-                                    .frame(width: VibeSpacing.iconCircleMedium, height: VibeSpacing.iconCircleMedium)
-                                    .shadow(color: VibeTheme.accent.opacity(0.4), radius: 8, y: 4)
-
-                                Image(systemName: "plus")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                            Text("New Vibe")
-                                .font(VibeTypography.captionSmall)
-                                .foregroundColor(VibeTheme.textPrimary)
-                        }
-                    }
-                    .buttonStyle(VibePressStyle())
-
-                    // Divider
-                    Rectangle()
-                        .fill(VibeTheme.divider)
-                        .frame(width: 1, height: 40)
-
-                    // B. Friend Stories (Horizontal Scroll)
+                // 2. COMPACT STORY ROW (secondary)
+                let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: true, includeTeam: true)
+                if !groupedVibes.isEmpty || (appState.isLoading && appState.vibes.isEmpty) {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: VibeSpacing.sm) {
                             if appState.isLoading && appState.vibes.isEmpty {
-                                ForEach(0..<3, id: \.self) { _ in
-                                    CompactAvatarSkeleton()
+                                ForEach(0..<4, id: \.self) { _ in
+                                    CompactStoryDot()
                                 }
                             } else {
-                                let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: true, includeTeam: true)
+                                // "+" button to create a vibe
+                                Button {
+                                    VibeHaptic.selection()
+                                    appState.shouldShowVibePicker = true
+                                    appState.requestExpand()
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .strokeBorder(VibeTheme.divider, lineWidth: 1)
+                                            .frame(width: 36, height: 36)
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 14, weight: .bold))
+                                            .foregroundColor(VibeTheme.textSecondary)
+                                    }
+                                }
+                                .buttonStyle(.plain)
 
                                 ForEach(groupedVibes, id: \.first?.userId) { userVibes in
                                     if let firstVibe = userVibes.first {
                                         let hasUnseen = userVibes.contains { !$0.hasViewed(appState.userId) }
-                                        let isMe = firstVibe.userId == appState.userId
-
-                                        CompactAvatar(
-                                            name: appState.nameForUser(firstVibe.userId),
+                                        CompactStoryDot(
                                             thumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
-                                            vibeType: firstVibe.type,
-                                            hasUnseen: hasUnseen && !isMe
+                                            hasUnseen: hasUnseen && firstVibe.userId != appState.userId,
+                                            color: firstVibe.type.color
                                         ) {
                                             VibeHaptic.selection()
                                             appState.navigateToViewer(opening: firstVibe.id)
@@ -184,35 +120,171 @@ struct CompactFeedView: View {
                                 }
                             }
                         }
-                        .padding(.horizontal, VibeSpacing.xxs)
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
                     }
+                    .padding(.top, VibeSpacing.sm)
                 }
+
+                // 3. CHALLENGES FEED
+                ScrollView(showsIndicators: false) {
+                    LazyVStack(spacing: VibeSpacing.sm) {
+                        if appState.isLoadingBets && appState.activeBets.isEmpty {
+                            // Skeleton cards
+                            ForEach(0..<2, id: \.self) { _ in
+                                CompactCardSkeleton()
+                            }
+                        } else if appState.activeBets.isEmpty && appState.activeTeaSpills.isEmpty {
+                            // Empty state
+                            VStack(spacing: VibeSpacing.md) {
+                                Image(systemName: "dice")
+                                    .font(.system(size: 32))
+                                    .foregroundColor(VibeTheme.textTertiary)
+                                Text("No active challenges")
+                                    .font(VibeTypography.bodyMedium)
+                                    .foregroundColor(VibeTheme.textSecondary)
+                                Text("Create one to get started!")
+                                    .font(VibeTypography.captionSmall)
+                                    .foregroundColor(VibeTheme.textTertiary)
+                            }
+                            .padding(.top, VibeSpacing.xxxl)
+                        } else {
+                            // Active bets
+                            ForEach(appState.activeBets) { bet in
+                                BetCard(bet: bet)
+                            }
+
+                            // Active tea spills
+                            ForEach(appState.activeTeaSpills) { tea in
+                                TeaCard(tea: tea)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, VibeSpacing.screenHorizontal)
+                    .padding(.top, VibeSpacing.sm)
+                    .padding(.bottom, 70) // Space for CTA button
+                }
+
+                Spacer(minLength: 0)
+
+                // 4. NEW CHALLENGE CTA
+                Button {
+                    VibeHaptic.medium()
+                    appState.showCreateSheet = true
+                    appState.requestExpand()
+                } label: {
+                    HStack(spacing: VibeSpacing.xs) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .bold))
+                        Text("New Challenge")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: VibeSpacing.minTouchTarget)
+                    .background(VibeTheme.challengeGradient)
+                    .continuousCorner(VibeTheme.radiusMedium)
+                    .vibeShadow(.md)
+                }
+                .buttonStyle(VibePressStyle())
                 .padding(.horizontal, VibeSpacing.screenHorizontal)
-
-                Spacer()
+                .padding(.bottom, VibeSpacing.md)
             }
-            .padding(.bottom, VibeSpacing.lg)
-        }
-    }
-
-    private var activeUsersText: String {
-        let activeUsers = appState.vibesGroupedByUser()
-            .compactMap { $0.first }
-            .filter { $0.userId != appState.userId }
-            .prefix(2)
-            .map { appState.nameForUser($0.userId) }
-
-        if activeUsers.isEmpty {
-            return "No one active yet"
-        } else if activeUsers.count == 1 {
-            return "\(activeUsers[0]) is active"
-        } else {
-            return "\(activeUsers[0]) & \(activeUsers[1]) are active"
         }
     }
 }
 
-// MARK: - Compact Avatar
+// MARK: - Compact Story Dot (small circle for compact story row)
+
+struct CompactStoryDot: View {
+    var thumbnailUrl: String? = nil
+    var hasUnseen: Bool = false
+    var color: Color = .gray
+    var onTap: (() -> Void)? = nil
+
+    var body: some View {
+        Button {
+            onTap?()
+        } label: {
+            ZStack {
+                if hasUnseen {
+                    Circle()
+                        .strokeBorder(VibeTheme.brandGradient, lineWidth: 2)
+                        .frame(width: 36, height: 36)
+                } else {
+                    Circle()
+                        .strokeBorder(VibeTheme.divider, lineWidth: 1)
+                        .frame(width: 36, height: 36)
+                }
+
+                if let urlString = thumbnailUrl, let url = URL(string: urlString) {
+                    AsyncImage(url: url) { image in
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Circle().fill(color.opacity(0.2))
+                    }
+                    .frame(width: 30, height: 30)
+                    .clipShape(Circle())
+                } else {
+                    Circle()
+                        .fill(VibeTheme.surfaceOverlay)
+                        .frame(width: 30, height: 30)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Compact Card Skeleton
+
+struct CompactCardSkeleton: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            HStack {
+                Circle()
+                    .fill(VibeTheme.surfaceOverlay)
+                    .frame(width: 28, height: 28)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(VibeTheme.surfaceOverlay)
+                    .frame(width: 80, height: 14)
+                Spacer()
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(VibeTheme.surfaceOverlay)
+                    .frame(width: 50, height: 14)
+            }
+
+            RoundedRectangle(cornerRadius: 4)
+                .fill(VibeTheme.surfaceOverlay)
+                .frame(height: 16)
+            RoundedRectangle(cornerRadius: 4)
+                .fill(VibeTheme.surfaceOverlay)
+                .frame(width: 180, height: 16)
+
+            HStack(spacing: VibeSpacing.sm) {
+                RoundedRectangle(cornerRadius: VibeTheme.radiusSmall)
+                    .fill(VibeTheme.surfaceOverlay)
+                    .frame(height: 36)
+                RoundedRectangle(cornerRadius: VibeTheme.radiusSmall)
+                    .fill(VibeTheme.surfaceOverlay)
+                    .frame(height: 36)
+            }
+        }
+        .padding(VibeSpacing.md)
+        .background(VibeTheme.cardBackground)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .opacity(isAnimating ? 0.5 : 1.0)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                isAnimating = true
+            }
+        }
+    }
+}
+
+// MARK: - Legacy Components (kept for viewer/other usage)
+
 struct CompactAvatar: View {
     var name: String
     var thumbnailUrl: String?
@@ -224,13 +296,9 @@ struct CompactAvatar: View {
         Button(action: onTap) {
             VStack(spacing: VibeSpacing.xxs) {
                 ZStack {
-                    // Gradient Ring if Unseen
                     if hasUnseen {
                         Circle()
-                            .strokeBorder(
-                                VibeTheme.brandGradient,
-                                lineWidth: 2.5
-                            )
+                            .strokeBorder(VibeTheme.brandGradient, lineWidth: 2.5)
                             .frame(width: VibeSpacing.iconCircleMedium, height: VibeSpacing.iconCircleMedium)
                     } else {
                         Circle()
@@ -238,7 +306,6 @@ struct CompactAvatar: View {
                             .frame(width: VibeSpacing.iconCircleMedium, height: VibeSpacing.iconCircleMedium)
                     }
 
-                    // Avatar content
                     if let urlString = thumbnailUrl, let url = URL(string: urlString) {
                         AsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
@@ -292,7 +359,6 @@ struct CompactAvatarSkeleton: View {
     }
 }
 
-// MARK: - Skeleton Ring View (Loading Placeholder)
 struct SkeletonRingView: View {
     let size: CGFloat
     @State private var isAnimating = false
@@ -330,7 +396,6 @@ struct SkeletonRingView: View {
     }
 }
 
-// MARK: - Vibe Grid Cell
 struct VibeGridCell: View {
     let vibe: Vibe
     let userId: String
@@ -339,14 +404,11 @@ struct VibeGridCell: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                // Background
                 if (vibe.type == .video || vibe.type == .photo),
                    let urlString = vibe.thumbnailUrl ?? (vibe.type == .photo ? vibe.mediaUrl : nil),
                    let url = URL(string: urlString) {
                     AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                        image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
                         VibeTheme.surfaceOverlay
                     }
@@ -358,17 +420,14 @@ struct VibeGridCell: View {
                         .aspectRatio(1, contentMode: .fit)
                 }
 
-                // Dark overlay for visibility if image present
                 if (vibe.type == .video || vibe.type == .photo) {
                     RoundedRectangle(cornerRadius: VibeTheme.radiusSmall + 4, style: .continuous)
                         .fill(Color.black.opacity(0.2))
                 }
 
-                // Content preview
                 VStack(spacing: VibeSpacing.xs) {
                     contentPreview
 
-                    // Time remaining
                     HStack(spacing: VibeSpacing.xxs) {
                         Image(systemName: "clock")
                             .font(.system(size: 10))
@@ -378,7 +437,6 @@ struct VibeGridCell: View {
                     .foregroundColor(VibeTheme.textSecondary)
                 }
 
-                // Lock overlay
                 if vibe.isLocked && !vibe.isUnlocked(for: userId) {
                     RoundedRectangle(cornerRadius: VibeTheme.radiusSmall + 4)
                         .fill(.ultraThinMaterial)
@@ -389,7 +447,6 @@ struct VibeGridCell: View {
                         }
                 }
 
-                // Viewed indicator
                 if vibe.hasViewed(userId) || vibe.userId == userId {
                     Circle()
                         .fill(Color.green)
@@ -435,49 +492,49 @@ struct VibeGridCell: View {
         case .mood:
             Text(vibe.mood?.emoji ?? "")
                 .font(.system(size: 34))
-            case .poll:
-                VStack(spacing: VibeSpacing.xxs) {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(vibe.type.color)
-                    if let poll = vibe.poll, let question = poll.question {
-                        Text(question)
-                            .font(VibeTypography.captionSmall)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-            case .dailyDrop:
-                Image(systemName: "die.face.5")
+        case .poll:
+            VStack(spacing: VibeSpacing.xxs) {
+                Image(systemName: "chart.bar.fill")
                     .font(.system(size: 28))
                     .foregroundColor(vibe.type.color)
-            case .tea:
-                Image(systemName: "quote.bubble.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(vibe.type.color)
-            case .leak:
-                Image(systemName: "shutter.releaser")
-                    .font(.system(size: 28))
-                    .foregroundColor(vibe.type.color)
-            case .sketch:
-                Image(systemName: "hand.draw.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(vibe.type.color)
-            case .eta:
-                Image(systemName: "location.fill")
-                    .font(.system(size: 28))
-                    .foregroundColor(vibe.type.color)
-            case .parlay:
-                VStack(spacing: VibeSpacing.xxs) {
-                    Image(systemName: "dollarsign.circle.fill")
-                        .font(.system(size: 28))
-                        .foregroundColor(vibe.type.color)
-                    if let parlay = vibe.parlay {
-                        Text(parlay.displayAmount)
-                            .font(VibeTypography.captionLarge)
-                    }
+                if let poll = vibe.poll, let question = poll.question {
+                    Text(question)
+                        .font(VibeTypography.captionSmall)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
                 }
             }
+        case .dailyDrop:
+            Image(systemName: "die.face.5")
+                .font(.system(size: 28))
+                .foregroundColor(vibe.type.color)
+        case .tea:
+            Image(systemName: "quote.bubble.fill")
+                .font(.system(size: 28))
+                .foregroundColor(vibe.type.color)
+        case .leak:
+            Image(systemName: "shutter.releaser")
+                .font(.system(size: 28))
+                .foregroundColor(vibe.type.color)
+        case .sketch:
+            Image(systemName: "hand.draw.fill")
+                .font(.system(size: 28))
+                .foregroundColor(vibe.type.color)
+        case .eta:
+            Image(systemName: "location.fill")
+                .font(.system(size: 28))
+                .foregroundColor(vibe.type.color)
+        case .parlay:
+            VStack(spacing: VibeSpacing.xxs) {
+                Image(systemName: "dollarsign.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(vibe.type.color)
+                if let parlay = vibe.parlay {
+                    Text(parlay.displayAmount)
+                        .font(VibeTypography.captionLarge)
+                }
+            }
+        }
     }
 
     private var batteryIcon: String {
