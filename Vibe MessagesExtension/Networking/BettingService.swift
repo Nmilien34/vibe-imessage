@@ -21,6 +21,8 @@ actor BettingService {
         let betType: String
         let description: String
         let deadline: Date
+        let initialStake: Int
+        let initialSide: String
         let targetUserId: String?
     }
 
@@ -29,6 +31,8 @@ actor BettingService {
         betType: BetType,
         description: String,
         deadline: Date,
+        initialStake: Int,
+        initialSide: BetSide = .yes,
         targetUserId: String? = nil
     ) async throws -> Bet {
         let response: CreateBetResponse = try await api.post(
@@ -38,6 +42,8 @@ actor BettingService {
                 betType: betType.rawValue,
                 description: description,
                 deadline: deadline,
+                initialStake: initialStake,
+                initialSide: initialSide.rawValue,
                 targetUserId: targetUserId
             )
         )
@@ -54,6 +60,16 @@ actor BettingService {
 
     func getBetsForChat(chatId: String, status: BetStatus? = nil, limit: Int = 50) async throws -> BetListResponse {
         var path = "/bets/chat/\(chatId)?limit=\(limit)"
+        if let status = status {
+            path += "&status=\(status.rawValue)"
+        }
+        return try await api.get(path)
+    }
+
+    // MARK: - Discover Bets (All Chats)
+
+    func getDiscoverBets(status: BetStatus? = nil, limit: Int = 50, offset: Int = 0) async throws -> DiscoverBetResponse {
+        var path = "/feed/discover?limit=\(limit)&offset=\(offset)"
         if let status = status {
             path += "&status=\(status.rawValue)"
         }

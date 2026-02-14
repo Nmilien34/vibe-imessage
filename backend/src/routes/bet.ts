@@ -27,13 +27,13 @@ const router: Router = express.Router();
 router.post('/create', authMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = req.userId!;
-    const { chatId, betType, description, deadline, targetUserId } = req.body;
+    const { chatId, betType, description, deadline, targetUserId, initialStake, initialSide } = req.body;
 
     // Validate required fields
-    if (!chatId || !betType || !description || !deadline) {
+    if (!chatId || !betType || !description || !deadline || initialStake === undefined || !initialSide) {
       return res.status(400).json({
         error: 'Missing required fields',
-        required: ['chatId', 'betType', 'description', 'deadline']
+        required: ['chatId', 'betType', 'description', 'deadline', 'initialStake', 'initialSide']
       });
     }
 
@@ -55,6 +55,19 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       });
     }
 
+    // Validate initial stake and side
+    if (typeof initialStake !== 'number' || !Number.isInteger(initialStake) || initialStake < 10) {
+      return res.status(400).json({
+        error: 'initialStake must be an integer >= 10'
+      });
+    }
+
+    if (initialSide !== 'yes' && initialSide !== 'no') {
+      return res.status(400).json({
+        error: 'initialSide must be "yes" or "no"'
+      });
+    }
+
     // Call service layer
     const bet = await createBet({
       chatId,
@@ -62,6 +75,8 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       betType,
       description,
       deadline: deadlineDate,
+      initialStake,
+      initialSide,
       targetUserId,
     });
 
@@ -75,6 +90,7 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
         description: bet.description,
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
         status: bet.status,
         createdAt: bet.createdAt,
       }
@@ -91,6 +107,8 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       'Target user must be in this chat',
       'Cannot target yourself',
       'requires a target user',
+      'Initial stake',
+      'Initial side',
       'Deadline must be',
       'Description',
     ];
@@ -343,6 +361,7 @@ router.get('/:betId', authMiddleware, async (req: Request, res: Response) => {
         description: bet.description,
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
         status: bet.status,
         createdAt: bet.createdAt,
         updatedAt: bet.updatedAt,
@@ -423,6 +442,7 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
         description: bet.description,
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
         status: bet.status,
         createdAt: bet.createdAt,
       })),

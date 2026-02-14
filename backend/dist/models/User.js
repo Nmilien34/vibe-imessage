@@ -41,7 +41,6 @@ const userSchema = new mongoose_1.Schema({
     },
     appleId: {
         type: String,
-        unique: true,
         sparse: true,
         index: true,
     },
@@ -71,6 +70,48 @@ const userSchema = new mongoose_1.Schema({
     lastSeen: {
         type: Date,
         default: Date.now,
+    },
+    // Aura Economy
+    auraBalance: {
+        type: Number,
+        default: 1000,
+    },
+    lifetimeAuraEarned: {
+        type: Number,
+        default: 0,
+    },
+    lifetimeAuraSpent: {
+        type: Number,
+        default: 0,
+    },
+    lastDailyBonus: {
+        type: Date,
+        default: null,
+    },
+    // Reputation Stats
+    vibeScore: {
+        type: Number,
+        default: 100,
+    },
+    betsCreated: {
+        type: Number,
+        default: 0,
+    },
+    betsCompleted: {
+        type: Number,
+        default: 0,
+    },
+    betsFailed: {
+        type: Number,
+        default: 0,
+    },
+    calloutsReceived: {
+        type: Number,
+        default: 0,
+    },
+    calloutsIgnored: {
+        type: Number,
+        default: 0,
     },
 }, {
     timestamps: true,

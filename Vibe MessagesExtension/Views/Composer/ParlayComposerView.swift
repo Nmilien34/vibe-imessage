@@ -246,10 +246,22 @@ struct ParlayComposerView: View {
         isSending = true
 
         do {
+            // Create a real challenge record first so this parlay vibe deep-links to a specific bet.
+            let initialStake = max(5, Int(finalDisplayAmount.filter(\.isNumber)) ?? 25)
+            let linkedBet = try await appState.createBet(
+                betType: .dare,
+                description: title,
+                deadline: Date().addingTimeInterval(24 * 60 * 60),
+                initialStake: initialStake,
+                initialSide: .yes,
+                targetUserId: nil
+            )
+
             let parlayRequest = CreateParlayRequest(
                 title: title,
                 question: nil,
                 options: nil,
+                betId: linkedBet.betId,
                 amount: finalDisplayAmount,
                 wager: nil,
                 opponentId: nil,

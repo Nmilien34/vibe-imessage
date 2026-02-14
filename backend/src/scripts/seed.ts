@@ -1,7 +1,7 @@
 /**
  * Database Seed Script
  *
- * Creates test users, chats, and vibes for simulator testing.
+ * Creates test users + rich mock data in MongoDB for simulator testing.
  * Run with: npm run seed
  *
  * This allows testing the full app flow in the simulator with real API calls,
@@ -12,10 +12,22 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import User from '../models/User';
 import Chat from '../models/Chat';
+import ChatMember from '../models/ChatMember';
 import Vibe from '../models/Vibe';
+import Bet from '../models/Bet';
+import BetParticipant from '../models/BetParticipant';
+import TeaSpill from '../models/TeaSpill';
+import TeaGuess from '../models/TeaGuess';
 import Streak from '../models/Streak';
 
 dotenv.config();
+
+interface TestUserData {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
 
 // Test User IDs - use these in the simulator
 export const TEST_USERS = {
@@ -51,10 +63,30 @@ export const TEST_USERS = {
     lastName: 'Brown',
     email: 'riley@vibe.app',
   },
+  // Extra fake user for QA checks
+  qa: {
+    id: 'test_user_qa',
+    firstName: 'Morgan',
+    lastName: 'QA',
+    email: 'morgan.qa@vibe.app',
+  },
 };
 
 // Test Chat ID
 export const TEST_CHAT_ID = 'test_chat_main';
+const SEEDED_BET_IDS = [
+  'seed_bet_active_self',
+  'seed_bet_active_callout',
+  'seed_bet_completed',
+];
+const SEEDED_TEA_IDS = [
+  'seed_tea_active',
+  'seed_tea_revealed',
+];
+
+function testUserIds(): string[] {
+  return Object.values(TEST_USERS).map((user) => user.id);
+}
 
 async function seed() {
   const mongoUri = process.env.MONGODB_URI;
@@ -82,8 +114,17 @@ async function seed() {
   console.log('Creating test chat...');
   await createTestChat();
 
+  console.log('Creating chat memberships...');
+  await createTestChatMembers();
+
   console.log('Creating test vibes...');
   await createTestVibes();
+
+  console.log('Creating test bets...');
+  await createTestBets();
+
+  console.log('Creating test tea spills...');
+  await createTestTeaSpills();
 
   console.log('Creating test streak...');
   await createTestStreak();
@@ -91,35 +132,61 @@ async function seed() {
   console.log('\n✅ Seed complete!');
   console.log('\n📱 To test in simulator:');
   console.log(`   1. Use "Dev: Skip Login" button or test user ID: ${TEST_USERS.me.id}`);
-  console.log(`   2. The feed will show vibes from test friends`);
-  console.log(`   3. Chat ID for testing: ${TEST_CHAT_ID}`);
+  console.log(`   2. Fake QA user available: ${TEST_USERS.qa.id}`);
+  console.log(`   3. Discover feed includes bets + tea + vibes`);
+  console.log(`   4. Chat ID for testing: ${TEST_CHAT_ID}`);
 
   await mongoose.disconnect();
 }
 
 async function cleanTestData() {
-  // Delete test users
-  const testUserIds = Object.values(TEST_USERS).map(u => u.id);
-  await User.deleteMany({ _id: { $in: testUserIds } });
+  const users = testUserIds();
 
-  // Delete test chat
-  await Chat.deleteMany({ _id: TEST_CHAT_ID });
+  await TeaGuess.deleteMany({
+    $or: [
+      { teaId: { $in: SEEDED_TEA_IDS } },
+      { userId: { $in: users } },
+    ],
+  });
 
-  // Delete vibes from test users
-  await Vibe.deleteMany({ userId: { $in: testUserIds } });
+  await TeaSpill.deleteMany({
+    $or: [
+      { teaId: { $in: SEEDED_TEA_IDS } },
+      { chatId: TEST_CHAT_ID, creatorId: { $in: users } },
+    ],
+  });
 
-  // Delete test streak
+  await BetParticipant.deleteMany({
+    $or: [
+      { betId: { $in: SEEDED_BET_IDS } },
+      { userId: { $in: users } },
+    ],
+  });
+
+  await Bet.deleteMany({
+    $or: [
+      { betId: { $in: SEEDED_BET_IDS } },
+      { chatId: TEST_CHAT_ID, creatorId: { $in: users } },
+    ],
+  });
+
+  await Vibe.deleteMany({ chatId: TEST_CHAT_ID, userId: { $in: users } });
+  await ChatMember.deleteMany({ chatId: TEST_CHAT_ID, userId: { $in: users } });
   await Streak.deleteMany({ conversationId: TEST_CHAT_ID });
+  await Chat.deleteMany({ _id: TEST_CHAT_ID });
+  await User.deleteMany({ _id: { $in: users } });
 }
 
 async function createTestUsers() {
-  for (const [key, userData] of Object.entries(TEST_USERS)) {
+  for (const userData of Object.values(TEST_USERS) as TestUserData[]) {
     const existing = await User.findById(userData.id);
     if (existing) {
       console.log(`  - ${userData.firstName} already exists, updating...`);
       existing.firstName = userData.firstName;
       existing.lastName = userData.lastName;
       existing.email = userData.email;
+      existing.auraBalance = 2500;
+      existing.vibeScore = 120;
       if (!existing.joinedChatIds.includes(TEST_CHAT_ID)) {
         existing.joinedChatIds.push(TEST_CHAT_ID);
       }
@@ -131,6 +198,8 @@ async function createTestUsers() {
         firstName: userData.firstName,
         lastName: userData.lastName,
         email: userData.email,
+        auraBalance: 2500,
+        vibeScore: 120,
         joinedChatIds: [TEST_CHAT_ID],
       });
     }
@@ -147,12 +216,33 @@ async function createTestChat() {
     console.log('  - Creating test chat...');
     await Chat.create({
       _id: TEST_CHAT_ID,
-      title: 'Test Group',
+      title: 'Test Squad',
       members: Object.values(TEST_USERS).map(u => u.id),
       type: 'group',
       createdBy: TEST_USERS.me.id,
       lastActivityAt: new Date(),
     });
+  }
+}
+
+async function createTestChatMembers() {
+  const now = new Date();
+  const userIds = testUserIds();
+
+  for (const userId of userIds) {
+    const memberId = `seed_member_${TEST_CHAT_ID}_${userId}`;
+    await ChatMember.updateOne(
+      { chatId: TEST_CHAT_ID, userId },
+      {
+        $set: {
+          memberId,
+          membershipType: 'full',
+          role: userId === TEST_USERS.me.id ? 'admin' : 'member',
+          joinedAt: now,
+        },
+      },
+      { upsert: true }
+    );
   }
 }
 
@@ -162,8 +252,7 @@ async function createTestVibes() {
   const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
 
   // Delete old test vibes first
-  const testUserIds = Object.values(TEST_USERS).map(u => u.id);
-  await Vibe.deleteMany({ userId: { $in: testUserIds } });
+  await Vibe.deleteMany({ chatId: TEST_CHAT_ID, userId: { $in: testUserIds() } });
 
   const vibes = [
     // Friend 1 - Video (unlocked)
@@ -297,12 +386,162 @@ async function createTestVibes() {
       permanentDeleteAt: fifteenDaysFromNow,
       createdAt: new Date(now.getTime() - 4 * 60 * 60 * 1000), // 4 hours ago
     },
+    // QA user - Photo
+    {
+      userId: TEST_USERS.qa.id,
+      chatId: TEST_CHAT_ID,
+      type: 'photo',
+      mediaUrl: 'https://images.unsplash.com/photo-1470770903676-69b98201ea1c?w=800',
+      isLocked: false,
+      unlockedBy: [],
+      reactions: [{ userId: TEST_USERS.me.id, emoji: '👀', createdAt: now }],
+      viewedBy: [],
+      expiresAt: oneDayFromNow,
+      permanentDeleteAt: fifteenDaysFromNow,
+      createdAt: new Date(now.getTime() - 40 * 60 * 1000), // 40 min ago
+    },
   ];
 
   for (const vibeData of vibes) {
     console.log(`  - Creating ${vibeData.type} vibe from ${vibeData.userId}...`);
     await Vibe.create(vibeData);
   }
+}
+
+async function createTestBets() {
+  const now = new Date();
+
+  await BetParticipant.deleteMany({ betId: { $in: SEEDED_BET_IDS } });
+  await Bet.deleteMany({ betId: { $in: SEEDED_BET_IDS } });
+
+  const bets = [
+    {
+      betId: SEEDED_BET_IDS[0],
+      chatId: TEST_CHAT_ID,
+      creatorId: TEST_USERS.friend1.id,
+      betType: 'self',
+      description: 'I will post 3 workout updates by tonight.',
+      deadline: new Date(now.getTime() + 8 * 60 * 60 * 1000),
+      status: 'active',
+      creationCost: 10,
+      createdAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+      updatedAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+    },
+    {
+      betId: SEEDED_BET_IDS[1],
+      chatId: TEST_CHAT_ID,
+      creatorId: TEST_USERS.qa.id,
+      betType: 'callout',
+      description: 'Jordan says they can go 24h without soda.',
+      deadline: new Date(now.getTime() + 14 * 60 * 60 * 1000),
+      status: 'active',
+      targetUserId: TEST_USERS.friend2.id,
+      creationCost: 10,
+      createdAt: new Date(now.getTime() - 75 * 60 * 1000),
+      updatedAt: new Date(now.getTime() - 75 * 60 * 1000),
+    },
+    {
+      betId: SEEDED_BET_IDS[2],
+      chatId: TEST_CHAT_ID,
+      creatorId: TEST_USERS.friend3.id,
+      betType: 'dare',
+      description: 'Dare accepted: ice bath for 2 minutes.',
+      deadline: new Date(now.getTime() - 6 * 60 * 60 * 1000),
+      status: 'completed',
+      targetUserId: TEST_USERS.friend4.id,
+      creationCost: 10,
+      createdAt: new Date(now.getTime() - 24 * 60 * 60 * 1000),
+      updatedAt: new Date(now.getTime() - 4 * 60 * 60 * 1000),
+    },
+  ];
+
+  await Bet.insertMany(bets);
+
+  const participants = [
+    { participantId: 'seed_participant_1', betId: SEEDED_BET_IDS[0], userId: TEST_USERS.friend1.id, side: 'yes', amount: 25 },
+    { participantId: 'seed_participant_2', betId: SEEDED_BET_IDS[0], userId: TEST_USERS.me.id, side: 'yes', amount: 20 },
+    { participantId: 'seed_participant_3', betId: SEEDED_BET_IDS[0], userId: TEST_USERS.friend2.id, side: 'no', amount: 30 },
+    { participantId: 'seed_participant_4', betId: SEEDED_BET_IDS[1], userId: TEST_USERS.qa.id, side: 'yes', amount: 40 },
+    { participantId: 'seed_participant_5', betId: SEEDED_BET_IDS[1], userId: TEST_USERS.friend4.id, side: 'no', amount: 25 },
+    { participantId: 'seed_participant_6', betId: SEEDED_BET_IDS[2], userId: TEST_USERS.friend3.id, side: 'yes', amount: 35 },
+    { participantId: 'seed_participant_7', betId: SEEDED_BET_IDS[2], userId: TEST_USERS.me.id, side: 'yes', amount: 15 },
+  ];
+
+  await BetParticipant.insertMany(participants);
+}
+
+async function createTestTeaSpills() {
+  const now = new Date();
+
+  await TeaGuess.deleteMany({ teaId: { $in: SEEDED_TEA_IDS } });
+  await TeaSpill.deleteMany({ teaId: { $in: SEEDED_TEA_IDS } });
+
+  const teas = [
+    {
+      teaId: SEEDED_TEA_IDS[0],
+      chatId: TEST_CHAT_ID,
+      creatorId: TEST_USERS.friend4.id,
+      mysteryText: 'Who sent flowers to the office today?',
+      answer: 'Morgan',
+      options: ['Alex', 'Jordan', 'Morgan', 'Sam'],
+      deadline: new Date(now.getTime() + 10 * 60 * 60 * 1000),
+      status: 'active',
+      creationCost: 10,
+      creatorBonusPercent: 0,
+      createdAt: new Date(now.getTime() - 95 * 60 * 1000),
+      updatedAt: new Date(now.getTime() - 95 * 60 * 1000),
+    },
+    {
+      teaId: SEEDED_TEA_IDS[1],
+      chatId: TEST_CHAT_ID,
+      creatorId: TEST_USERS.qa.id,
+      mysteryText: 'Who accidentally deleted the shared deck?',
+      answer: 'Sam',
+      options: ['Alex', 'Sam', 'Jordan'],
+      deadline: new Date(now.getTime() - 14 * 60 * 60 * 1000),
+      status: 'revealed',
+      revealedAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+      creationCost: 10,
+      creatorBonusPercent: 0,
+      createdAt: new Date(now.getTime() - 22 * 60 * 60 * 1000),
+      updatedAt: new Date(now.getTime() - 12 * 60 * 60 * 1000),
+    },
+  ];
+
+  await TeaSpill.insertMany(teas);
+
+  const guesses = [
+    {
+      guessId: 'seed_guess_1',
+      teaId: SEEDED_TEA_IDS[0],
+      userId: TEST_USERS.me.id,
+      guess: 'Morgan',
+      amount: 25,
+    },
+    {
+      guessId: 'seed_guess_2',
+      teaId: SEEDED_TEA_IDS[0],
+      userId: TEST_USERS.friend2.id,
+      guess: 'Alex',
+      amount: 20,
+    },
+    {
+      guessId: 'seed_guess_3',
+      teaId: SEEDED_TEA_IDS[1],
+      userId: TEST_USERS.friend1.id,
+      guess: 'Sam',
+      amount: 30,
+    },
+    {
+      guessId: 'seed_guess_4',
+      teaId: SEEDED_TEA_IDS[1],
+      userId: TEST_USERS.friend3.id,
+      guess: 'Alex',
+      amount: 15,
+    },
+  ];
+
+  await TeaGuess.insertMany(guesses);
 }
 
 async function createTestStreak() {
@@ -312,7 +551,7 @@ async function createTestStreak() {
     existing.currentStreak = 5;
     existing.longestStreak = 12;
     existing.lastPostDate = new Date();
-    existing.todayPosters = [TEST_USERS.friend1.id, TEST_USERS.friend2.id];
+    existing.todayPosters = [TEST_USERS.friend1.id, TEST_USERS.friend2.id, TEST_USERS.qa.id];
     await existing.save();
   } else {
     console.log('  - Creating test streak...');
@@ -321,7 +560,7 @@ async function createTestStreak() {
       currentStreak: 5,
       longestStreak: 12,
       lastPostDate: new Date(),
-      todayPosters: [TEST_USERS.friend1.id, TEST_USERS.friend2.id],
+      todayPosters: [TEST_USERS.friend1.id, TEST_USERS.friend2.id, TEST_USERS.qa.id],
     });
   }
 }

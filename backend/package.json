@@ -11,7 +11,9 @@
     "cleanup": "ts-node src/jobs/cleanupVibes.ts",
     "cleanup:dry": "CLEANUP_DRY_RUN=true ts-node src/jobs/cleanupVibes.ts",
     "seed": "ts-node src/scripts/seed.ts",
-    "seed:clean": "ts-node src/scripts/seed.ts --clean"
+    "seed:clean": "ts-node src/scripts/seed.ts --clean",
+    "seed:mock": "ts-node src/scripts/seed.ts",
+    "seed:mock:clean": "ts-node src/scripts/seed.ts --clean"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.450.0",

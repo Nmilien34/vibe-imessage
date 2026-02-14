@@ -19,7 +19,7 @@ const teaSpillSchema = new Schema<ITeaSpill>(
       index: true,
     },
     creationCost: { type: Number, default: 10 },
-    creatorBonusPercent: { type: Number, default: 10 },
+    creatorBonusPercent: { type: Number, default: 0 },
     revealedAt: { type: Date },
   },
   { timestamps: true }

@@ -104,6 +104,7 @@ export async function generateFeed(params: {
         description: bet.description,
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
         status: bet.status,
         createdAt: bet.createdAt
       },
@@ -134,6 +135,7 @@ export async function generateFeed(params: {
         description: bet.description,
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
         status: bet.status,
         createdAt: bet.createdAt
       },

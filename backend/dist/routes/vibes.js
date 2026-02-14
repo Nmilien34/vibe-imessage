@@ -41,6 +41,7 @@ const Vibe_1 = __importStar(require("../models/Vibe"));
 const Streak_1 = __importDefault(require("../models/Streak"));
 const User_1 = __importDefault(require("../models/User"));
 const Chat_1 = __importDefault(require("../models/Chat"));
+const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // Helper to extract S3 key from URL
 function extractS3Key(url) {
@@ -156,7 +157,7 @@ router.get('/:conversationId/history', async (req, res) => {
  * @route   POST /api/vibes
  * @desc    Create a new vibe
  */
-router.post('/', async (req, res) => {
+router.post('/', auth_1.authMiddleware, async (req, res) => {
     try {
         const { userId, chatId, conversationId, type, mediaUrl, mediaKey, thumbnailUrl, thumbnailKey, songData, batteryLevel, mood, poll, parlay, textStatus, styleName, etaStatus, oderId, isLocked, } = req.body;
         const effectiveChatId = chatId || conversationId;
@@ -213,7 +214,7 @@ router.post('/', async (req, res) => {
  * @route   POST /api/vibes/:vibeId/react
  * @desc    Add reaction to a vibe
  */
-router.post('/:vibeId/react', async (req, res) => {
+router.post('/:vibeId/react', auth_1.authMiddleware, async (req, res) => {
     try {
         const { vibeId } = req.params;
         const { userId, emoji } = req.body;
@@ -235,7 +236,7 @@ router.post('/:vibeId/react', async (req, res) => {
  * @route   POST /api/vibes/:vibeId/view
  * @desc    Mark vibe as viewed
  */
-router.post('/:vibeId/view', async (req, res) => {
+router.post('/:vibeId/view', auth_1.authMiddleware, async (req, res) => {
     try {
         const { vibeId } = req.params;
         const { userId } = req.body;
@@ -253,7 +254,7 @@ router.post('/:vibeId/view', async (req, res) => {
  * @route   POST /api/vibes/:vibeId/vote
  * @desc    Vote on a poll
  */
-router.post('/:vibeId/vote', async (req, res) => {
+router.post('/:vibeId/vote', auth_1.authMiddleware, async (req, res) => {
     try {
         const { vibeId } = req.params;
         const { userId, optionIndex } = req.body;
@@ -288,6 +289,34 @@ router.get('/:conversationId/streak', async (req, res) => {
             return res.json({ currentStreak: 0, longestStreak: 0 });
         }
         res.json(streak);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        res.status(500).json({ error: message });
+    }
+});
+/**
+ * @route   POST /api/vibes/:vibeId/parlay/respond
+ * @desc    Accept or decline a parlay bet
+ */
+router.post('/:vibeId/parlay/respond', auth_1.authMiddleware, async (req, res) => {
+    try {
+        const { vibeId } = req.params;
+        const { userId, status } = req.body;
+        if (!['accepted', 'declined'].includes(status)) {
+            return res.status(400).json({ error: 'Invalid status. Must be accepted or declined.' });
+        }
+        const vibe = await Vibe_1.default.findById(vibeId);
+        if (!vibe || vibe.type !== 'parlay') {
+            return res.status(404).json({ error: 'Parlay not found' });
+        }
+        if (vibe.parlay) {
+            vibe.parlay.status = status;
+            vibe.parlay.opponentId = userId;
+            // If accepted, we could also update the opponentName if we had it, but for now we just track the ID
+            await vibe.save();
+        }
+        res.json(vibe);
     }
     catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';

@@ -107,7 +107,7 @@ struct LockedVibeView: View {
         switch vibe.type {
         case .photo:
             if let mediaUrl = vibe.mediaUrl,
-               let url = URL(string: mediaUrl) {
+               let url = URL.httpURL(from: mediaUrl) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -120,7 +120,7 @@ struct LockedVibeView: View {
             }
         case .video:
             if let thumbnailUrl = vibe.thumbnailUrl,
-               let url = URL(string: thumbnailUrl) {
+               let url = URL.httpURL(from: thumbnailUrl) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -133,7 +133,7 @@ struct LockedVibeView: View {
             }
         case .song:
             if let albumArt = vibe.songData?.albumArt,
-               let url = URL(string: albumArt) {
+               let url = URL.httpURL(from: albumArt) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()

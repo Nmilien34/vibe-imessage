@@ -1,0 +1,1 @@
+{"version":3,"file":"JoinRequest.d.ts","sourceRoot":"","sources":["../../src/models/JoinRequest.ts"],"names":[],"mappings":"AAAA,OAAiB,EAAU,KAAK,EAAE,MAAM,UAAU,CAAC;AACnD,OAAO,EAAE,YAAY,EAAqB,MAAM,UAAU,CAAC;AAsB3D,QAAA,MAAM,WAAW,EAAE,KAAK,CAAC,YAAY,CAAkE,CAAC;AAExG,eAAe,WAAW,CAAC"}

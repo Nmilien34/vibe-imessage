@@ -52,7 +52,7 @@ struct SongComposerView: View {
                 VStack(spacing: VibeSpacing.xl) {
                     Spacer()
 
-                    if let albumArt = selected.albumArt, let url = URL(string: albumArt) {
+                    if let albumArt = selected.albumArt, let url = URL.httpURL(from: albumArt) {
                         AsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fit)
                         } placeholder: {
@@ -125,7 +125,7 @@ struct SongComposerView: View {
                             }
                         } label: {
                             HStack(spacing: VibeSpacing.sm) {
-                                if let albumArt = song.albumArt, let url = URL(string: albumArt) {
+                                if let albumArt = song.albumArt, let url = URL.httpURL(from: albumArt) {
                                     AsyncImage(url: url) { image in
                                         image.resizable().aspectRatio(contentMode: .fill)
                                     } placeholder: {

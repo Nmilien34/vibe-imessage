@@ -8,7 +8,7 @@ const client_s3_1 = require("@aws-sdk/client-s3");
 const s3_request_presigner_1 = require("@aws-sdk/s3-request-presigner");
 const uuid_1 = require("uuid");
 const s3_1 = __importDefault(require("../config/s3"));
-const BUCKET = process.env.AWS_S3_BUCKET || '';
+const BUCKET = process.env.AWS_BUCKET_NAME || '';
 const contentTypes = {
     mp4: 'video/mp4',
     mov: 'video/quicktime',
@@ -29,7 +29,7 @@ const getUploadUrl = async (fileType, folder = 'vibes') => {
         ContentType: (0, exports.getContentType)(fileType),
     });
     const uploadUrl = await (0, s3_request_presigner_1.getSignedUrl)(s3_1.default, command, { expiresIn: 3600 });
-    const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
     return { uploadUrl, publicUrl, key };
 };
 exports.getUploadUrl = getUploadUrl;
@@ -51,7 +51,7 @@ const uploadToS3 = async (buffer, fileType, folder = 'vibes') => {
         ContentType: contentType,
     });
     await s3_1.default.send(command);
-    const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+    const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
     return { publicUrl, key };
 };
 exports.uploadToS3 = uploadToS3;

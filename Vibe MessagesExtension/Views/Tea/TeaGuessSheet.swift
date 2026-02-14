@@ -18,8 +18,6 @@ struct TeaGuessSheet: View {
     @State private var errorMessage: String?
     @State private var showSuccess = false
 
-    @Environment(\.dismiss) private var dismiss
-
     var body: some View {
         ZStack {
             VibeTheme.background.ignoresSafeArea()
@@ -31,6 +29,24 @@ struct TeaGuessSheet: View {
                         .fill(VibeTheme.textTertiary)
                         .frame(width: 36, height: 5)
                         .padding(.top, VibeSpacing.sm)
+
+                    // Back
+                    HStack {
+                        Button {
+                            VibeHaptic.light()
+                            appState.navigateToFeed()
+                        } label: {
+                            Image(systemName: "chevron.backward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(VibeTheme.textPrimary)
+                                .frame(width: 32, height: 32)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+                    }
 
                     // Header
                     VStack(spacing: VibeSpacing.sm) {
@@ -182,7 +198,6 @@ struct TeaGuessSheet: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 60))
                     .foregroundColor(.green)
-                    .symbolEffect(.bounce)
 
                 Text("Guess Placed!")
                     .font(VibeTypography.displaySmall)

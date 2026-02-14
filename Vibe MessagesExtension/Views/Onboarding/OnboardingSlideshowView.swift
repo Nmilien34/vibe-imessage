@@ -129,7 +129,6 @@ struct OnboardingFeatureSlide: View {
                     Image(systemName: icon)
                         .font(.system(size: 52))
                         .foregroundColor(.white)
-                        .symbolEffect(.bounce)
                 }
                 .scaleEffect(isVisible ? 1.0 : 0.8)
                 .opacity(isVisible ? 1 : 0)

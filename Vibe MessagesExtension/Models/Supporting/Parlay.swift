@@ -27,6 +27,7 @@ struct Parlay: Codable, Equatable {
     let title: String?
     let question: String?
     let options: [String]?
+    let betId: String?
 
     // Bet fields
     let amount: String?
@@ -58,6 +59,7 @@ struct CreateParlayRequest: Codable {
     let title: String?
     let question: String?
     let options: [String]?
+    let betId: String?
     let amount: String?
     let wager: String?
     let opponentId: String?

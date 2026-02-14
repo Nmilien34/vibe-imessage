@@ -19,6 +19,7 @@ import { BetType, BetStatus, IBet, IBetParticipant, IBetProof, IBetResolution } 
 const CREATION_COST = 10;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MIN_DEADLINE_HOURS = 1;
+const MIN_STAKE = 10;
 
 interface CreateBetInput {
   chatId: string;
@@ -26,11 +27,22 @@ interface CreateBetInput {
   betType: BetType;
   description: string;
   deadline: Date;
+  initialStake: number;
+  initialSide: 'yes' | 'no';
   targetUserId?: string;
 }
 
 export async function createBet(input: CreateBetInput): Promise<IBet> {
-  const { chatId, creatorId, betType, description, deadline, targetUserId } = input;
+  const {
+    chatId,
+    creatorId,
+    betType,
+    description,
+    deadline,
+    initialStake,
+    initialSide,
+    targetUserId,
+  } = input;
 
   // ── Validate description ────────────────────────────────────
   const trimmed = description.trim();
@@ -54,6 +66,14 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     throw new Error('You must be a member of this chat to create bets');
   }
 
+  // ── Validate initial stake/side ─────────────────────────────
+  if (!Number.isInteger(initialStake) || initialStake < MIN_STAKE) {
+    throw new Error(`Initial stake must be an integer >= ${MIN_STAKE}`);
+  }
+  if (initialSide !== 'yes' && initialSide !== 'no') {
+    throw new Error('Initial side must be "yes" or "no"');
+  }
+
   // ── Verify creator has sufficient Aura ──────────────────────
   const creator = await User.findById(creatorId);
   if (!creator) {
@@ -65,8 +85,9 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     throw new Error('You are bankrupt! Wait for daily bonus or accept a callout to earn Aura.');
   }
 
-  if ((creator.auraBalance ?? 0) < CREATION_COST) {
-    throw new Error(`Insufficient Aura. Need ${CREATION_COST}, have ${creator.auraBalance ?? 0}`);
+  const totalCost = CREATION_COST + initialStake;
+  if ((creator.auraBalance ?? 0) < totalCost) {
+    throw new Error(`Insufficient Aura. Need ${totalCost}, have ${creator.auraBalance ?? 0}`);
   }
 
   // ── Validate target for callout/dare ────────────────────────
@@ -89,26 +110,8 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     }
   }
 
-  // ── Execute transaction ─────────────────────────────────────
+  // ── Create bet and creator's initial stake ──────────────────
   const betId = `bet_${Date.now()}_${uuidv4().substring(0, 6)}`;
-
-  // Deduct Aura
-  const newBalance = (creator.auraBalance ?? 0) - CREATION_COST;
-  creator.auraBalance = newBalance;
-  creator.lifetimeAuraSpent = (creator.lifetimeAuraSpent ?? 0) + CREATION_COST;
-  creator.betsCreated = (creator.betsCreated ?? 0) + 1;
-  await creator.save();
-
-  // Record transaction
-  await AuraTransaction.create({
-    transactionId: `txn_${uuidv4()}`,
-    userId: creatorId,
-    amount: -CREATION_COST,
-    balanceAfter: newBalance,
-    transactionType: 'bet_creation',
-    referenceId: betId,
-    description: `Created ${betType} bet: ${trimmed.substring(0, 50)}...`,
-  });
 
   // Create bet
   const bet = await Bet.create({
@@ -121,6 +124,46 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     status: 'active' as BetStatus,
     targetUserId,
     creationCost: CREATION_COST,
+  });
+
+  // Record creator as first participant so "create bet" costs fee + stake.
+  const participantId = `participant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  await BetParticipant.create({
+    participantId,
+    betId,
+    userId: creatorId,
+    side: initialSide,
+    amount: initialStake,
+  });
+
+  // Deduct Aura
+  const balanceAfterCreation = (creator.auraBalance ?? 0) - CREATION_COST;
+  const finalBalance = balanceAfterCreation - initialStake;
+  creator.auraBalance = finalBalance;
+  creator.lifetimeAuraSpent = (creator.lifetimeAuraSpent ?? 0) + totalCost;
+  creator.betsCreated = (creator.betsCreated ?? 0) + 1;
+  await creator.save();
+
+  // Record creation fee transaction
+  await AuraTransaction.create({
+    transactionId: `txn_${uuidv4()}`,
+    userId: creatorId,
+    amount: -CREATION_COST,
+    balanceAfter: balanceAfterCreation,
+    transactionType: 'bet_creation',
+    referenceId: betId,
+    description: `Created ${betType} bet: ${trimmed.substring(0, 50)}...`,
+  });
+
+  // Record initial stake transaction
+  await AuraTransaction.create({
+    transactionId: `txn_${uuidv4()}`,
+    userId: creatorId,
+    amount: -initialStake,
+    balanceAfter: finalBalance,
+    transactionType: 'bet_stake',
+    referenceId: betId,
+    description: `Initial ${initialSide.toUpperCase()} stake on bet: "${trimmed.substring(0, 50)}..."`,
   });
 
   return bet;
@@ -148,8 +191,6 @@ export async function isUserInChat(userId: string, chatId: string): Promise<bool
 // ═══════════════════════════════════════════════════════════
 // STAKING FUNCTIONS
 // ═══════════════════════════════════════════════════════════
-
-const MIN_STAKE = 10;
 
 /**
  * Place stake on a bet.
@@ -493,9 +534,6 @@ export async function deleteBetProof(
  * PAYOUT CALCULATION (Pari-Mutuel):
  * Winner payout = (Their stake / Total winning side) × Total pot
  * No house rake (0% fee)
- *
- * FAILURE PENALTY (Self bets, NO wins):
- * 10% of at-risk Aura (creation cost + stake) burnt
  */
 export async function resolveBet(params: {
   betId: string;
@@ -505,6 +543,32 @@ export async function resolveBet(params: {
 }): Promise<IBetResolution> {
 
   const { betId, resolvedBy, outcome, notes } = params;
+
+  const buildPariMutuelPayouts = (
+    winningParticipants: IBetParticipant[],
+    totalWinningStake: number,
+    pot: number
+  ): Array<{ userId: string; amount: number; type: string }> => {
+    if (winningParticipants.length === 0 || totalWinningStake <= 0 || pot <= 0) return [];
+
+    const payouts = winningParticipants.map(p => ({
+      userId: p.userId.toString(),
+      amount: Math.floor((p.amount / totalWinningStake) * pot),
+      type: 'win',
+    }));
+
+    let distributed = payouts.reduce((sum, p) => sum + p.amount, 0);
+    let remainder = pot - distributed;
+
+    for (let i = 0; remainder > 0 && payouts.length > 0; i++) {
+      const idx = i % payouts.length;
+      payouts[idx].amount += 1;
+      remainder -= 1;
+      distributed += 1;
+    }
+
+    return payouts.filter(p => p.amount > 0);
+  };
 
   // ── Validate bet exists and is active ───────────────────
   const bet = await Bet.findOne({ betId });
@@ -566,13 +630,11 @@ export async function resolveBet(params: {
         }));
     } else {
       // Pari-mutuel payout to Team YES
-      payouts = participants
-        .filter(p => p.side === 'yes')
-        .map(p => ({
-          userId: p.userId.toString(),
-          amount: Math.floor((p.amount / totalYes) * totalPot),
-          type: 'win'
-        }));
+      payouts = buildPariMutuelPayouts(
+        participants.filter(p => p.side === 'yes'),
+        totalYes,
+        totalPot
+      );
     }
   }
   else if (outcome === 'no') {
@@ -587,13 +649,11 @@ export async function resolveBet(params: {
         }));
     } else {
       // Pari-mutuel payout to Team NO
-      payouts = participants
-        .filter(p => p.side === 'no')
-        .map(p => ({
-          userId: p.userId.toString(),
-          amount: Math.floor((p.amount / totalNo) * totalPot),
-          type: 'win'
-        }));
+      payouts = buildPariMutuelPayouts(
+        participants.filter(p => p.side === 'no'),
+        totalNo,
+        totalPot
+      );
     }
   }
   else if (outcome === 'expired' || outcome === 'ducked') {
@@ -607,7 +667,7 @@ export async function resolveBet(params: {
 
   // ── Update bet status ───────────────────────────────────
   bet.status = outcome === 'yes' ? 'completed' :
-               outcome === 'no' ? 'expired' :
+               outcome === 'no' ? 'completed' :
                outcome === 'expired' ? 'expired' : 'ducked';
   await bet.save();
 
@@ -654,36 +714,6 @@ export async function resolveBet(params: {
     });
   }
 
-  // ── Apply failure penalty (self bets, NO wins) ──────────
-  if (bet.betType === 'self' && outcome === 'no') {
-    const creator = await User.findById(bet.creatorId);
-
-    if (creator) {
-      const creatorStake = participants.find(
-        p => p.userId.toString() === bet.creatorId && p.side === 'yes'
-      );
-
-      const atRiskAmount = (bet.creationCost ?? 0) + (creatorStake?.amount ?? 0);
-      const penalty = Math.floor(atRiskAmount * 0.10);
-
-      if ((creator.auraBalance ?? 0) >= penalty) {
-        creator.auraBalance = (creator.auraBalance ?? 0) - penalty;
-        creator.lifetimeAuraSpent = (creator.lifetimeAuraSpent ?? 0) + penalty;
-        await creator.save();
-
-        await AuraTransaction.create({
-          transactionId: `txn_${uuidv4()}`,
-          userId: creator._id.toString(),
-          amount: -penalty,
-          balanceAfter: creator.auraBalance,
-          transactionType: 'failure_penalty',
-          referenceId: betId,
-          description: `Failure penalty (10%) for failed bet: "${bet.description.substring(0, 50)}"`,
-        });
-      }
-    }
-  }
-
   // ── Update creator stats ────────────────────────────────
   const creator = await User.findById(bet.creatorId);
 
@@ -694,8 +724,6 @@ export async function resolveBet(params: {
       creator.betsFailed = (creator.betsFailed ?? 0) + 1;
     } else if (outcome === 'expired') {
       creator.betsFailed = (creator.betsFailed ?? 0) + 1;
-    } else if (outcome === 'ducked') {
-      creator.calloutsIgnored = (creator.calloutsIgnored ?? 0) + 1;
     }
 
     // Recalculate vibeScore

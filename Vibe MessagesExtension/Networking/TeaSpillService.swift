@@ -75,6 +75,16 @@ actor TeaSpillService {
         return try await api.get(path)
     }
 
+    // MARK: - Discover Tea Spills (All Chats)
+
+    func getDiscoverTeaSpills(status: TeaSpillStatus? = nil, limit: Int = 20, offset: Int = 0) async throws -> TeaListResponse {
+        var path = "/tea/discover?limit=\(limit)&offset=\(offset)"
+        if let status = status {
+            path += "&status=\(status.rawValue)"
+        }
+        return try await api.get(path)
+    }
+
     // MARK: - Get Single Tea Spill
 
     func getTeaSpill(teaId: String) async throws -> TeaSpill {

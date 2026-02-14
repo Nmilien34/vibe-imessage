@@ -111,6 +111,7 @@ const vibeSchema = new mongoose_1.Schema({
         title: String,
         question: String,
         options: [String],
+        betId: String,
         amount: String,
         wager: String,
         opponentId: String,
@@ -161,7 +162,6 @@ const vibeSchema = new mongoose_1.Schema({
 vibeSchema.index({ chatId: 1, expiresAt: 1 });
 vibeSchema.index({ chatId: 1, createdAt: -1 });
 vibeSchema.index({ userId: 1, createdAt: -1 });
-vibeSchema.index({ permanentDeleteAt: 1 });
 vibeSchema.index({ conversationId: 1, expiresAt: 1 });
 vibeSchema.index({ permanentDeleteAt: 1 }, { expireAfterSeconds: 0 });
 vibeSchema.statics.createWithExpiration = function (data) {

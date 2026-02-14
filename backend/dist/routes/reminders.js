@@ -5,9 +5,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const Reminder_1 = __importDefault(require("../models/Reminder"));
+const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // POST /api/reminders — create a reminder
-router.post('/', async (req, res) => {
+router.post('/', auth_1.authMiddleware, async (req, res) => {
     try {
         const { chatId, userId, type, emoji, title, date } = req.body;
         if (!chatId || !userId || !type || !emoji || !title || !date) {
@@ -38,7 +39,7 @@ router.get('/:chatId', async (req, res) => {
     }
 });
 // DELETE /api/reminders/:id — delete a reminder (creator only)
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', auth_1.authMiddleware, async (req, res) => {
     try {
         const { userId } = req.body;
         const reminder = await Reminder_1.default.findById(req.params.id);

@@ -94,7 +94,6 @@ struct BetDetailView: View {
                 Image(systemName: bet.status == .active ? "dice.fill" : statusIcon)
                     .font(.system(size: 36))
                     .foregroundColor(statusColor)
-                    .symbolEffect(.bounce)
             }
             .padding(.top, VibeSpacing.xxxl)
 

@@ -16,7 +16,6 @@ struct PermissionRequestView: View {
                 Image(systemName: "hand.raised.fill")
                     .font(.system(size: 56))
                     .foregroundStyle(VibeTheme.brandGradient)
-                    .symbolEffect(.bounce)
 
                 Text("One last thing...")
                     .font(VibeTypography.displayMedium)
@@ -148,7 +147,6 @@ struct PermissionRow: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundColor(.green)
                     .font(.system(size: 24))
-                    .symbolEffect(.bounce)
             } else {
                 Button(action: {
                     VibeHaptic.medium()

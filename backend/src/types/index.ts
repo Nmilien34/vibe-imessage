@@ -83,6 +83,7 @@ export interface IParlay {
   title?: string;
   question?: string;
   options?: string[];
+  betId?: string;
   // Bet fields
   amount?: string;
   wager?: string;
@@ -323,7 +324,7 @@ export interface ITeaSpill {
   deadline: Date;
   status: TeaSpillStatus;
   creationCost: number;
-  creatorBonusPercent: number;
+  creatorBonusPercent?: number;
   revealedAt?: Date;
   createdAt: Date;
   updatedAt: Date;

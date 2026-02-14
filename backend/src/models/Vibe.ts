@@ -85,6 +85,7 @@ const vibeSchema = new Schema<IVibe>(
       title: String,
       question: String,
       options: [String],
+      betId: String,
       amount: String,
       wager: String,
       opponentId: String,

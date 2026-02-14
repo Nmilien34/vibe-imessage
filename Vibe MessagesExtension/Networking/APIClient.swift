@@ -7,6 +7,40 @@
 
 import Foundation
 
+extension URL {
+    static func httpURL(from raw: String) -> URL? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        func isValidHTTPURL(_ value: String) -> URL? {
+            guard
+                let url = URL(string: value),
+                let scheme = url.scheme?.lowercased(),
+                (scheme == "http" || scheme == "https"),
+                let host = url.host,
+                !host.isEmpty
+            else {
+                return nil
+            }
+            return url
+        }
+
+        if let direct = isValidHTTPURL(trimmed) {
+            return direct
+        }
+
+        let normalized = "https://\(trimmed)"
+        if let prefixed = isValidHTTPURL(normalized) {
+            return prefixed
+        }
+
+        #if DEBUG
+        print("URL Guard: Rejected malformed/non-http URL: \(trimmed)")
+        #endif
+        return nil
+    }
+}
+
 enum APIError: Error, LocalizedError {
     case invalidURL
     case invalidResponse
@@ -415,7 +449,7 @@ actor APIClient {
         guard !useMockData else { return }
         
         let urlString = baseURL.replacingOccurrences(of: "/api", with: "/health")
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL.httpURL(from: urlString) else { return }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -433,7 +467,7 @@ actor APIClient {
         }
         
         let urlString = baseURL + path
-        guard !path.isEmpty, let url = URL(string: urlString) else {
+        guard !path.isEmpty, let url = URL.httpURL(from: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
@@ -453,7 +487,7 @@ actor APIClient {
         }
 
         let urlString = baseURL + path
-        guard !path.isEmpty, let url = URL(string: urlString) else {
+        guard !path.isEmpty, let url = URL.httpURL(from: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
@@ -473,7 +507,7 @@ actor APIClient {
         }
 
         let urlString = baseURL + path
-        guard !path.isEmpty, let url = URL(string: urlString) else {
+        guard !path.isEmpty, let url = URL.httpURL(from: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
@@ -495,7 +529,7 @@ actor APIClient {
         }
 
         let urlString = baseURL + path
-        guard !path.isEmpty, let url = URL(string: urlString) else {
+        guard !path.isEmpty, let url = URL.httpURL(from: urlString) else {
             print("API Error: Malformed URL string (nil or empty path): \(urlString)")
             throw APIError.invalidURL
         }
@@ -511,6 +545,9 @@ actor APIClient {
 
     private func performRequest<T: Decodable>(_ request: URLRequest) async throws -> T {
         do {
+            guard let requestURL = request.url, URL.httpURL(from: requestURL.absoluteString) != nil else {
+                throw APIError.invalidURL
+            }
             let (data, response) = try await session.data(for: request)
 
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -538,7 +575,7 @@ actor APIClient {
             return
         }
         
-        guard let url = URL(string: presignedUrl) else {
+        guard let url = URL.httpURL(from: presignedUrl) else {
             throw APIError.invalidURL
         }
 
@@ -649,7 +686,7 @@ actor APIClient {
                     batteryLevel: request.batteryLevel,
                     mood: request.mood,
                     poll: request.poll.map { Poll(question: $0.question, options: $0.options.map { PollOption(text: $0) }) },
-                    parlay: request.parlay.map { Parlay(title: $0.title, question: $0.question, options: $0.options, amount: $0.amount, wager: $0.wager, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending, expiresAt: nil, votes: nil, winnersReceived: nil) },
+                    parlay: request.parlay.map { Parlay(title: $0.title, question: $0.question, options: $0.options, betId: $0.betId, amount: $0.amount, wager: $0.wager, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending, expiresAt: nil, votes: nil, winnersReceived: nil) },
                     textStatus: request.textStatus,
                     styleName: request.styleName,
                     etaStatus: request.etaStatus,

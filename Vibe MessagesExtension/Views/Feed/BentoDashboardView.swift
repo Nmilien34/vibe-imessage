@@ -23,34 +23,14 @@ struct BentoDashboardView: View {
                         .tag(DashboardTab.me)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(VibeAnimation.snappy, value: appState.activeTab)
 
                 // TAB BAR
                 dashboardTabBar
             }
-
-            // FLOATING CREATE BUTTON
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        VibeHaptic.medium()
-                        appState.showCreateSheet = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(VibeTheme.challengeGradient)
-                            .clipShape(Circle())
-                            .vibeShadow(.lg)
-                    }
-                    .buttonStyle(VibePressStyle())
-                    .padding(.trailing, VibeSpacing.lg)
-                    .padding(.bottom, 64) // above tab bar
-                }
-            }
+        }
+        .task {
+            await appState.loadExpandedBets()
+            await appState.loadExpandedTeaSpills()
         }
         .fullScreenCover(isPresented: $appState.shouldShowVibePicker) {
             ExploreAllVibesView()
@@ -65,21 +45,9 @@ struct BentoDashboardView: View {
 
     private var dashboardHeader: some View {
         HStack {
-            // Avatar + Name
-            HStack(spacing: VibeSpacing.sm) {
-                Circle()
-                    .fill(VibeTheme.challengeGradient)
-                    .frame(width: 40, height: 40)
-                    .overlay(
-                        Text(String(appState.userFirstName?.prefix(1) ?? "V"))
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                    )
-
-                Text(appState.userFirstName ?? "vibes")
-                    .font(VibeTypography.titleLarge)
-                    .foregroundColor(VibeTheme.textPrimary)
-            }
+            Text("Vibes")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(VibeTheme.textPrimary)
 
             Spacer()
 
@@ -87,23 +55,37 @@ struct BentoDashboardView: View {
             HStack(spacing: VibeSpacing.xs) {
                 if let streak = appState.streak, streak.currentStreak > 0 {
                     HStack(spacing: 3) {
-                        Text("🔥")
+                        Image(systemName: "flame.fill")
                             .font(.system(size: 12))
                         Text("\(streak.currentStreak)")
                             .font(.system(size: 13, weight: .semibold, design: .monospaced))
                     }
                     .padding(.horizontal, VibeSpacing.xs)
                     .padding(.vertical, VibeSpacing.xxs)
-                    .background(.ultraThinMaterial)
+                    .foregroundColor(VibeTheme.warm)
+                    .background(VibeTheme.warmLight)
                     .clipShape(Capsule())
                 }
 
                 AuraBadge(amount: appState.auraBalance, size: .regular)
+
+                Button {
+                    VibeHaptic.medium()
+                    appState.showCreateSheet = true
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(VibeTheme.betAccent)
+                        .frame(width: 32, height: 32)
+                        .background(Circle().fill(VibeTheme.surfaceOverlay))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, VibeSpacing.screenHorizontal)
         .padding(.top, VibeSpacing.sm)
         .padding(.bottom, VibeSpacing.xs)
+        .background(VibeTheme.cardBackground)
     }
 
     // MARK: - Tab Bar
@@ -111,6 +93,7 @@ struct BentoDashboardView: View {
     private var dashboardTabBar: some View {
         HStack {
             ForEach(DashboardTab.allCases, id: \.self) { tab in
+                let isSelected = appState.activeTab == tab
                 Button {
                     VibeHaptic.selection()
                     withAnimation(VibeAnimation.snappy) {
@@ -118,21 +101,28 @@ struct BentoDashboardView: View {
                     }
                 } label: {
                     VStack(spacing: 3) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 20))
+                        Image(systemName: isSelected ? tab.selectedIcon : tab.icon)
+                            .font(.system(size: 19, weight: isSelected ? .semibold : .regular))
+                            .symbolRenderingMode(.hierarchical)
                         Text(tab.label)
-                            .font(.system(size: 10, weight: .medium))
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
                     }
-                    .foregroundColor(appState.activeTab == tab ? VibeTheme.betAccent : VibeTheme.textTertiary)
+                    .foregroundColor(isSelected ? VibeTheme.betAccent : VibeTheme.textTertiary)
                     .frame(maxWidth: .infinity)
-                    .frame(height: VibeSpacing.minTouchTarget)
+                    .frame(height: 49)
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, VibeSpacing.md)
-        .padding(.bottom, VibeSpacing.xs)
-        .background(.ultraThinMaterial)
+        .padding(.top, VibeSpacing.xxs)
+        .padding(.bottom, VibeSpacing.xs + 2)
+        .background(VibeTheme.cardBackground)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(VibeTheme.divider)
+                .frame(height: 0.5)
+        }
     }
 }
 
@@ -141,7 +131,16 @@ struct BentoDashboardView: View {
 extension DashboardTab {
     var icon: String {
         switch self {
-        case .feed: return "flame.fill"
+        case .feed: return "house"
+        case .tea: return "cup.and.saucer"
+        case .board: return "trophy"
+        case .me: return "person"
+        }
+    }
+
+    var selectedIcon: String {
+        switch self {
+        case .feed: return "house.fill"
         case .tea: return "cup.and.saucer.fill"
         case .board: return "trophy.fill"
         case .me: return "person.fill"
@@ -183,15 +182,19 @@ struct FeedTabView: View {
                     feedEmptyState
                 } else {
                     ForEach(appState.filteredBets) { bet in
-                        BetCard(bet: bet)
+                        BetCard(
+                            bet: bet,
+                            totals: appState.betTotalsById[bet.betId],
+                            interactionStyle: .detail
+                        )
                     }
                 }
             }
             .padding(.horizontal, VibeSpacing.screenHorizontal)
-            .padding(.bottom, 80) // space for FAB
+            .padding(.bottom, VibeSpacing.xl)
         }
         .refreshable {
-            await appState.loadBets()
+            await appState.loadExpandedBets()
             await appState.loadVibes()
         }
     }
@@ -199,28 +202,12 @@ struct FeedTabView: View {
     // MARK: - Story Row
 
     private var storyRow: some View {
-        let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: true, includeTeam: true)
+        let groupedVibes = appState.storyGroupsForFeed()
 
         return Group {
             if !groupedVibes.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: VibeSpacing.sm) {
-                        // "+" to post a vibe
-                        Button {
-                            VibeHaptic.selection()
-                            appState.shouldShowVibePicker = true
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .strokeBorder(VibeTheme.divider, lineWidth: 1)
-                                    .frame(width: 40, height: 40)
-                                Image(systemName: "plus")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(VibeTheme.textSecondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
                         ForEach(groupedVibes, id: \.first?.userId) { userVibes in
                             if let firstVibe = userVibes.first {
                                 let hasUnseen = userVibes.contains { !$0.hasViewed(appState.userId) }
@@ -244,26 +231,16 @@ struct FeedTabView: View {
     // MARK: - Filter Chips
 
     private var filterChips: some View {
-        HStack(spacing: VibeSpacing.sm) {
+        Picker("Challenge status", selection: $appState.betFilter) {
             ForEach(BetStatusFilter.allCases, id: \.self) { filter in
-                Button {
-                    VibeHaptic.selection()
-                    withAnimation(VibeAnimation.snappy) {
-                        appState.betFilter = filter
-                    }
-                } label: {
-                    Text(filter.rawValue.capitalized)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(appState.betFilter == filter ? .white : VibeTheme.textSecondary)
-                        .padding(.horizontal, VibeSpacing.md)
-                        .padding(.vertical, VibeSpacing.xs)
-                        .background(appState.betFilter == filter ? VibeTheme.betAccent : VibeTheme.surfaceOverlay)
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
+                Text(filter.rawValue.capitalized)
+                    .tag(filter)
             }
-
-            Spacer()
+        }
+        .pickerStyle(.segmented)
+        .tint(VibeTheme.betAccent)
+        .onChange(of: appState.betFilter) { _, _ in
+            VibeHaptic.selection()
         }
     }
 
@@ -271,7 +248,7 @@ struct FeedTabView: View {
 
     private var feedEmptyState: some View {
         VStack(spacing: VibeSpacing.md) {
-            Image(systemName: "dice")
+            Image(systemName: "die.face.5.fill")
                 .font(.system(size: 40))
                 .foregroundColor(VibeTheme.textTertiary)
             Text("No challenges yet")
@@ -304,14 +281,15 @@ struct TeaTabView: View {
                 }
                 .padding(.top, VibeSpacing.xs)
 
-                if appState.isLoadingTea && appState.activeTeaSpills.isEmpty {
+                if appState.isLoadingTea && appState.expandedTeaSpills.isEmpty {
                     ForEach(0..<3, id: \.self) { _ in
                         CompactCardSkeleton()
                     }
-                } else if appState.activeTeaSpills.isEmpty {
+                } else if appState.expandedTeaSpills.isEmpty {
                     VStack(spacing: VibeSpacing.md) {
-                        Text("🍵")
-                            .font(.system(size: 48))
+                        Image(systemName: "cup.and.saucer.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(VibeTheme.textTertiary)
                         Text("No tea yet")
                             .font(VibeTypography.titleSmall)
                             .foregroundColor(VibeTheme.textSecondary)
@@ -322,16 +300,16 @@ struct TeaTabView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, VibeSpacing.xxxl)
                 } else {
-                    ForEach(appState.activeTeaSpills) { tea in
+                    ForEach(appState.expandedTeaSpills) { tea in
                         TeaCard(tea: tea)
                     }
                 }
             }
             .padding(.horizontal, VibeSpacing.screenHorizontal)
-            .padding(.bottom, 80)
+            .padding(.bottom, VibeSpacing.xl)
         }
         .refreshable {
-            await appState.loadTeaSpills()
+            await appState.loadExpandedTeaSpills()
         }
     }
 }
@@ -356,7 +334,7 @@ struct BoardTabView: View {
 
                 if appState.leaderboard.isEmpty {
                     VStack(spacing: VibeSpacing.md) {
-                        Image(systemName: "trophy")
+                        Image(systemName: "trophy.fill")
                             .font(.system(size: 40))
                             .foregroundColor(VibeTheme.textTertiary)
                         Text("Leaderboard loading...")
@@ -372,7 +350,7 @@ struct BoardTabView: View {
                 }
             }
             .padding(.horizontal, VibeSpacing.screenHorizontal)
-            .padding(.bottom, 80)
+            .padding(.bottom, VibeSpacing.xl)
         }
         .refreshable {
             await appState.loadLeaderboard()
@@ -387,35 +365,27 @@ struct LeaderboardRow: View {
 
     private var rankBadge: String {
         switch entry.rank {
-        case 1: return "🥇"
-        case 2: return "🥈"
-        case 3: return "🥉"
+        case 1: return "1st"
+        case 2: return "2nd"
+        case 3: return "3rd"
         default: return "\(entry.rank)"
         }
     }
 
     private var rankColor: Color {
         switch entry.rank {
-        case 1: return Color(red: 1.0, green: 0.84, blue: 0.0)
-        case 2: return Color(UIColor.systemGray3)
-        case 3: return Color(red: 0.8, green: 0.5, blue: 0.2)
-        default: return VibeTheme.textSecondary
+        case 1, 2, 3: return VibeTheme.warm
+        default: return VibeTheme.textTertiary
         }
     }
 
     var body: some View {
         HStack(spacing: VibeSpacing.md) {
             // Rank
-            if entry.rank <= 3 {
-                Text(rankBadge)
-                    .font(.system(size: 22))
-                    .frame(width: 32)
-            } else {
-                Text(rankBadge)
-                    .font(.system(size: 16, weight: .bold, design: .monospaced))
-                    .foregroundColor(VibeTheme.textTertiary)
-                    .frame(width: 32)
-            }
+            Text(rankBadge)
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundColor(rankColor)
+                .frame(width: 36)
 
             // Avatar
             Circle()
@@ -461,16 +431,20 @@ struct MeTabView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: VibeSpacing.xl) {
+            VStack(spacing: VibeSpacing.lg) {
                 // Avatar + Name
-                VStack(spacing: VibeSpacing.md) {
+                VStack(spacing: VibeSpacing.sm) {
                     Circle()
-                        .fill(VibeTheme.challengeGradient)
+                        .fill(VibeTheme.surfaceOverlay)
                         .frame(width: 80, height: 80)
                         .overlay(
                             Text(String(appState.userFirstName?.prefix(1) ?? "V"))
                                 .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(VibeTheme.textPrimary)
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(VibeTheme.divider, lineWidth: 1)
                         )
 
                     Text(appState.userFirstName ?? "User")
@@ -522,22 +496,26 @@ struct MeTabView: View {
                 }
 
                 // Quick Links
-                VStack(spacing: VibeSpacing.sm) {
+                VStack(spacing: 0) {
                     QuickLinkRow(icon: "sparkles", title: "Aura Hub", color: Color(red: 1.0, green: 0.75, blue: 0.0)) {
                         appState.navigateToAuraHub()
                     }
+                    Divider().padding(.leading, 44)
 
                     QuickLinkRow(icon: "list.bullet", title: "My Bets", color: VibeTheme.betAccent) {
                         appState.navigateToBetList()
                     }
+                    Divider().padding(.leading, 44)
 
                     QuickLinkRow(icon: "rectangle.portrait.and.arrow.forward", title: "Sign Out", color: VibeTheme.stakeNo) {
                         appState.signOut()
                     }
                 }
                 .padding(.horizontal, VibeSpacing.screenHorizontal)
+                .background(VibeTheme.cardBackground)
+                .continuousCorner(VibeTheme.radiusMedium)
             }
-            .padding(.bottom, 80)
+            .padding(.bottom, VibeSpacing.xl)
         }
     }
 
@@ -580,7 +558,7 @@ struct StatCard: View {
 
             HStack {
                 Text(value)
-                    .font(.system(size: 24, weight: .bold, design: .monospaced))
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
                     .foregroundColor(VibeTheme.textPrimary)
                     .contentTransition(.numericText())
                 Spacer()
@@ -629,8 +607,6 @@ struct QuickLinkRow: View {
                     .foregroundColor(VibeTheme.textTertiary)
             }
             .padding(VibeSpacing.md)
-            .background(VibeTheme.cardBackground)
-            .continuousCorner(VibeTheme.radiusMedium)
         }
         .buttonStyle(.plain)
     }
@@ -661,7 +637,7 @@ struct StoryRingItem: View {
 
                     if let firstVibe = vibes.first,
                        let thumbUrl = firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
-                       let url = URL(string: thumbUrl) {
+                       let url = URL.httpURL(from: thumbUrl) {
                         AsyncImage(url: url) { image in
                             image.resizable().aspectRatio(contentMode: .fill)
                         } placeholder: {
@@ -736,7 +712,7 @@ struct NewsCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                if let imageUrl = imageUrl, let url = URL(string: imageUrl) {
+                if let imageUrl = imageUrl, let url = URL.httpURL(from: imageUrl) {
                     AsyncImage(url: url) { image in
                         image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
@@ -747,8 +723,9 @@ struct NewsCardView: View {
                 }
 
                 if isJustIn {
-                    Text("⚡️")
-                        .font(.system(size: 12))
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(VibeTheme.warm)
                         .padding(5)
                         .background(.ultraThinMaterial)
                         .clipShape(Circle())
@@ -894,7 +871,7 @@ struct PastVibeCard: View {
         Button(action: onTap) {
             ZStack(alignment: .bottomLeading) {
                 if let thumbUrl = vibe.thumbnailUrl ?? vibe.mediaUrl,
-                   let url = URL(string: thumbUrl) {
+                   let url = URL.httpURL(from: thumbUrl) {
                     AsyncImage(url: url) { image in
                         image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {

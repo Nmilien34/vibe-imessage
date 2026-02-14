@@ -6,4 +6,9 @@ export { default as remindersRoutes } from './reminders';
 export { default as uploadRoutes } from './upload';
 export { default as vibeRoutes } from './vibe';
 export { default as vibesRoutes } from './vibes';
+export { default as userRoutes } from './user';
+export { default as betRoutes } from './bet';
+export { default as auraRoutes } from './aura';
+export { default as vibeWireRoutes } from './vibewire';
+export { default as teaRoutes } from './tea';
 //# sourceMappingURL=index.d.ts.map

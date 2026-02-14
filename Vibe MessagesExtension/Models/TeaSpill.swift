@@ -138,7 +138,7 @@ struct TeaRevealResponse: Codable {
 struct TeaPayout: Codable {
     let userId: String
     let amount: Int
-    let type: String   // "creator_bonus", "winner_payout", "refund"
+    let type: String   // "tea_win" | "tea_refund"
 }
 
 struct TeaListResponse: Codable {

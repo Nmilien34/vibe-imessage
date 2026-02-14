@@ -123,7 +123,6 @@ struct ParlayVibeContent: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.green)
-                            .symbolEffect(.bounce)
                         Text("Bet is On!")
                             .font(VibeTypography.titleMedium)
                             .foregroundColor(.white)

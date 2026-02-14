@@ -47,7 +47,7 @@ struct VibeRingView: View {
                 switch firstVibe.type {
                 case .photo:
                     if let mediaUrl = firstVibe.mediaUrl,
-                       let url = URL(string: mediaUrl) {
+                       let url = URL.httpURL(from: mediaUrl) {
                         AsyncImage(url: url) { image in
                             image
                                 .resizable()
@@ -62,7 +62,7 @@ struct VibeRingView: View {
                     }
                 case .video:
                     if let thumbnailUrl = firstVibe.thumbnailUrl,
-                       let url = URL(string: thumbnailUrl) {
+                       let url = URL.httpURL(from: thumbnailUrl) {
                         AsyncImage(url: url) { image in
                             image
                                 .resizable()
@@ -77,7 +77,7 @@ struct VibeRingView: View {
                     }
                 case .song:
                     if let albumArt = firstVibe.songData?.albumArt,
-                       let url = URL(string: albumArt) {
+                       let url = URL.httpURL(from: albumArt) {
                         AsyncImage(url: url) { image in
                             image
                                 .resizable()

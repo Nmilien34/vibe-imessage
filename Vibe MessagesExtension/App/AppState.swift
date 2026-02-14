@@ -80,11 +80,15 @@ class AppState: ObservableObject {
     @Published var leaderboard: [LeaderboardEntry] = []
 
     // MARK: - Betting
-    @Published var activeBets: [Bet] = []
+    @Published var activeBets: [Bet] = [] // current-chat (compact)
+    @Published var expandedBets: [Bet] = [] // all-chats (expanded feed)
+    @Published var betTotalsById: [String: BetTotals] = [:]
+    @Published var betCanStakeById: [String: Bool] = [:]
     @Published var isLoadingBets = false
 
     // MARK: - Tea Spills
-    @Published var activeTeaSpills: [TeaSpill] = []
+    @Published var activeTeaSpills: [TeaSpill] = [] // current-chat (compact)
+    @Published var expandedTeaSpills: [TeaSpill] = [] // all-chats (expanded tea tab)
     @Published var isLoadingTea = false
 
     // MARK: - Dashboard Tabs
@@ -93,10 +97,11 @@ class AppState: ObservableObject {
     @Published var betFilter: BetStatusFilter = .all
 
     var filteredBets: [Bet] {
+        let source = expandedBets
         switch betFilter {
-        case .all: return activeBets
-        case .active: return activeBets.filter { $0.status == .active }
-        case .completed: return activeBets.filter { $0.status == .completed }
+        case .all: return source
+        case .active: return source.filter { $0.status == .active }
+        case .completed: return source.filter { $0.status == .completed }
         }
     }
 
@@ -114,37 +119,99 @@ class AppState: ObservableObject {
     
     /// Number of vibes that haven't been seen yet (for badge display)
     var newVibesCount: Int {
-        let activeRealVibes = vibes.filter { !seenVibeIds.contains($0.id) && $0.userId != userId }
+        let activeRealVibes = vibes.filter { !seenVibeIds.contains($0.id) && $0.userId != userId && $0.userId != "vibe_team" }
         return activeRealVibes.count
     }
     
-    /// A "Welcome" vibe from the creators to fill empty feeds - ALWAYS at index 0
+    /// A 4-slide tutorial pack from the creators that appears as one story bubble.
+    var teamTutorialVibes: [Vibe] {
+        let chatId = currentChatId ?? "global"
+        let legacyConversationId = conversationId ?? "global"
+        let tutorialBetId = activeBets.first?.betId ?? expandedBets.first?.betId
+        let slides: [(id: String, text: String, image: String, type: VibeType, parlay: Parlay?, styleName: String?)] = [
+            (
+                id: "team_welcome",
+                text: "Welcome to Vibes, where you and your chats can have fun.",
+                image: "https://images.pexels.com/photos/1674752/pexels-photo-1674752.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
+                type: .photo,
+                parlay: nil,
+                styleName: nil
+            ),
+            (
+                id: "team_tutorial_2",
+                text: "Share bets, callouts, dares, or even drop the tea.",
+                image: "https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
+                type: .photo,
+                parlay: nil,
+                styleName: nil
+            ),
+            (
+                id: "team_tutorial_3",
+                text: "First bet is on us: share Vibes with friends for more Aura points.",
+                image: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
+                type: .parlay,
+                parlay: Parlay(
+                    title: "Share Vibes with 2 friends today",
+                    question: nil,
+                    options: nil,
+                    betId: tutorialBetId,
+                    amount: "50 Aura",
+                    wager: nil,
+                    opponentId: nil,
+                    opponentName: "Your chat",
+                    status: .accepted,
+                    expiresAt: nil,
+                    votes: nil,
+                    winnersReceived: nil
+                ),
+                styleName: nil
+            ),
+            (
+                id: "team_tutorial_4",
+                text: "First tea is on us: our founder is bald.",
+                image: "https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
+                type: .tea,
+                parlay: nil,
+                styleName: "Fire"
+            )
+        ]
+
+        return slides.enumerated().map { index, slide in
+            let createdAt = Date(timeIntervalSince1970: Double(index + 1))
+            return Vibe(
+                id: slide.id,
+                oderId: nil,
+                userId: "vibe_team",
+                chatId: chatId,
+                conversationId: legacyConversationId,
+                type: slide.type,
+                mediaUrl: slide.type == .parlay ? nil : slide.image,
+                thumbnailUrl: slide.image,
+                songData: nil,
+                batteryLevel: nil,
+                mood: nil,
+                poll: nil,
+                parlay: slide.parlay,
+                textStatus: slide.text,
+                styleName: slide.styleName,
+                etaStatus: nil,
+                isLocked: false,
+                unlockedBy: [],
+                reactions: [],
+                viewedBy: [],
+                expiresAt: Date.distantFuture,
+                createdAt: createdAt,
+                updatedAt: createdAt
+            )
+        }
+    }
+
     var teamWelcomeVibe: Vibe {
-        Vibe(
-            id: "team_welcome",
-            oderId: nil,
-            userId: "vibe_team",
-            chatId: currentChatId ?? "global",           // Primary chat ID
-            conversationId: conversationId ?? "global",  // Legacy support
-            type: .video,
-            mediaUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-            thumbnailUrl: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/images/BigBuckBunny.jpg",
-            songData: nil,
-            batteryLevel: nil,
-            mood: Mood(emoji: "👋", text: "Welcome to Vibe! Watch this to learn how it works."),
-            poll: nil,
-            parlay: nil,
-            textStatus: "From the Vibez Team 💜",
-            styleName: nil,
-            etaStatus: nil,
-            isLocked: false,
-            unlockedBy: [],
-            reactions: [],
-            viewedBy: [],
-            expiresAt: Date.distantFuture, // Never expires
-            createdAt: Date(timeIntervalSince1970: 0), // Very old so it sorts last, but we'll pin it to index 0
-            updatedAt: Date(timeIntervalSince1970: 0)
-        )
+        teamTutorialVibes[0]
+    }
+
+    private var teamTutorialVibeIds: Set<String> {
+        Set(teamTutorialVibes.map(\.id))
     }
 
     // MARK: - Composer State
@@ -282,7 +349,7 @@ class AppState: ObservableObject {
 
         // Show welcome vibe immediately so the user never sees a blank screen
         if vibes.isEmpty {
-            vibes = [teamWelcomeVibe]
+            vibes = teamTutorialVibes
         }
 
         Task {
@@ -423,9 +490,9 @@ class AppState: ObservableObject {
             self.networkError = .networkFailure(underlying: error)
             self.showNetworkErrorBanner = true
 
-            // Fallback to team vibe only if error and no vibes loaded yet
-            if vibes.isEmpty || (vibes.count == 1 && vibes.first?.id == "team_welcome") {
-                vibes = [teamWelcomeVibe]
+            // Fallback to tutorial pack if we have no real user content loaded.
+            if vibes.isEmpty || vibes.allSatisfy({ $0.userId == "vibe_team" }) {
+                vibes = teamTutorialVibes
             }
         }
     }
@@ -494,9 +561,9 @@ class AppState: ObservableObject {
             self.error = error.localizedDescription
             print("AppState Error: Loading chat vibes failed: \(error)")
 
-            // Fallback to team vibe only if error
+            // Fallback to tutorial pack only if error
             if vibes.isEmpty {
-                vibes = [teamWelcomeVibe]
+                vibes = teamTutorialVibes
             }
         }
     }
@@ -593,19 +660,100 @@ class AppState: ObservableObject {
 
     // MARK: - Betting
 
+    private func cacheDiscoverBetItems(_ items: [DiscoverBetFeedItem]) {
+        for item in items {
+            betTotalsById[item.bet.betId] = item.totals
+            betCanStakeById[item.bet.betId] = item.canBet && item.bet.status == .active
+        }
+    }
+
+    private func deduplicateBets(_ bets: [Bet]) -> [Bet] {
+        var seen = Set<String>()
+        return bets.filter { bet in
+            if seen.contains(bet.betId) {
+                return false
+            }
+            seen.insert(bet.betId)
+            return true
+        }
+    }
+
+    private func deduplicateTea(_ teas: [TeaSpill]) -> [TeaSpill] {
+        var seen = Set<String>()
+        return teas.filter { tea in
+            if seen.contains(tea.teaId) {
+                return false
+            }
+            seen.insert(tea.teaId)
+            return true
+        }
+    }
+
+    private func hydrateCompactBetMetrics(_ bets: [Bet]) async {
+        for bet in bets {
+            do {
+                let participants = try await BettingService.shared.getParticipants(betId: bet.betId)
+                betTotalsById[bet.betId] = participants.totals
+            } catch {
+                // Keep rendering even if metrics fetch fails for a card
+            }
+
+            do {
+                let myStake = try await BettingService.shared.getMyStake(betId: bet.betId)
+                betCanStakeById[bet.betId] = !myStake.hasStake && bet.status == .active && !bet.isExpired
+            } catch {
+                // Default to enabled for active cards if stake lookup fails
+                betCanStakeById[bet.betId] = bet.status == .active && !bet.isExpired
+            }
+        }
+    }
+
     func loadBets() async {
         guard let chatId = currentChatId else { return }
         isLoadingBets = true
+        defer { isLoadingBets = false }
+
         do {
             let response = try await BettingService.shared.getBetsForChat(chatId: chatId, status: .active)
             self.activeBets = response.bets
+            await hydrateCompactBetMetrics(response.bets)
         } catch {
             print("AppState Error: Loading bets failed: \(error)")
         }
-        isLoadingBets = false
     }
 
-    func createBet(betType: BetType, description: String, deadline: Date, targetUserId: String? = nil) async throws -> Bet {
+    func loadExpandedBets() async {
+        isLoadingBets = true
+        defer { isLoadingBets = false }
+
+        do {
+            async let active = BettingService.shared.getDiscoverBets(status: .active)
+            async let completed = BettingService.shared.getDiscoverBets(status: .completed)
+
+            let activeResponse = try await active
+            let completedResponse = try await completed
+            let combinedItems = activeResponse.bets + completedResponse.bets
+
+            cacheDiscoverBetItems(combinedItems)
+
+            let bets = combinedItems
+                .map(\.bet)
+                .sorted { $0.createdAt > $1.createdAt }
+
+            self.expandedBets = deduplicateBets(bets)
+        } catch {
+            print("AppState Error: Loading expanded bets failed: \(error)")
+        }
+    }
+
+    func createBet(
+        betType: BetType,
+        description: String,
+        deadline: Date,
+        initialStake: Int,
+        initialSide: BetSide = .yes,
+        targetUserId: String? = nil
+    ) async throws -> Bet {
         guard let chatId = currentChatId else {
             throw APIError.invalidURL
         }
@@ -614,9 +762,21 @@ class AppState: ObservableObject {
             betType: betType,
             description: description,
             deadline: deadline,
+            initialStake: initialStake,
+            initialSide: initialSide,
             targetUserId: targetUserId
         )
         activeBets.insert(bet, at: 0)
+        expandedBets.insert(bet, at: 0)
+        expandedBets = deduplicateBets(expandedBets)
+        betTotalsById[bet.betId] = BetTotals(
+            totalYes: initialSide == .yes ? initialStake : 0,
+            totalNo: initialSide == .no ? initialStake : 0,
+            totalPot: initialStake,
+            yesCount: initialSide == .yes ? 1 : 0,
+            noCount: initialSide == .no ? 1 : 0
+        )
+        betCanStakeById[bet.betId] = false
         // Refresh aura after bet creation
         await loadAuraStats()
         return bet
@@ -624,6 +784,9 @@ class AppState: ObservableObject {
 
     func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
         let participant = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
+        betCanStakeById[betId] = false
+        await loadBets()
+        await loadExpandedBets()
         // Refresh aura after staking
         await loadAuraStats()
         return participant
@@ -633,8 +796,21 @@ class AppState: ObservableObject {
         _ = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
         // Remove from active bets
         activeBets.removeAll { $0.betId == betId }
+        expandedBets.removeAll { $0.betId == betId }
+        betCanStakeById[betId] = false
         // Refresh aura after resolution
         await loadAuraStats()
+    }
+
+    func quickStake(betId: String, side: BetSide, amount: Int = 25) {
+        Task {
+            do {
+                _ = try await placeBetStake(betId: betId, side: side, amount: amount)
+                VibeHaptic.success()
+            } catch {
+                print("AppState Error: Quick stake failed: \(error)")
+            }
+        }
     }
 
     // MARK: - Tea Spills
@@ -642,13 +818,34 @@ class AppState: ObservableObject {
     func loadTeaSpills() async {
         guard let chatId = currentChatId else { return }
         isLoadingTea = true
+        defer { isLoadingTea = false }
+
         do {
             let response = try await TeaSpillService.shared.getTeaSpills(chatId: chatId, status: .active)
             self.activeTeaSpills = response.teas
         } catch {
             print("AppState Error: Loading tea spills failed: \(error)")
         }
-        isLoadingTea = false
+    }
+
+    func loadExpandedTeaSpills() async {
+        isLoadingTea = true
+        defer { isLoadingTea = false }
+
+        do {
+            async let active = TeaSpillService.shared.getDiscoverTeaSpills(status: .active)
+            async let revealed = TeaSpillService.shared.getDiscoverTeaSpills(status: .revealed)
+
+            let activeResponse = try await active
+            let revealedResponse = try await revealed
+            let combined = activeResponse.teas + revealedResponse.teas
+
+            self.expandedTeaSpills = deduplicateTea(
+                combined.sorted { $0.createdAt > $1.createdAt }
+            )
+        } catch {
+            print("AppState Error: Loading expanded tea spills failed: \(error)")
+        }
     }
 
     func createTeaSpill(mysteryText: String, answer: String, options: [String], deadline: Date) async throws -> TeaSpill {
@@ -663,6 +860,8 @@ class AppState: ObservableObject {
             deadline: deadline
         )
         activeTeaSpills.insert(tea, at: 0)
+        expandedTeaSpills.insert(tea, at: 0)
+        expandedTeaSpills = deduplicateTea(expandedTeaSpills)
         await loadAuraStats()
         return tea
     }
@@ -677,6 +876,9 @@ class AppState: ObservableObject {
         let response = try await TeaSpillService.shared.revealTeaSpill(teaId: teaId)
         // Move from active to resolved
         activeTeaSpills.removeAll { $0.teaId == teaId }
+        if let index = expandedTeaSpills.firstIndex(where: { $0.teaId == teaId }) {
+            expandedTeaSpills[index] = response.tea
+        }
         await loadAuraStats()
         return response
     }
@@ -770,6 +972,34 @@ class AppState: ObservableObject {
     func skipBirthday() {
         UserDefaults.standard.set(true, forKey: "vibeBirthdayCollected")
         isBirthdayCollected = true
+    }
+
+    func signOut() {
+        UserDefaults.standard.removeObject(forKey: "vibeUserId")
+        UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
+        UserDefaults.standard.removeObject(forKey: "vibeUserFirstName")
+
+        isAuthenticated = false
+        userId = "anonymous"
+        userFirstName = nil
+
+        // Clear user-bound state to avoid stale UI after logout.
+        auraBalance = 0
+        vibeScore = 100
+        auraStats = nil
+        auraTransactions = []
+        leaderboard = []
+        activeBets = []
+        expandedBets = []
+        betTotalsById = [:]
+        betCanStakeById = [:]
+        activeTeaSpills = []
+        expandedTeaSpills = []
+        selectedBet = nil
+        selectedTea = nil
+        teaRevealResponse = nil
+
+        navigateToFeed()
     }
 
     func setPermissionsGranted() {
@@ -989,13 +1219,28 @@ class AppState: ObservableObject {
             return
         }
 
+        // Team tutorial should play as a self-contained 4-slide sequence.
+        if teamTutorialVibeIds.contains(vibeId) {
+            let tutorialPlaylist = teamTutorialVibes.sorted(by: { $0.createdAt < $1.createdAt })
+            self.viewerVibes = tutorialPlaylist
+            if let index = tutorialPlaylist.firstIndex(where: { $0.id == vibeId }) {
+                currentViewerIndex = index
+                currentDestination = .viewer(startIndex: index)
+            } else {
+                currentViewerIndex = 0
+                currentDestination = .viewer(startIndex: 0)
+            }
+            requestExpand()
+            return
+        }
+
         // 1. Prepare Playlist: Group by user, sort oldest to newest per user
         // Filter out expired vibes on client-side to ensure freshness
         var activeVibes = vibes.filter { !$0.isExpired }
 
-        // If no real vibes, show the team welcome vibe
+        // If no real vibes, show the team tutorial pack.
         if activeVibes.isEmpty {
-            activeVibes = [teamWelcomeVibe]
+            activeVibes = teamTutorialVibes
         }
 
         // Find the user who owns this vibe to prioritize their story
@@ -1009,10 +1254,8 @@ class AppState: ObservableObject {
             playlist.append(contentsOf: sortedUserVibes)
         }
         
-        // Remove team welcome vibe if it's not the requested vibe
-        if vibeId != "team_welcome" {
-            playlist.removeAll { $0.id == "team_welcome" }
-        }
+        // Tutorial slides are removed from normal story playback.
+        playlist.removeAll { teamTutorialVibeIds.contains($0.id) }
 
         // Deduplicate playlist by ID (keep first occurrence)
         var seenIds = Set<String>()
@@ -1070,6 +1313,110 @@ class AppState: ObservableObject {
     func navigateToBetList() {
         currentDestination = .betList
         requestExpand()
+    }
+
+    func resolveBetForStory(_ vibe: Vibe) async -> Bet? {
+        guard let betId = vibe.parlay?.betId, !betId.isEmpty else {
+            if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
+                return matched
+            }
+
+            // No direct betId on this vibe: open the best available active bet for join/stake flow.
+            if let joinable = bestJoinableBet() {
+                return joinable
+            }
+
+            // Refresh once to improve first-time reliability in viewer entry points.
+            async let compactRefresh: () = loadBets()
+            async let expandedRefresh: () = loadExpandedBets()
+            _ = await (compactRefresh, expandedRefresh)
+
+            if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
+                return matched
+            }
+
+            if let joinable = bestJoinableBet() {
+                return joinable
+            }
+
+            return nil
+        }
+
+        if let cachedBet = (activeBets + expandedBets).first(where: { $0.betId == betId }) {
+            return cachedBet
+        }
+
+        do {
+            let detail = try await BettingService.shared.getBet(betId: betId)
+            let bet = detail.bet
+
+            betTotalsById[bet.betId] = detail.totals
+            betCanStakeById[bet.betId] = detail.userStake == nil && bet.status == .active && !bet.isExpired
+
+            expandedBets = deduplicateBets([bet] + expandedBets)
+            if bet.status == .active {
+                activeBets = deduplicateBets([bet] + activeBets)
+            }
+
+            return bet
+        } catch {
+            print("AppState Error: Failed to open bet \(betId) from story: \(error)")
+            // If specific deep-link fails, still try to route user into a joinable bet flow.
+            if let joinable = bestJoinableBet() {
+                return joinable
+            }
+            return nil
+        }
+    }
+
+    func openBetFromVibe(_ vibe: Vibe) async {
+        if let bet = await resolveBetForStory(vibe) {
+            navigateToBetDetail(bet: bet)
+        } else {
+            navigateToBetList()
+        }
+    }
+
+    private func bestJoinableBet() -> Bet? {
+        let merged = deduplicateBets(activeBets + expandedBets)
+            .sorted { $0.createdAt > $1.createdAt }
+
+        // Prefer active + not expired + user can still stake.
+        if let candidate = merged.first(where: { bet in
+            bet.status == .active
+                && !bet.isExpired
+                && (betCanStakeById[bet.betId] ?? true)
+        }) {
+            return candidate
+        }
+
+        // Fallback to any active/non-expired bet detail.
+        return merged.first(where: { $0.status == .active && !$0.isExpired })
+    }
+
+    private func matchBetForVibe(_ vibe: Vibe, in candidates: [Bet]) -> Bet? {
+        let merged = deduplicateBets(candidates)
+        let scoped = merged.filter { $0.status == .active && !$0.isExpired }
+
+        let rawQuery = (vibe.parlay?.title ?? vibe.parlay?.question ?? vibe.textStatus ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rawQuery.isEmpty else { return nil }
+
+        let query = normalizeMatchText(rawQuery)
+        guard !query.isEmpty else { return nil }
+
+        return scoped.first(where: { bet in
+            let description = normalizeMatchText(bet.description)
+            return description.contains(query) || query.contains(description)
+        })
+    }
+
+    private func normalizeMatchText(_ value: String) -> String {
+        value
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
     }
 
     func navigateToTeaGuess(tea: TeaSpill) {
@@ -1155,6 +1502,44 @@ class AppState: ObservableObject {
         streak?.userPostedToday(userId) ?? false
     }
 
+    /// Story groups shown in feed UIs (compact + expanded).
+    /// Filters out known seeded/mock identities to avoid confusing "ghost" bubbles.
+    /// Falls back to one team tutorial bubble when no real stories remain.
+    func storyGroupsForFeed() -> [[Vibe]] {
+        let active = vibes.filter { !$0.isExpired }
+
+        let filtered = active.filter { vibe in
+            if vibe.userId == "vibe_team" { return false }
+            if vibe.id.hasPrefix("mock_") { return false }
+            if let oderId = vibe.oderId, oderId.hasPrefix("mock_") { return false }
+            if let chatId = vibe.chatId, isSeededChatId(chatId) { return false }
+            if vibe.userId != userId && isSeededUserId(vibe.userId) { return false }
+            return true
+        }
+
+        if filtered.isEmpty {
+            return [teamTutorialVibes]
+        }
+
+        return vibesGroupedByUser(filtered, includeMe: true, includeTeam: false)
+    }
+
+    private func isSeededUserId(_ value: String) -> Bool {
+        value.hasPrefix("user_friend_")
+            || value.hasPrefix("friend_")
+            || value == "user_me"
+            || value == "user123"
+            || value.hasPrefix("mock_")
+            || value.hasPrefix("test_user_")
+            || value.hasPrefix("seed_")
+            || value == "test_user_qa"
+    }
+
+    private func isSeededChatId(_ value: String) -> Bool {
+        value.hasPrefix("test_chat_")
+            || value.hasPrefix("seed_")
+    }
+
     func vibesGroupedByUser(_ customVibes: [Vibe]? = nil, includeMe: Bool = true, includeTeam: Bool = true, priorityUserId: String? = nil) -> [[Vibe]] {
         // Group vibes by userId, maintaining order
         var userOrder: [String] = []
@@ -1189,9 +1574,9 @@ class AppState: ObservableObject {
             grouped[vibe.userId]?.append(vibe)
         }
         
-        // If empty and team requested, add the team welcome vibe
+        // If empty and team requested, add the team tutorial pack.
         if userOrder.isEmpty && includeTeam {
-            return [[teamWelcomeVibe]]
+            return [teamTutorialVibes]
         }
         
         // If priorityUserId is set, move it to the front of userOrder

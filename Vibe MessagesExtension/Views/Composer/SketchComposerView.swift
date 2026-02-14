@@ -160,7 +160,7 @@ struct SketchComposerView: View {
                 "folder": "sketches"
             ])
 
-            guard let uploadUrl = URL(string: presignedResponse.uploadUrl) else {
+            guard let uploadUrl = URL.httpURL(from: presignedResponse.uploadUrl) else {
                 throw NSError(domain: "UploadError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid upload URL"])
             }
 

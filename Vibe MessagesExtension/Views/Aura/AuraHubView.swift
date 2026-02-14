@@ -130,7 +130,6 @@ struct AuraHubView: View {
                 Image(systemName: "gift.fill")
                     .font(.system(size: 28))
                     .foregroundColor(.yellow)
-                    .symbolEffect(.bounce)
 
                 VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                     Text("Daily Bonus")

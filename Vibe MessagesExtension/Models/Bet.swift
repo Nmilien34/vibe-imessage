@@ -218,6 +218,37 @@ struct BetListResponse: Codable {
     let count: Int
 }
 
+struct DiscoverBetFeedItem: Codable, Identifiable {
+    let id: String
+    let bet: Bet
+    let accessLevel: String
+    let source: String
+    let canBet: Bool
+    let totals: BetTotals
+    let participantCount: Int
+
+    enum CodingKeys: String, CodingKey {
+        case bet, accessLevel, source, canBet, totals, participantCount
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.bet = try container.decode(Bet.self, forKey: .bet)
+        self.id = bet.betId
+        self.accessLevel = try container.decode(String.self, forKey: .accessLevel)
+        self.source = try container.decode(String.self, forKey: .source)
+        self.canBet = try container.decode(Bool.self, forKey: .canBet)
+        self.totals = try container.decode(BetTotals.self, forKey: .totals)
+        self.participantCount = try container.decode(Int.self, forKey: .participantCount)
+    }
+}
+
+struct DiscoverBetResponse: Codable {
+    let bets: [DiscoverBetFeedItem]
+    let total: Int
+    let hasMore: Bool
+}
+
 struct CreateBetResponse: Codable {
     let success: Bool
     let bet: Bet

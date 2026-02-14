@@ -1,45 +1,13 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const multer_1 = __importDefault(require("multer"));
-const Vibe_1 = __importStar(require("../models/Vibe"));
+const Vibe_1 = __importDefault(require("../models/Vibe"));
 const s3Upload_1 = require("../utils/s3Upload");
+const auth_1 = require("../middleware/auth");
 const router = express_1.default.Router();
 // Configure multer for memory storage
 const upload = (0, multer_1.default)({
@@ -52,7 +20,7 @@ const upload = (0, multer_1.default)({
  * @route   POST /api/vibe/upload
  * @desc    Upload a video vibe (Multipart)
  */
-router.post('/upload', upload.single('video'), async (req, res) => {
+router.post('/upload', auth_1.authMiddleware, upload.single('video'), async (req, res) => {
     try {
         const { userId, chatId, isLocked } = req.body;
         const file = req.file;
@@ -64,22 +32,9 @@ router.post('/upload', upload.single('video'), async (req, res) => {
         }
         const extension = file.originalname.split('.').pop() || 'mp4';
         const { publicUrl, key } = await (0, s3Upload_1.uploadToS3)(file.buffer, extension, 'vibes');
-        const now = new Date();
-        const expiresAt = new Date(now.getTime() + Vibe_1.FEED_EXPIRATION_DAYS * 24 * 60 * 60 * 1000);
-        const permanentDeleteAt = new Date(now.getTime() + Vibe_1.HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-        const vibe = new Vibe_1.default({
-            userId,
-            conversationId: chatId,
-            type: 'video',
-            mediaUrl: publicUrl,
-            mediaKey: key,
-            isLocked: isLocked === 'true' || isLocked === true,
-            expiresAt,
-            permanentDeleteAt,
-        });
-        await vibe.save();
+        // RETURN ONLY S3 INFO - LET THE CLIENT CREATE THE VIBE WITH METADATA
         res.status(201).json({
-            videoId: vibe._id,
+            videoId: "temp_upload_success", // Backwards compatibility for client parser
             videoUrl: publicUrl,
             videoKey: key,
         });
@@ -128,7 +83,7 @@ router.get('/:videoId', async (req, res) => {
  * @route   POST /api/vibe/:videoId/unlock
  * @desc    Marks story as unlocked for a user
  */
-router.post('/:videoId/unlock', async (req, res) => {
+router.post('/:videoId/unlock', auth_1.authMiddleware, async (req, res) => {
     try {
         const { videoId } = req.params;
         const { userId } = req.body;

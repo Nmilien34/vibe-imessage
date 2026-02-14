@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.vibesRoutes = exports.vibeRoutes = exports.uploadRoutes = exports.remindersRoutes = exports.groupRoutes = exports.feedRoutes = exports.chatRoutes = exports.authRoutes = void 0;
+exports.teaRoutes = exports.vibeWireRoutes = exports.auraRoutes = exports.betRoutes = exports.userRoutes = exports.vibesRoutes = exports.vibeRoutes = exports.uploadRoutes = exports.remindersRoutes = exports.groupRoutes = exports.feedRoutes = exports.chatRoutes = exports.authRoutes = void 0;
 var auth_1 = require("./auth");
 Object.defineProperty(exports, "authRoutes", { enumerable: true, get: function () { return __importDefault(auth_1).default; } });
 var chat_1 = require("./chat");
@@ -20,4 +20,14 @@ var vibe_1 = require("./vibe");
 Object.defineProperty(exports, "vibeRoutes", { enumerable: true, get: function () { return __importDefault(vibe_1).default; } });
 var vibes_1 = require("./vibes");
 Object.defineProperty(exports, "vibesRoutes", { enumerable: true, get: function () { return __importDefault(vibes_1).default; } });
+var user_1 = require("./user");
+Object.defineProperty(exports, "userRoutes", { enumerable: true, get: function () { return __importDefault(user_1).default; } });
+var bet_1 = require("./bet");
+Object.defineProperty(exports, "betRoutes", { enumerable: true, get: function () { return __importDefault(bet_1).default; } });
+var aura_1 = require("./aura");
+Object.defineProperty(exports, "auraRoutes", { enumerable: true, get: function () { return __importDefault(aura_1).default; } });
+var vibewire_1 = require("./vibewire");
+Object.defineProperty(exports, "vibeWireRoutes", { enumerable: true, get: function () { return __importDefault(vibewire_1).default; } });
+var tea_1 = require("./tea");
+Object.defineProperty(exports, "teaRoutes", { enumerable: true, get: function () { return __importDefault(tea_1).default; } });
 //# sourceMappingURL=index.js.map

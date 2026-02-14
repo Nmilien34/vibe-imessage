@@ -12,7 +12,7 @@ class APIService {
     private let useMockData = false
 
     #if DEBUG
-    private let baseURL = "http://localhost:3000/api"
+    private let baseURL = "http://127.0.0.1:3000/api"
     #else
     private let baseURL = "https://vibe-imessage.onrender.com/api"
     #endif
@@ -150,7 +150,7 @@ class APIService {
             )
         }
 
-        guard let url = URL(string: "\(baseURL)/vibe/upload") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibe/upload") else {
             throw APIError.invalidURL
         }
 
@@ -239,7 +239,7 @@ class APIService {
      * Marks a story as unlocked for the current user.
      */
     func unlockStory(videoId: String, userId: String) async throws {
-        guard let url = URL(string: "\(baseURL)/vibe/\(videoId)/unlock") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibe/\(videoId)/unlock") else {
             throw APIError.invalidURL
         }
         
@@ -266,7 +266,7 @@ class APIService {
             return mockVibes.sorted { $0.createdAt > $1.createdAt }
         }
 
-        guard let url = URL(string: "\(baseURL)/vibe/feed/\(chatId)") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibe/feed/\(chatId)") else {
             throw APIError.invalidURL
         }
 
@@ -399,7 +399,7 @@ class APIService {
             )
         }
 
-        guard let url = URL(string: "\(baseURL)/vibes/\(chatId)/streak") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(chatId)/streak") else {
             throw APIError.invalidURL
         }
 
@@ -433,7 +433,7 @@ class APIService {
                 batteryLevel: requestBody.batteryLevel,
                 mood: requestBody.mood,
                 poll: requestBody.poll.map { Poll(question: $0.question, options: $0.options.map { PollOption(text: $0) }) },
-                parlay: requestBody.parlay.map { Parlay(title: $0.title, question: $0.question, options: $0.options, amount: $0.amount, wager: $0.wager, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending, expiresAt: nil, votes: nil, winnersReceived: nil) },
+                parlay: requestBody.parlay.map { Parlay(title: $0.title, question: $0.question, options: $0.options, betId: $0.betId, amount: $0.amount, wager: $0.wager, opponentId: $0.opponentId, opponentName: $0.opponentName, status: .pending, expiresAt: nil, votes: nil, winnersReceived: nil) },
                 textStatus: requestBody.textStatus,
                 styleName: requestBody.styleName,
                 etaStatus: requestBody.etaStatus,
@@ -449,7 +449,7 @@ class APIService {
             return newVibe
         }
 
-        guard let url = URL(string: "\(baseURL)/vibes") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes") else {
             throw APIError.invalidURL
         }
 
@@ -494,7 +494,7 @@ class APIService {
             throw APIError.invalidResponse
         }
 
-        guard let url = URL(string: "\(baseURL)/vibes/\(vibeId)/react") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(vibeId)/react") else {
             throw APIError.invalidURL
         }
 
@@ -541,7 +541,7 @@ class APIService {
             throw APIError.invalidResponse
         }
 
-        guard let url = URL(string: "\(baseURL)/vibes/\(vibeId)/view") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(vibeId)/view") else {
             throw APIError.invalidURL
         }
 
@@ -564,7 +564,7 @@ class APIService {
     }
 
     func vote(vibeId: String, optionId: String, userId: String) async throws -> Vibe {
-        guard let url = URL(string: "\(baseURL)/vibes/\(vibeId)/vote") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(vibeId)/vote") else {
             throw APIError.invalidURL
         }
         
@@ -588,7 +588,7 @@ class APIService {
     }
 
     func respondToParlay(vibeId: String, userId: String, status: String) async throws -> Vibe {
-        guard let url = URL(string: "\(baseURL)/vibes/\(vibeId)/parlay/respond") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(vibeId)/parlay/respond") else {
             throw APIError.invalidURL
         }
 
@@ -623,7 +623,7 @@ class APIService {
                 .sorted { $0.date < $1.date }
         }
 
-        guard let url = URL(string: "\(baseURL)/reminders/\(chatId)") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/reminders/\(chatId)") else {
             throw APIError.invalidURL
         }
 
@@ -656,7 +656,7 @@ class APIService {
             return reminder
         }
 
-        guard let url = URL(string: "\(baseURL)/reminders") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/reminders") else {
             throw APIError.invalidURL
         }
 
@@ -695,7 +695,7 @@ class APIService {
             return
         }
 
-        guard let url = URL(string: "\(baseURL)/reminders/\(id)") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/reminders/\(id)") else {
             throw APIError.invalidURL
         }
 
@@ -717,7 +717,7 @@ class APIService {
      * Returns the current streak for a group/chatId using the new group route.
      */
     func fetchGroupStreak(chatId: String) async throws -> GroupStreak {
-        guard let url = URL(string: "\(baseURL)/group/\(chatId)/streak") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/group/\(chatId)/streak") else {
             throw APIError.invalidURL
         }
         
@@ -737,7 +737,7 @@ class APIService {
      * Manually increments/updates the streak for a group.
      */
     func incrementGroupStreak(chatId: String, userId: String) async throws -> GroupStreak {
-        guard let url = URL(string: "\(baseURL)/group/\(chatId)/streak") else {
+        guard let url = URL.httpURL(from: "\(baseURL)/group/\(chatId)/streak") else {
             throw APIError.invalidURL
         }
         

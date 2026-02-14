@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const chatTypes = ['individual', 'group'];
+const chatSourceTypes = ['imessage', 'virtual'];
 const chatSchema = new mongoose_1.Schema({
     _id: {
         type: String,
@@ -63,6 +64,11 @@ const chatSchema = new mongoose_1.Schema({
         type: String,
         enum: chatTypes,
         default: 'group',
+    },
+    chatType: {
+        type: String,
+        enum: chatSourceTypes,
+        default: 'imessage',
     },
     createdBy: {
         type: String,

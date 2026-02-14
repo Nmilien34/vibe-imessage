@@ -34,7 +34,7 @@ struct NewsDetailView: View {
         GeometryReader { geometry in
             ZStack {
                 // LAYER 1: Hero Image Background
-                if let imageUrl = newsItem.imageUrl, let url = URL(string: imageUrl) {
+                if let imageUrl = newsItem.imageUrl, let url = URL.httpURL(from: imageUrl) {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -75,7 +75,7 @@ struct NewsDetailView: View {
                         Spacer()
 
                         // Share Button
-                        if let url = URL(string: newsItem.url) {
+                        if let url = URL.httpURL(from: newsItem.url) {
                             ShareLink(
                                 item: url,
                                 message: Text("Check out this vibe: \(newsItem.headline)")
@@ -174,7 +174,7 @@ struct NewsDetailView: View {
         .background(Color.black)
         // In-App Browser Sheet
         .sheet(isPresented: $showWebView) {
-            if let url = URL(string: newsItem.url) {
+            if let url = URL.httpURL(from: newsItem.url) {
                 SafariView(url: url)
                     .ignoresSafeArea()
             }

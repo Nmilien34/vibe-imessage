@@ -9,30 +9,38 @@ import SwiftUI
 import UIKit
 
 enum VibeTheme {
-    // MARK: - Brand Colors (adaptive via asset catalog)
-    static let accent = Color("VibeAccent")
-    static let accentSecondary = Color("VibeSecondary")
-    static let accentCyan = Color("VibeCyan")
-    static let accentBlue = Color("VibeBlue")
+    // MARK: - Brand Colors
+    static let accent = Color(red: 1.0, green: 0.388, blue: 0.278) // #FF6347
+    static let accentSecondary = Color(red: 1.0, green: 0.557, blue: 0.325) // #FF8E53
+    static let accentCyan = Color(red: 0.353, green: 0.784, blue: 0.980) // #5AC8FA
+    static let accentBlue = Color(UIColor.systemBlue)
 
     // MARK: - Semantic Backgrounds
-    static let background = Color(UIColor.systemBackground)
-    static let secondaryBackground = Color(UIColor.secondarySystemBackground)
+    static let background = Color(UIColor.systemGroupedBackground)
+    static let secondaryBackground = Color(UIColor.secondarySystemGroupedBackground)
     static let groupedBackground = Color(UIColor.systemGroupedBackground)
-    static let cardBackground = Color(UIColor.secondarySystemGroupedBackground)
+    static let cardBackground = Color(UIColor.secondarySystemBackground)
 
-    // MARK: - Surface Elevation (dark mode aware)
-    static let surfaceElevated = Color(UIColor.tertiarySystemBackground)
-    static let surfaceOverlay = Color(UIColor.systemGray6)
+    // MARK: - Surface Elevation
+    static let surfaceElevated = Color(UIColor.secondarySystemBackground)
+    static let surfaceOverlay = Color(UIColor.tertiarySystemFill)
 
     // MARK: - Semantic Text
     static let textPrimary = Color(UIColor.label)
     static let textSecondary = Color(UIColor.secondaryLabel)
     static let textTertiary = Color(UIColor.tertiaryLabel)
 
+    // MARK: - Tinted Backgrounds (for bet type cards, stake states)
+    static let warm = Color(red: 1.0, green: 0.39, blue: 0.28)           // #FF6347 tomato
+    static let warmLight = Color(red: 1.0, green: 0.94, blue: 0.93)      // #FFF0ED
+    static let accentLight = Color(red: 0.93, green: 0.93, blue: 0.98)   // #EEEDF9
+    static let greenBg = Color(red: 0.91, green: 0.98, blue: 0.93)       // #E8F9ED
+    static let redBg = Color(red: 1.0, green: 0.94, blue: 0.94)          // #FFF0EF
+    static let textQuaternary = Color(UIColor.quaternaryLabel)
+
     // MARK: - Utility
-    static let divider = Color(UIColor.separator)
-    static let overlay = Color.black.opacity(0.4)
+    static let divider = Color(UIColor.separator).opacity(0.35)
+    static let overlay = Color.black.opacity(0.3)
 
     // MARK: - Brand Gradient
     static let brandGradient = LinearGradient(
@@ -43,13 +51,13 @@ enum VibeTheme {
 
     // MARK: - Feature Gradients
     static let auraGradient = LinearGradient(
-        colors: [Color(red: 1.0, green: 0.84, blue: 0.0), Color(red: 1.0, green: 0.65, blue: 0.0)],
+        colors: [warm, accentSecondary],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
 
     static let teaGradient = LinearGradient(
-        colors: [Color(red: 0.72, green: 0.53, blue: 0.35), Color(red: 0.55, green: 0.35, blue: 0.17)],
+        colors: [accentCyan, accentCyan],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
@@ -61,11 +69,11 @@ enum VibeTheme {
     )
 
     // MARK: - Challenge Colors
-    static let stakeYes = Color(.systemGreen)
-    static let stakeNo = Color(.systemRed)
-    static let betAccent = Color(.systemIndigo)
+    static let stakeYes = Color(red: 0.204, green: 0.780, blue: 0.349) // #34C759
+    static let stakeNo = Color(red: 1.0, green: 0.231, blue: 0.188) // #FF3B30
+    static let betAccent = Color(UIColor.systemBlue)
     static let challengeGradient = LinearGradient(
-        colors: [Color(.systemIndigo), Color(.systemPurple)],
+        colors: [warm, accentSecondary],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )

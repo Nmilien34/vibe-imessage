@@ -50,10 +50,10 @@ struct AuraBadge: View {
                 .font(size.font)
                 .contentTransition(.numericText())
         }
-        .foregroundColor(Color(red: 1.0, green: 0.75, blue: 0.0))
+        .foregroundColor(VibeTheme.warm)
         .padding(.horizontal, size.hPadding)
         .padding(.vertical, size.vPadding)
-        .background(Color(red: 1.0, green: 0.84, blue: 0.0).opacity(0.12))
+        .background(VibeTheme.warmLight)
         .clipShape(Capsule())
     }
 }
@@ -73,19 +73,31 @@ struct TypeTag: View {
 
     private var color: Color {
         switch betType {
-        case .`self`: return VibeTheme.betAccent
-        case .callout: return .orange
-        case .dare: return VibeTheme.stakeNo
+        case .`self`: return VibeTheme.warm
+        case .callout: return VibeTheme.stakeNo
+        case .dare: return VibeTheme.betAccent
+        }
+    }
+
+    private var icon: String {
+        switch betType {
+        case .`self`: return "bolt.fill"
+        case .callout: return "megaphone.fill"
+        case .dare: return "target"
         }
     }
 
     var body: some View {
-        Text(label.uppercased())
-            .font(.system(size: 10, weight: .bold, design: .rounded))
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+        }
             .foregroundColor(color)
             .padding(.horizontal, VibeSpacing.xs)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12))
+            .padding(.vertical, 3)
+            .background(color.opacity(0.1))
             .clipShape(Capsule())
     }
 }
@@ -101,19 +113,16 @@ struct StakeBar: View {
 
     var body: some View {
         GeometryReader { geo in
-            HStack(spacing: 1) {
-                // Yes side
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(VibeTheme.divider)
+
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(VibeTheme.stakeYes)
-                    .frame(width: max(geo.size.width * yesFraction, 4))
-
-                // No side
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(VibeTheme.stakeNo)
-                    .frame(width: max(geo.size.width * (1 - yesFraction), 4))
+                    .frame(width: geo.size.width * yesFraction)
             }
         }
-        .frame(height: 6)
+        .frame(height: 5)
     }
 }
 
@@ -149,7 +158,7 @@ struct CountdownBadge: View {
             Text(timeText)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
         }
-        .foregroundColor(isUrgent ? .orange : VibeTheme.textSecondary)
+        .foregroundColor(isUrgent ? VibeTheme.warm : VibeTheme.textSecondary)
         .padding(.horizontal, VibeSpacing.xs)
         .padding(.vertical, 2)
         .background(VibeTheme.surfaceOverlay)
@@ -159,17 +168,28 @@ struct CountdownBadge: View {
 
 // MARK: - Bet Card
 
+enum BetCardInteractionStyle {
+    case detail
+    case quickStake
+}
+
 struct BetCard: View {
     @EnvironmentObject var appState: AppState
     let bet: Bet
+    var totals: BetTotals? = nil
+    var interactionStyle: BetCardInteractionStyle = .detail
 
-    var body: some View {
-        Button {
-            VibeHaptic.light()
-            appState.navigateToBetDetail(bet: bet)
-        } label: {
-            VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-                // Row 1: Creator + Type + Countdown
+    private var resolvedTotals: BetTotals? {
+        totals ?? appState.betTotalsById[bet.betId]
+    }
+
+    private var canQuickStake: Bool {
+        appState.betCanStakeById[bet.betId] ?? (bet.status == .active && !bet.isExpired)
+    }
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                // Row 1: Creator + metadata
                 HStack(spacing: VibeSpacing.xs) {
                     // Creator avatar
                     Circle()
@@ -185,11 +205,24 @@ struct BetCard: View {
                         .font(VibeTypography.captionLarge)
                         .foregroundColor(VibeTheme.textPrimary)
 
-                    TypeTag(betType: bet.betType)
-
                     Spacer()
 
+                    TypeTag(betType: bet.betType)
                     CountdownBadge(deadline: bet.deadline)
+                }
+
+                // Row 1b: Target user (callout / dare only)
+                if let targetId = bet.targetUserId,
+                   (bet.betType == .callout || bet.betType == .dare) {
+                    let verb = bet.betType == .callout ? "calls out" : "dares"
+                    HStack(spacing: VibeSpacing.xxs) {
+                        Text(verb)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundColor(VibeTheme.textTertiary)
+                        Text("@\(appState.nameForUser(targetId))")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(bet.betType == .callout ? VibeTheme.stakeNo : VibeTheme.betAccent)
+                    }
                 }
 
                 // Row 2: Description
@@ -199,44 +232,81 @@ struct BetCard: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
 
-                // Row 3: Pot
-                HStack {
-                    AuraBadge(amount: bet.creationCost ?? 0, size: .small)
+                // Row 3: Pot + participation metadata
+                HStack(spacing: VibeSpacing.xs) {
+                    AuraBadge(amount: resolvedTotals?.totalPot ?? bet.creationCost ?? 0, size: .small)
                     Text("pot")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textTertiary)
+
+                    if let t = resolvedTotals, (t.totalYes + t.totalNo) > 0 {
+                        Text("•")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                        Text("\(t.totalYes + t.totalNo) stakes")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textSecondary)
+                    }
+
                     Spacer()
 
-                    if bet.status == .active {
-                        Text("Active")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(VibeTheme.stakeYes)
-                    } else {
+                    if bet.status != .active || bet.isExpired {
                         Text(bet.status.rawValue.capitalized)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(VibeTheme.textTertiary)
                     }
                 }
 
+                if let t = resolvedTotals, (t.totalYes + t.totalNo) > 0 {
+                    StakeBar(yesAmount: t.totalYes, noAmount: t.totalNo)
+                }
+
                 // Row 4: Stake buttons (only for active bets)
                 if bet.status == .active && !bet.isExpired {
                     HStack(spacing: VibeSpacing.sm) {
-                        StakeButton(label: "Yes", color: VibeTheme.stakeYes) {
-                            VibeHaptic.medium()
-                            appState.navigateToBetDetail(bet: bet)
+                        StakeButton(label: interactionStyle == .quickStake ? "Yes" : "Stake Yes", color: VibeTheme.stakeYes, compactStyle: interactionStyle == .quickStake) {
+                            if interactionStyle == .quickStake {
+                                guard canQuickStake else { return }
+                                VibeHaptic.medium()
+                                appState.quickStake(betId: bet.betId, side: .yes)
+                            } else {
+                                VibeHaptic.medium()
+                                appState.navigateToBetDetail(bet: bet)
+                            }
                         }
+                        .disabled(interactionStyle == .quickStake && !canQuickStake)
 
-                        StakeButton(label: "No", color: VibeTheme.stakeNo) {
-                            VibeHaptic.medium()
-                            appState.navigateToBetDetail(bet: bet)
+                        StakeButton(label: interactionStyle == .quickStake ? "No" : "Stake No", color: VibeTheme.stakeNo, compactStyle: interactionStyle == .quickStake) {
+                            if interactionStyle == .quickStake {
+                                guard canQuickStake else { return }
+                                VibeHaptic.medium()
+                                appState.quickStake(betId: bet.betId, side: .no)
+                            } else {
+                                VibeHaptic.medium()
+                                appState.navigateToBetDetail(bet: bet)
+                            }
                         }
+                        .disabled(interactionStyle == .quickStake && !canQuickStake)
                     }
                 }
             }
             .padding(VibeSpacing.md)
             .background(VibeTheme.cardBackground)
             .continuousCorner(VibeTheme.radiusMedium)
-            .vibeShadow(.sm)
+    }
+
+    var body: some View {
+        Group {
+            if interactionStyle == .detail {
+                Button {
+                    VibeHaptic.light()
+                    appState.navigateToBetDetail(bet: bet)
+                } label: {
+                    cardContent
+                }
+            } else {
+                cardContent
+            }
         }
         .buttonStyle(.plain)
     }
@@ -247,16 +317,17 @@ struct BetCard: View {
 struct StakeButton: View {
     let label: String
     let color: Color
+    var compactStyle: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .font(.system(size: compactStyle ? 12 : 14, weight: .semibold))
+                .foregroundColor(compactStyle ? color : .white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 36)
-                .background(color)
+                .frame(height: compactStyle ? 30 : 36)
+                .background(compactStyle ? color.opacity(0.16) : color)
                 .continuousCorner(VibeTheme.radiusSmall)
         }
         .buttonStyle(VibePressStyle())
@@ -275,26 +346,18 @@ struct TeaCard: View {
             appState.navigateToTeaGuess(tea: tea)
         } label: {
             VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-                // Row 1: Tea icon + creator + countdown
+                // Row 1: Type + countdown (tea creator stays anonymous)
                 HStack(spacing: VibeSpacing.xs) {
-                    ZStack {
-                        Circle()
-                            .fill(Color(red: 0.72, green: 0.53, blue: 0.35).opacity(0.15))
-                            .frame(width: 28, height: 28)
-                        Text("🍵")
-                            .font(.system(size: 14))
-                    }
-
-                    Text(appState.nameForUser(tea.creatorId))
-                        .font(VibeTypography.captionLarge)
-                        .foregroundColor(VibeTheme.textPrimary)
+                    Image(systemName: "cup.and.saucer.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(VibeTheme.accentCyan)
 
                     Text("TEA")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(red: 0.72, green: 0.53, blue: 0.35))
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(VibeTheme.accentCyan)
                         .padding(.horizontal, VibeSpacing.xs)
                         .padding(.vertical, 2)
-                        .background(Color(red: 0.72, green: 0.53, blue: 0.35).opacity(0.12))
+                        .background(VibeTheme.accentCyan.opacity(0.12))
                         .clipShape(Capsule())
 
                     Spacer()
@@ -312,7 +375,7 @@ struct TeaCard: View {
                 // Row 3: Options count + status
                 HStack {
                     HStack(spacing: 3) {
-                        Image(systemName: "questionmark.circle")
+                        Image(systemName: "questionmark.circle.fill")
                             .font(.system(size: 11))
                         Text("\(tea.options.count) options")
                             .font(VibeTypography.captionSmall)
@@ -335,11 +398,11 @@ struct TeaCard: View {
                             appState.navigateToTeaGuess(tea: tea)
                         } label: {
                             Text("Guess")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, VibeSpacing.md)
                                 .padding(.vertical, VibeSpacing.xxs)
-                                .background(VibeTheme.teaGradient)
+                                .background(VibeTheme.accentCyan)
                                 .clipShape(Capsule())
                         }
                         .buttonStyle(VibePressStyle())
@@ -349,7 +412,6 @@ struct TeaCard: View {
             .padding(VibeSpacing.md)
             .background(VibeTheme.cardBackground)
             .continuousCorner(VibeTheme.radiusMedium)
-            .vibeShadow(.sm)
         }
         .buttonStyle(.plain)
     }

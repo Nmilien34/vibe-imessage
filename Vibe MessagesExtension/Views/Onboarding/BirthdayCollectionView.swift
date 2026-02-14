@@ -120,7 +120,7 @@ struct BirthdayCollectionView: View {
         do {
             let granted = try await store.requestAccess(for: .contacts)
             guard granted else {
-                await showManualInput()
+                showManualInput()
                 return
             }
 
@@ -144,7 +144,7 @@ struct BirthdayCollectionView: View {
             print("Contacts access error: \(error)")
         }
 
-        await showManualInput()
+        showManualInput()
     }
 
     @MainActor

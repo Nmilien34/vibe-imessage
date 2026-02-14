@@ -22,6 +22,16 @@ struct VibeViewerView: View {
     // Auto-advance timer states
     @State private var progress: Double = 0.0
     @State private var timer: Timer?
+    @State private var isHoldingStory = false
+
+    // In-story stake flow (half sheet)
+    @State private var showStakeSheet = false
+    @State private var isResolvingStakeBet = false
+    @State private var stakeTargetBet: Bet?
+    @State private var selectedStakeSide: BetSide = .yes
+    @State private var stakeAmount: Int = 25
+    @State private var isSubmittingStake = false
+    @State private var stakeError: String?
 
     var body: some View {
         GeometryReader { geometry in
@@ -57,10 +67,34 @@ struct VibeViewerView: View {
                             Color.clear
                                 .contentShape(Rectangle())
                                 .onTapGesture { goToPrevious() }
+                                .onLongPressGesture(
+                                    minimumDuration: 0.01,
+                                    maximumDistance: .infinity,
+                                    pressing: { isPressing in
+                                        if isPressing {
+                                            pauseForHold()
+                                        } else {
+                                            resumeAfterHold()
+                                        }
+                                    },
+                                    perform: {}
+                                )
 
                             Color.clear
                                 .contentShape(Rectangle())
                                 .onTapGesture { goToNext() }
+                                .onLongPressGesture(
+                                    minimumDuration: 0.01,
+                                    maximumDistance: .infinity,
+                                    pressing: { isPressing in
+                                        if isPressing {
+                                            pauseForHold()
+                                        } else {
+                                            resumeAfterHold()
+                                        }
+                                    },
+                                    perform: {}
+                                )
                         }
                     }
 
@@ -72,6 +106,33 @@ struct VibeViewerView: View {
                     }
                 }
             }
+            .offset(y: dragOffset)
+            .gesture(
+                DragGesture(minimumDistance: 20)
+                    .onChanged { value in
+                        if value.translation.height > 0 {
+                            dragOffset = value.translation.height
+                        }
+                    }
+                    .onEnded { value in
+                        if value.translation.height < -80,
+                           let vibe = currentVibe,
+                           vibe.type == .parlay {
+                            Task {
+                                await openStakeSheet(for: vibe)
+                            }
+                            return
+                        }
+
+                        if value.translation.height > 120 {
+                            appState.navigateToFeed()
+                        } else {
+                            withAnimation(VibeAnimation.snappy) {
+                                dragOffset = 0
+                            }
+                        }
+                    }
+            )
         }
         .onAppear {
             currentIndex = startIndex
@@ -85,7 +146,35 @@ struct VibeViewerView: View {
             }
         }
         .onDisappear {
+            isHoldingStory = false
             stopTimer()
+        }
+        .sheet(isPresented: $showStakeSheet) {
+            StoryStakeSheet(
+                bet: stakeTargetBet,
+                auraBalance: appState.auraBalance,
+                selectedSide: $selectedStakeSide,
+                amount: $stakeAmount,
+                isResolvingBet: isResolvingStakeBet,
+                isSubmitting: isSubmittingStake,
+                errorText: stakeError,
+                onStake: {
+                    Task { await submitStakeFromSheet() }
+                },
+                onSeeMyBets: {
+                    showStakeSheet = false
+                    appState.navigateToBetList()
+                }
+            )
+            .presentationDetents([.fraction(0.5), .large])
+            .presentationDragIndicator(.visible)
+        }
+        .onChange(of: showStakeSheet) { _, isPresented in
+            if isPresented {
+                pauseForHold()
+            } else if case .viewer = appState.currentDestination {
+                resumeAfterHold()
+            }
         }
     }
 
@@ -109,17 +198,19 @@ struct VibeViewerView: View {
 
     // MARK: - Auto-Advance Timer Functions
 
-    private func startTimer() {
+    private func startTimer(resetProgress: Bool = true) {
         stopTimer()
-        progress = 0.0
+        if resetProgress {
+            progress = 0.0
+        }
 
         guard currentIndex < appState.viewerVibes.count else { return }
-        let vibe = appState.viewerVibes[currentIndex]
 
-        let duration: Double = vibe.type == .photo ? 5.0 : 10.0
+        let duration: Double = 5.0
         let interval = 0.05
 
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            if isHoldingStory { return }
             progress += (interval / duration)
             if progress >= 1.0 {
                 stopTimer()
@@ -131,6 +222,18 @@ struct VibeViewerView: View {
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+    }
+
+    private func pauseForHold() {
+        guard !isHoldingStory else { return }
+        isHoldingStory = true
+        stopTimer()
+    }
+
+    private func resumeAfterHold() {
+        guard isHoldingStory else { return }
+        isHoldingStory = false
+        startTimer(resetProgress: false)
     }
 
     private func progressWidth(for index: Int, totalWidth: CGFloat) -> CGFloat {
@@ -152,6 +255,11 @@ struct VibeViewerView: View {
                 .font(VibeTypography.titleMedium)
                 .foregroundColor(VibeTheme.textSecondary)
         }
+    }
+
+    private var currentVibe: Vibe? {
+        guard currentIndex < appState.viewerVibes.count else { return nil }
+        return appState.viewerVibes[currentIndex]
     }
 
     @State private var musicPlayer: AVPlayer?
@@ -194,7 +302,7 @@ struct VibeViewerView: View {
                     .transition(.opacity)
 
                     // Text Overlay
-                    if let text = vibe.textStatus, !text.isEmpty {
+                    if shouldShowTextOverlay(for: vibe), let text = vibe.textStatus, !text.isEmpty {
                         VStack {
                             Spacer()
                             Text(text)
@@ -217,7 +325,7 @@ struct VibeViewerView: View {
         .opacity(currentIndex == appState.viewerVibes.firstIndex(where: { $0.id == vibe.id }) ? 1.0 : 0.7)
         .animation(VibeAnimation.snappy, value: currentIndex)
         .onAppear {
-            if let song = vibe.songData, let previewUrl = song.previewUrl, let url = URL(string: previewUrl) {
+            if let song = vibe.songData, let previewUrl = song.previewUrl, let url = URL.httpURL(from: previewUrl) {
                 musicPlayer = AVPlayer(url: url)
                 musicPlayer?.play()
             }
@@ -244,7 +352,7 @@ struct VibeViewerView: View {
                                     .animation(.linear(duration: 0.05), value: progress)
                             }
                         }
-                        .frame(height: 3)
+                        .frame(height: 2)
                     }
                 }
             }
@@ -260,7 +368,7 @@ struct VibeViewerView: View {
                         .frame(width: 36, height: 36)
                         .overlay {
                             Text(String(appState.nameForUser(vibe.userId).prefix(1)))
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.white)
                         }
 
@@ -280,16 +388,16 @@ struct VibeViewerView: View {
                 // Streak badge
                 if let streak = appState.streak, streak.currentStreak > 0 {
                     HStack(spacing: VibeSpacing.xxxs) {
-                        Text("🔥")
-                            .font(.system(size: 16))
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 14, weight: .semibold))
                         Text("\(streak.currentStreak)")
-                            .font(VibeTypography.numericLarge)
+                            .font(VibeTypography.numericMedium)
                             .foregroundColor(.white)
                             .contentTransition(.numericText())
                     }
                     .padding(.horizontal, VibeSpacing.sm)
                     .padding(.vertical, VibeSpacing.xs)
-                    .background(Color.orange.opacity(0.8))
+                    .background(Color.white.opacity(0.2))
                     .clipShape(Capsule())
                     .scaleEffect(streakScale)
                     .onAppear {
@@ -325,12 +433,11 @@ struct VibeViewerView: View {
                     VibeHaptic.light()
                     appState.navigateToFeed()
                 } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .symbolRenderingMode(.hierarchical)
                         .foregroundColor(.white)
                         .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
                 }
             }
         }
@@ -358,6 +465,16 @@ struct VibeViewerView: View {
         VStack(spacing: VibeSpacing.lg) {
             if currentIndex < appState.viewerVibes.count {
                 let vibe = appState.viewerVibes[currentIndex]
+
+                if let context = storyContextLabel(for: vibe) {
+                    Text(context)
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(.white.opacity(0.85))
+                        .padding(.horizontal, VibeSpacing.sm)
+                        .padding(.vertical, VibeSpacing.xxxs)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                }
 
                 // Existing reactions
                 if !vibe.reactions.isEmpty {
@@ -396,36 +513,76 @@ struct VibeViewerView: View {
                 }
 
                 // Action buttons
-                HStack(spacing: VibeSpacing.xxxl) {
-                    // React button
+                HStack(spacing: VibeSpacing.md) {
                     Button {
                         VibeHaptic.light()
                         withAnimation(VibeAnimation.bouncy) {
                             showReactions.toggle()
                         }
                     } label: {
-                        VStack(spacing: VibeSpacing.xxxs) {
+                        HStack(spacing: VibeSpacing.xxs) {
                             Image(systemName: vibe.userReaction(appState.userId) != nil ? "heart.fill" : "heart")
-                                .font(.system(size: 22))
+                                .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(vibe.userReaction(appState.userId) != nil ? .red : .white)
                             Text("React")
-                                .font(VibeTypography.captionSmall)
-                                .foregroundColor(.white.opacity(0.8))
+                                .font(VibeTypography.captionLarge)
+                                .foregroundColor(.white)
                         }
+                        .padding(.horizontal, VibeSpacing.sm)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
                     }
 
-                    // Views count
-                    VStack(spacing: VibeSpacing.xxxs) {
-                        HStack(spacing: VibeSpacing.xxxs) {
-                            Image(systemName: "eye")
+                    if vibe.type == .parlay {
+                        Button {
+                            VibeHaptic.medium()
+                            Task {
+                                await openStakeSheet(for: vibe)
+                            }
+                        } label: {
+                            HStack(spacing: VibeSpacing.xxs) {
+                                Image(systemName: "dollarsign.circle.fill")
+                                Text("Join & Stake")
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, VibeSpacing.sm)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(VibeTheme.betAccent.opacity(0.85))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    } else if vibe.type == .tea {
+                        Button {
+                            VibeHaptic.medium()
+                            appState.navigateToComposer(type: .tea)
+                        } label: {
+                            HStack(spacing: VibeSpacing.xxs) {
+                                Image(systemName: "quote.bubble.fill")
+                                Text("Drop Tea")
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, VibeSpacing.sm)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(VibeTheme.accentSecondary.opacity(0.85))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        // Views count
+                        HStack(spacing: VibeSpacing.xxs) {
+                            Image(systemName: "eye.fill")
                             Text("\(vibe.viewedBy.count)")
                                 .contentTransition(.numericText())
                         }
-                        .font(.system(size: 20))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
-                        Text("Views")
-                            .font(VibeTypography.captionSmall)
-                            .foregroundColor(.white.opacity(0.8))
+                        .padding(.horizontal, VibeSpacing.sm)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
                     }
                 }
             }
@@ -449,6 +606,218 @@ struct VibeViewerView: View {
         Task {
             await appState.markAsViewed(vibe)
         }
+    }
+
+    private func openStakeSheet(for vibe: Vibe) async {
+        showReactions = false
+        stakeError = nil
+        isSubmittingStake = false
+        selectedStakeSide = .yes
+        stakeTargetBet = nil
+        stakeAmount = min(max(10, 5), max(5, appState.auraBalance))
+        isResolvingStakeBet = true
+        showStakeSheet = true
+
+        let resolved = await appState.resolveBetForStory(vibe)
+        stakeTargetBet = resolved
+        isResolvingStakeBet = false
+
+        if resolved == nil {
+            stakeError = "No active bet found from this story yet."
+        }
+    }
+
+    private func submitStakeFromSheet() async {
+        guard let bet = stakeTargetBet else { return }
+        guard stakeAmount > 0 else { return }
+
+        isSubmittingStake = true
+        stakeError = nil
+
+        do {
+            _ = try await appState.placeBetStake(
+                betId: bet.betId,
+                side: selectedStakeSide,
+                amount: stakeAmount
+            )
+            isSubmittingStake = false
+            showStakeSheet = false
+            VibeHaptic.success()
+        } catch {
+            isSubmittingStake = false
+            stakeError = error.localizedDescription
+        }
+    }
+
+    private func shouldShowTextOverlay(for vibe: Vibe) -> Bool {
+        switch vibe.type {
+        case .parlay, .tea:
+            return false
+        default:
+            return true
+        }
+    }
+
+    private func storyContextLabel(for vibe: Vibe) -> String? {
+        if vibe.userId == "vibe_team" {
+            switch vibe.id {
+            case "team_welcome":
+                return "Intro vibe used in this challenge flow"
+            case "team_tutorial_2":
+                return "Social vibe used in this challenge flow"
+            case "team_tutorial_3":
+                return "Bet vibe used in this challenge"
+            case "team_tutorial_4":
+                return "Tea vibe used in this challenge"
+            default:
+                break
+            }
+        }
+
+        switch vibe.type {
+        case .parlay:
+            return vibe.parlay?.betId != nil
+                ? "Bet vibe linked to a challenge"
+                : "Bet vibe - challenge link pending"
+        case .tea:
+            return "Tea vibe used in this challenge"
+        default:
+            return nil
+        }
+    }
+}
+
+// MARK: - Story Stake Sheet
+struct StoryStakeSheet: View {
+    let bet: Bet?
+    let auraBalance: Int
+    @Binding var selectedSide: BetSide
+    @Binding var amount: Int
+    let isResolvingBet: Bool
+    let isSubmitting: Bool
+    let errorText: String?
+    let onStake: () -> Void
+    let onSeeMyBets: () -> Void
+
+    private var maxStake: Double {
+        Double(max(5, min(300, auraBalance)))
+    }
+
+    private var canStake: Bool {
+        guard let bet else { return false }
+        return !isResolvingBet
+            && !isSubmitting
+            && bet.status == .active
+            && !bet.isExpired
+            && amount >= 5
+            && amount <= auraBalance
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.lg) {
+            Text("Join Challenge")
+                .font(VibeTypography.titleMedium)
+                .foregroundColor(VibeTheme.textPrimary)
+
+            if isResolvingBet {
+                HStack(spacing: VibeSpacing.sm) {
+                    ProgressView()
+                    Text("Loading challenge...")
+                        .font(VibeTypography.bodySmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+                .padding(.vertical, VibeSpacing.sm)
+            } else if let bet {
+                Text(bet.description)
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                HStack(spacing: VibeSpacing.sm) {
+                    sideButton(.yes)
+                    sideButton(.no)
+                }
+
+                VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                    Text("Stake: \(amount) Aura")
+                        .font(VibeTypography.titleSmall)
+                        .foregroundColor(VibeTheme.textPrimary)
+                        .contentTransition(.numericText())
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(amount) },
+                            set: { amount = Int($0) }
+                        ),
+                        in: 5...maxStake,
+                        step: 5
+                    )
+                    .tint(selectedSide == .yes ? .green : .red)
+
+                    Text("Balance: \(auraBalance) Aura")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textTertiary)
+                }
+            } else {
+                Text("No active challenge is linked to this story yet.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+
+            if let errorText, !errorText.isEmpty {
+                Text(errorText)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(.red)
+            }
+
+            Button(action: onStake) {
+                HStack(spacing: VibeSpacing.xs) {
+                    if isSubmitting {
+                        ProgressView().tint(.white)
+                    }
+                    Text(isSubmitting ? "Joining..." : "Join & Stake")
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, VibeSpacing.sm)
+                .foregroundColor(.white)
+                .background(VibeTheme.betAccent)
+                .continuousCorner(VibeTheme.radiusMedium)
+            }
+            .buttonStyle(VibePressStyle())
+            .disabled(!canStake)
+            .opacity(canStake ? 1 : 0.5)
+
+            Button(action: onSeeMyBets) {
+                Text("See My Bets")
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, VibeSpacing.sm)
+                    .background(VibeTheme.surfaceOverlay)
+                    .continuousCorner(VibeTheme.radiusMedium)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, VibeSpacing.screenHorizontal)
+        .padding(.top, VibeSpacing.md)
+        .padding(.bottom, VibeSpacing.xl)
+    }
+
+    private func sideButton(_ side: BetSide) -> some View {
+        let isSelected = selectedSide == side
+        let tint: Color = side == .yes ? .green : .red
+        return Button {
+            selectedSide = side
+            VibeHaptic.selection()
+        } label: {
+            Text(side.rawValue.uppercased())
+                .font(VibeTypography.captionLarge)
+                .foregroundColor(isSelected ? .white : VibeTheme.textPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, VibeSpacing.sm)
+                .background(isSelected ? tint : VibeTheme.surfaceOverlay)
+                .continuousCorner(VibeTheme.radiusMedium)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -490,7 +859,7 @@ struct PhotoVibeContent: View {
 
     var body: some View {
         ZStack {
-            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+            if let mediaUrl = vibe.mediaUrl, let url = URL.httpURL(from: mediaUrl) {
                 if loadFailed {
                     ImageLoadErrorView {
                         loadFailed = false
@@ -537,7 +906,7 @@ struct VideoVibeContent: View {
 
     var body: some View {
         ZStack {
-            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+            if let mediaUrl = vibe.mediaUrl, let url = URL.httpURL(from: mediaUrl) {
                 if playerError != nil {
                     VideoPlaybackErrorView {
                         retryPlayback(url: url)
@@ -556,7 +925,7 @@ struct VideoVibeContent: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     }
                 }
-            } else if let thumbnailUrl = vibe.thumbnailUrl, let url = URL(string: thumbnailUrl) {
+            } else if let thumbnailUrl = vibe.thumbnailUrl, let url = URL.httpURL(from: thumbnailUrl) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:
@@ -633,7 +1002,7 @@ struct SongVibeContent: View {
 
     var body: some View {
         ZStack {
-            if let albumArt = vibe.songData?.albumArt, let url = URL(string: albumArt) {
+            if let albumArt = vibe.songData?.albumArt, let url = URL.httpURL(from: albumArt) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -647,7 +1016,7 @@ struct SongVibeContent: View {
             }
 
             VStack(spacing: VibeSpacing.xl) {
-                if let albumArt = vibe.songData?.albumArt, let url = URL(string: albumArt) {
+                if let albumArt = vibe.songData?.albumArt, let url = URL.httpURL(from: albumArt) {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -863,7 +1232,7 @@ struct TeaVibeContent: View {
 
     var body: some View {
         ZStack {
-            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+            if let mediaUrl = vibe.mediaUrl, let url = URL.httpURL(from: mediaUrl) {
                 AsyncImage(url: url) { image in
                     image
                         .resizable()
@@ -903,7 +1272,7 @@ struct SketchVibeContent: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if let mediaUrl = vibe.mediaUrl, let url = URL(string: mediaUrl) {
+            if let mediaUrl = vibe.mediaUrl, let url = URL.httpURL(from: mediaUrl) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:

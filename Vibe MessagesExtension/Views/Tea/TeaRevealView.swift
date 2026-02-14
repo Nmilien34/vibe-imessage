@@ -27,6 +27,23 @@ struct TeaRevealView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: VibeSpacing.xxl) {
+                    HStack {
+                        Button {
+                            VibeHaptic.light()
+                            appState.navigateToFeed()
+                        } label: {
+                            Image(systemName: "chevron.backward")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 32, height: 32)
+                                .background(.white.opacity(0.2))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        Spacer()
+                    }
+                    .padding(.top, VibeSpacing.sm)
+
                     // Header
                     VStack(spacing: VibeSpacing.md) {
                         Text("The Tea Has Been Spilled")
@@ -48,7 +65,6 @@ struct TeaRevealView: View {
                             Image(systemName: "cup.and.saucer.fill")
                                 .font(.system(size: 44))
                                 .foregroundColor(.yellow)
-                                .symbolEffect(.bounce)
 
                             Text("The answer is...")
                                 .font(VibeTypography.bodyMedium)

@@ -78,7 +78,7 @@ export async function createTeaSpill(input: CreateTeaSpillInput): Promise<ITeaSp
     deadline,
     status: 'active',
     creationCost: CREATION_COST,
-    creatorBonusPercent: 10,
+    creatorBonusPercent: 0,
   });
 
   return tea;
@@ -179,6 +179,95 @@ interface RevealResult {
   payouts: Array<{ userId: string; amount: number; type: string }>;
 }
 
+function computeProportionalPayouts(
+  guesses: ITeaGuess[],
+  totalPot: number,
+  payoutType: 'tea_win'
+): Array<{ userId: string; amount: number; type: string }> {
+  if (guesses.length === 0 || totalPot <= 0) return [];
+
+  const totalWinningStake = guesses.reduce((sum, g) => sum + g.amount, 0);
+  if (totalWinningStake <= 0) return [];
+
+  const basePayouts = guesses.map(g => ({
+    userId: g.userId.toString(),
+    amount: Math.floor((g.amount / totalWinningStake) * totalPot),
+    type: payoutType,
+  }));
+
+  let distributed = basePayouts.reduce((sum, p) => sum + p.amount, 0);
+  let remainder = totalPot - distributed;
+
+  // Ensure every Aura from the pot is returned (no silent burn from rounding).
+  for (let i = 0; remainder > 0 && basePayouts.length > 0; i++) {
+    const idx = i % basePayouts.length;
+    basePayouts[idx].amount += 1;
+    remainder -= 1;
+    distributed += 1;
+  }
+
+  return basePayouts.filter(p => p.amount > 0);
+}
+
+async function distributePayouts(
+  tea: ITeaSpill,
+  payouts: Array<{ userId: string; amount: number; type: string }>
+): Promise<void> {
+  for (const payout of payouts) {
+    const user = await User.findById(payout.userId);
+    if (!user) {
+      console.error(`User ${payout.userId} not found during tea payout`);
+      continue;
+    }
+
+    user.auraBalance = (user.auraBalance ?? 0) + payout.amount;
+    if (payout.type === 'tea_win') {
+      user.lifetimeAuraEarned = (user.lifetimeAuraEarned ?? 0) + payout.amount;
+    }
+    await user.save();
+
+    const isWin = payout.type === 'tea_win';
+    await AuraTransaction.create({
+      transactionId: `txn_${uuidv4()}`,
+      userId: payout.userId,
+      amount: payout.amount,
+      balanceAfter: user.auraBalance,
+      transactionType: isWin ? 'tea_win' : 'tea_refund',
+      referenceId: tea.teaId,
+      description: isWin
+        ? `Won tea spill guess: "${tea.mysteryText.substring(0, 50)}"`
+        : `Refunded tea spill guess: "${tea.mysteryText.substring(0, 50)}"`,
+    });
+  }
+}
+
+async function settleTeaSpill(tea: ITeaSpill & { save: () => Promise<any> }): Promise<RevealResult> {
+  const guesses = await TeaGuess.find({ teaId: tea.teaId }).sort({ createdAt: 1 });
+  const pot = guesses.reduce((sum, g) => sum + g.amount, 0);
+  const correctGuesses = guesses.filter(g => g.guess === tea.answer);
+
+  let payouts: Array<{ userId: string; amount: number; type: string }> = [];
+
+  if (correctGuesses.length > 0) {
+    payouts = computeProportionalPayouts(correctGuesses, pot, 'tea_win');
+  } else {
+    // If no one guessed correctly, refund all guessers.
+    payouts = guesses.map(g => ({
+      userId: g.userId.toString(),
+      amount: g.amount,
+      type: 'tea_refund',
+    }));
+  }
+
+  await distributePayouts(tea, payouts);
+
+  tea.status = 'revealed';
+  tea.revealedAt = new Date();
+  await tea.save();
+
+  return { tea, payouts };
+}
+
 export async function revealTeaSpill(params: {
   teaId: string;
   userId: string;
@@ -190,75 +279,9 @@ export async function revealTeaSpill(params: {
   if (!tea) throw new Error('Tea spill not found');
   if (tea.creatorId !== userId) throw new Error('Only the creator can reveal a tea spill');
   if (tea.status !== 'active') throw new Error(`Tea spill is already ${tea.status}`);
+  if (tea.deadline > new Date()) throw new Error('Cannot reveal tea spill before deadline');
 
-  // Get all guesses
-  const guesses = await TeaGuess.find({ teaId });
-
-  // Calculate pot
-  const pot = guesses.reduce((sum, g) => sum + g.amount, 0);
-
-  // Find correct guessers
-  const correctGuesses = guesses.filter(g => g.guess === tea.answer);
-
-  const payouts: Array<{ userId: string; amount: number; type: string }> = [];
-
-  const creatorBonusPercent = tea.creatorBonusPercent ?? 10;
-
-  if (correctGuesses.length > 0) {
-    // Creator gets bonus percentage
-    const creatorBonus = Math.floor(pot * (creatorBonusPercent / 100));
-    if (creatorBonus > 0) {
-      payouts.push({ userId: tea.creatorId, amount: creatorBonus, type: 'creator_bonus' });
-    }
-
-    // Remaining pot split proportionally among correct guessers
-    const remainingPot = pot - creatorBonus;
-    const totalCorrectAmount = correctGuesses.reduce((sum, g) => sum + g.amount, 0);
-
-    for (const g of correctGuesses) {
-      const payout = Math.floor((g.amount / totalCorrectAmount) * remainingPot);
-      if (payout > 0) {
-        payouts.push({ userId: g.userId, amount: payout, type: 'tea_win' });
-      }
-    }
-  } else {
-    // No correct guessers — creator gets entire pot
-    if (pot > 0) {
-      payouts.push({ userId: tea.creatorId, amount: pot, type: 'creator_bonus' });
-    }
-  }
-
-  // Distribute payouts
-  for (const payout of payouts) {
-    const user = await User.findById(payout.userId);
-    if (!user) {
-      console.error(`User ${payout.userId} not found during tea payout`);
-      continue;
-    }
-
-    user.auraBalance = (user.auraBalance ?? 0) + payout.amount;
-    user.lifetimeAuraEarned = (user.lifetimeAuraEarned ?? 0) + payout.amount;
-    await user.save();
-
-    await AuraTransaction.create({
-      transactionId: `txn_${uuidv4()}`,
-      userId: payout.userId,
-      amount: payout.amount,
-      balanceAfter: user.auraBalance,
-      transactionType: payout.type,
-      referenceId: teaId,
-      description: payout.type === 'creator_bonus'
-        ? `Creator bonus from tea spill: "${tea.mysteryText.substring(0, 50)}"`
-        : `Won tea spill guess: "${tea.mysteryText.substring(0, 50)}"`,
-    });
-  }
-
-  // Update tea status
-  tea.status = 'revealed';
-  tea.revealedAt = new Date();
-  await tea.save();
-
-  return { tea, payouts };
+  return settleTeaSpill(tea);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -274,6 +297,36 @@ export async function getTeaSpills(params: {
   const { chatId, status, limit = 20, offset = 0 } = params;
 
   const query: any = { chatId };
+  if (status) query.status = status;
+
+  const total = await TeaSpill.countDocuments(query);
+  const teas = await TeaSpill.find(query)
+    .sort({ createdAt: -1 })
+    .skip(offset)
+    .limit(limit);
+
+  return {
+    teas,
+    total,
+    hasMore: offset + limit < total,
+  };
+}
+
+export async function getTeaSpillsForUser(params: {
+  userId: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ teas: ITeaSpill[]; total: number; hasMore: boolean }> {
+  const { userId, status, limit = 20, offset = 0 } = params;
+  const memberships = await ChatMember.find({ userId });
+  const chatIds = memberships.map(m => m.chatId);
+
+  if (chatIds.length === 0) {
+    return { teas: [], total: 0, hasMore: false };
+  }
+
+  const query: any = { chatId: { $in: chatIds } };
   if (status) query.status = status;
 
   const total = await TeaSpill.countDocuments(query);
@@ -313,30 +366,7 @@ export async function autoExpireTeaSpills(): Promise<number> {
 
   for (const tea of expiredTeas) {
     try {
-      // Refund all guessers
-      const guesses = await TeaGuess.find({ teaId: tea.teaId });
-
-      for (const guess of guesses) {
-        const user = await User.findById(guess.userId);
-        if (!user) continue;
-
-        user.auraBalance = (user.auraBalance ?? 0) + guess.amount;
-        await user.save();
-
-        await AuraTransaction.create({
-          transactionId: `txn_${uuidv4()}`,
-          userId: guess.userId,
-          amount: guess.amount,
-          balanceAfter: user.auraBalance,
-          transactionType: 'tea_refund',
-          referenceId: tea.teaId,
-          description: `Refunded ${guess.amount} Aura from expired tea spill`,
-        });
-      }
-
-      // Update status
-      tea.status = 'expired';
-      await tea.save();
+      await settleTeaSpill(tea);
       expiredCount++;
     } catch (error) {
       console.error(`Failed to expire tea ${tea.teaId}:`, error);

@@ -60,7 +60,7 @@ struct UserProfileView: View {
             VibeHaptic.light()
             appState.navigateToFeed()
         } label: {
-            Image(systemName: "chevron.left")
+            Image(systemName: "chevron.backward")
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(VibeTheme.textPrimary)
                 .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
@@ -78,18 +78,21 @@ struct UserProfileView: View {
             // Avatar
             ZStack {
                 Circle()
-                    .fill(VibeTheme.brandGradient)
+                    .fill(VibeTheme.surfaceOverlay)
                     .frame(width: VibeSpacing.avatarXL, height: VibeSpacing.avatarXL)
+                    .overlay(
+                        Circle()
+                            .stroke(VibeTheme.divider, lineWidth: 1)
+                    )
 
                 Text(String(appState.userFirstName?.prefix(1) ?? "?"))
                     .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(VibeTheme.textPrimary)
             }
-            .vibeShadow(.lg)
 
             VStack(spacing: VibeSpacing.xs) {
                 Text(appState.userFirstName ?? "Vibe User")
-                    .font(VibeTypography.displayMedium)
+                    .font(VibeTypography.titleLarge)
                     .foregroundColor(VibeTheme.textPrimary)
 
                 Text("@\(appState.userId.prefix(12))")
@@ -110,11 +113,11 @@ struct UserProfileView: View {
                 Text("AURA BALANCE")
                     .font(VibeTypography.overline)
             }
-            .foregroundColor(.white.opacity(0.8))
+            .foregroundColor(VibeTheme.textSecondary)
 
             Text("\(appState.auraBalance)")
                 .font(VibeTypography.numericLarge)
-                .foregroundColor(.white)
+                .foregroundColor(VibeTheme.textPrimary)
                 .contentTransition(.numericText())
 
             if let stats = appState.auraStats {
@@ -122,32 +125,31 @@ struct UserProfileView: View {
                     VStack(spacing: VibeSpacing.xxxs) {
                         Text("\(stats.lifetimeEarned)")
                             .font(VibeTypography.numericMedium)
-                            .foregroundColor(.white)
+                            .foregroundColor(VibeTheme.textPrimary)
                         Text("Earned")
                             .font(VibeTypography.captionSmall)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(VibeTheme.textSecondary)
                     }
 
                     Rectangle()
-                        .fill(.white.opacity(0.3))
+                        .fill(VibeTheme.divider)
                         .frame(width: 1, height: 30)
 
                     VStack(spacing: VibeSpacing.xxxs) {
                         Text("\(stats.lifetimeSpent)")
                             .font(VibeTypography.numericMedium)
-                            .foregroundColor(.white)
+                            .foregroundColor(VibeTheme.textPrimary)
                         Text("Spent")
                             .font(VibeTypography.captionSmall)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(VibeTheme.textSecondary)
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity)
         .padding(VibeSpacing.xl)
-        .background(VibeTheme.auraGradient)
+        .background(VibeTheme.cardBackground)
         .continuousCorner(VibeTheme.radiusLarge)
-        .vibeShadow(.lg)
     }
 
     // MARK: - Daily Bonus Card
@@ -174,7 +176,6 @@ struct UserProfileView: View {
                     Image(systemName: "gift.fill")
                         .font(.system(size: 20))
                         .foregroundColor(.yellow)
-                        .symbolEffect(.bounce)
                 }
 
                 VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
@@ -270,7 +271,7 @@ struct UserProfileView: View {
 
                 Divider().padding(.leading, VibeSpacing.iconCircleSmall + VibeSpacing.md)
 
-                quickLinkRow(icon: "dice.fill", title: "My Bets", subtitle: "View all bets") {
+                quickLinkRow(icon: "list.bullet.rectangle.fill", title: "My Bets", subtitle: "View all bets") {
                     appState.navigateToBetList()
                 }
             }
@@ -316,13 +317,7 @@ struct UserProfileView: View {
     private var signOutButton: some View {
         Button {
             VibeHaptic.warning()
-            UserDefaults.standard.removeObject(forKey: "vibeUserId")
-            UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
-            UserDefaults.standard.removeObject(forKey: "vibeUserFirstName")
-            appState.isAuthenticated = false
-            appState.userId = "anonymous"
-            appState.userFirstName = nil
-            appState.navigateToFeed()
+            appState.signOut()
         } label: {
             Text("Sign Out")
                 .font(VibeTypography.titleSmall)

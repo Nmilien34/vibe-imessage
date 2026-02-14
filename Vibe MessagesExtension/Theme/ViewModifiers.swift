@@ -24,7 +24,7 @@ struct VibeCardModifier: ViewModifier {
         content
             .background(VibeTheme.cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+            .shadow(color: .black.opacity(0.03), radius: 4, y: 2)
     }
 }
 
@@ -43,7 +43,7 @@ struct VibeGlassCardModifier: ViewModifier {
         content
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 10, y: 5)
+            .shadow(color: .black.opacity(0.04), radius: 6, y: 3)
     }
 }
 
@@ -66,18 +66,16 @@ struct VibeShadowModifier: ViewModifier {
         switch level {
         case .sm:
             content
-                .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+                .shadow(color: .black.opacity(0.03), radius: 2, y: 1)
         case .md:
             content
-                .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
+                .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
         case .lg:
             content
-                .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
-                .shadow(color: .black.opacity(0.04), radius: 4, y: 2)
+                .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
         case .xl:
             content
-                .shadow(color: .black.opacity(0.12), radius: 24, y: 12)
-                .shadow(color: .black.opacity(0.06), radius: 6, y: 3)
+                .shadow(color: .black.opacity(0.07), radius: 12, y: 6)
         }
     }
 }
@@ -210,9 +208,7 @@ extension View {
 extension View {
     func vibeSectionHeader() -> some View {
         self
-            .font(VibeTypography.overline)
+            .font(VibeTypography.captionLarge)
             .foregroundColor(VibeTheme.textSecondary)
-            .textCase(.uppercase)
-            .tracking(0.8)
     }
 }
