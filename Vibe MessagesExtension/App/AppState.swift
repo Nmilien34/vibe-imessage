@@ -888,7 +888,13 @@ class AppState: ObservableObject {
 
     // MARK: - Authentication
 
-    func handleAppleSignIn(identityToken: String, firstName: String?, lastName: String?) async {
+    func handleAppleSignIn(
+        identityToken: String,
+        userIdentifier: String?,
+        firstName: String?,
+        lastName: String?,
+        email: String?
+    ) async {
         print("Auth Debug: Starting Apple Sign In flow...")
         print("Auth Debug: Identity Token length: \(identityToken.count)")
         
@@ -897,8 +903,10 @@ class AppState: ObservableObject {
 
         struct AuthRequest: Encodable {
             let identityToken: String
+            let userIdentifier: String?
             let firstName: String?
             let lastName: String?
+            let email: String?
         }
 
         struct AuthResponse: Decodable {
@@ -914,11 +922,37 @@ class AppState: ObservableObject {
         }
 
         do {
-            let response: AuthResponse = try await APIClient.shared.post("/auth/apple", body: AuthRequest(
-                identityToken: identityToken,
+            let requestBody = AuthRequest(
+                identityToken: identityToken.trimmingCharacters(in: .whitespacesAndNewlines),
+                userIdentifier: userIdentifier,
                 firstName: firstName,
-                lastName: lastName
-            ))
+                lastName: lastName,
+                email: email
+            )
+
+            var attempts = 0
+            let maxAttempts = 2
+            var response: AuthResponse?
+
+            while attempts < maxAttempts {
+                do {
+                    response = try await APIClient.shared.post("/auth/apple", body: requestBody)
+                    break
+                } catch let apiError as APIError {
+                    attempts += 1
+                    if case .httpError(let statusCode, _) = apiError, statusCode == 503, attempts < maxAttempts {
+                        try? await Task.sleep(nanoseconds: 700_000_000)
+                        continue
+                    }
+                    throw apiError
+                } catch {
+                    throw error
+                }
+            }
+
+            guard let response else {
+                throw APIError.invalidResponse
+            }
 
             self.userId = response.user.id
             self.userFirstName = response.user.firstName

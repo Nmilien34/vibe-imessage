@@ -9,23 +9,162 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const auraService_1 = require("../services/auraService");
 const router = express_1.default.Router();
+const DEFAULT_APPLE_AUDIENCES = [
+    'nickmilien.com.vibes.MessagesExtension',
+    'nickmilien.com.vibes',
+];
+function parseAllowedAppleAudiences() {
+    const fromEnv = (process.env.APPLE_ALLOWED_AUDIENCES || '')
+        .split(',')
+        .map(v => v.trim())
+        .filter(Boolean);
+    return Array.from(new Set([...fromEnv, ...DEFAULT_APPLE_AUDIENCES]));
+}
+function decodeAppleTokenPayload(identityToken) {
+    const parts = identityToken.split('.');
+    if (parts.length < 2)
+        return null;
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    try {
+        const raw = Buffer.from(padded, 'base64').toString('utf8');
+        return JSON.parse(raw);
+    }
+    catch {
+        return null;
+    }
+}
+function normalizeAudienceClaim(aud) {
+    if (!aud)
+        return [];
+    if (Array.isArray(aud))
+        return aud.filter(Boolean);
+    return [aud];
+}
+function classifyVerifyError(err) {
+    const raw = err instanceof Error ? err.message : String(err || 'unknown');
+    const message = raw.toLowerCase();
+    if (message.includes('expired')) {
+        return { status: 401, code: 'apple_token_expired', message: 'Apple identity token expired' };
+    }
+    if (message.includes('network') ||
+        message.includes('timeout') ||
+        message.includes('econnreset') ||
+        message.includes('enotfound') ||
+        message.includes('fetch')) {
+        return {
+            status: 503,
+            code: 'apple_verification_unavailable',
+            message: 'Apple verification service unavailable',
+        };
+    }
+    return { status: 401, code: 'apple_token_invalid', message: 'Invalid identity token' };
+}
+async function verifyAppleIdentityToken(identityToken, allowedAudiences) {
+    const payload = decodeAppleTokenPayload(identityToken);
+    if (!payload) {
+        return {
+            ok: false,
+            status: 401,
+            code: 'apple_token_malformed',
+            message: 'Malformed identity token',
+        };
+    }
+    if (payload.iss && payload.iss !== 'https://appleid.apple.com') {
+        return {
+            ok: false,
+            status: 401,
+            code: 'apple_issuer_invalid',
+            message: 'Invalid Apple token issuer',
+            details: { iss: payload.iss },
+        };
+    }
+    const tokenAudiences = normalizeAudienceClaim(payload.aud);
+    const candidateAudiences = tokenAudiences.filter(aud => allowedAudiences.includes(aud));
+    if (candidateAudiences.length === 0) {
+        return {
+            ok: false,
+            status: 401,
+            code: 'apple_audience_mismatch',
+            message: 'Token audience not allowed',
+            details: { tokenAudiences, allowedAudiences },
+        };
+    }
+    let lastError = null;
+    for (const audience of candidateAudiences) {
+        try {
+            const verified = await apple_signin_auth_1.default.verifyIdToken(identityToken, {
+                audience,
+                ignoreExpiration: false,
+            });
+            return { ok: true, payload, verified };
+        }
+        catch (err) {
+            lastError = err;
+        }
+    }
+    const classified = classifyVerifyError(lastError);
+    return {
+        ok: false,
+        status: classified.status,
+        code: classified.code,
+        message: classified.message,
+        details: {
+            tokenAudiences,
+            allowedAudiences,
+            verifyError: lastError instanceof Error ? lastError.message : String(lastError),
+        },
+    };
+}
 /**
  * @route POST /api/auth/apple
  * @desc Authenticate with Apple ID
  * @access Public
  */
 router.post('/apple', async (req, res) => {
-    const { identityToken, firstName, lastName, email } = req.body;
-    if (!identityToken) {
+    const { identityToken, userIdentifier, firstName, lastName, email } = req.body;
+    if (!identityToken || typeof identityToken !== 'string' || !identityToken.trim()) {
         return res.status(400).json({ error: 'Identity token is required' });
     }
-    try {
-        const appleData = await apple_signin_auth_1.default.verifyIdToken(identityToken, {
-            audience: ['nickmilien.com.vibes.MessagesExtension', 'nickmilien.com.vibes'],
-            ignoreExpiration: false,
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+        console.error('Auth Error: JWT_SECRET is missing');
+        return res.status(500).json({
+            error: 'Server authentication misconfiguration',
+            code: 'auth_server_misconfigured',
         });
-        const { sub: appleId, email: appleEmail } = appleData;
+    }
+    const normalizedToken = identityToken.trim();
+    const allowedAudiences = parseAllowedAppleAudiences();
+    const verification = await verifyAppleIdentityToken(normalizedToken, allowedAudiences);
+    if (!verification.ok) {
+        console.error('Apple Auth Verification Failed:', {
+            code: verification.code,
+            details: verification.details,
+        });
+        return res.status(verification.status).json({
+            error: verification.message,
+            code: verification.code,
+        });
+    }
+    const { sub: appleId, email: appleEmail } = verification.verified;
+    if (!appleId) {
+        return res.status(401).json({
+            error: 'Missing Apple subject claim',
+            code: 'apple_subject_missing',
+        });
+    }
+    if (userIdentifier && userIdentifier !== appleId) {
+        console.warn('Apple Auth Warning: userIdentifier mismatch', {
+            userIdentifier,
+            appleId,
+        });
+    }
+    try {
         let user = await User_1.default.findOne({ appleId });
+        if (!user) {
+            user = await User_1.default.findById(appleId);
+        }
         let isNewUser = false;
         if (!user) {
             user = new User_1.default({
@@ -39,11 +178,33 @@ router.post('/apple', async (req, res) => {
             isNewUser = true;
             console.log(`New user created: ${user._id}`);
         }
+        else {
+            let shouldSave = false;
+            if (!user.appleId) {
+                user.appleId = appleId;
+                shouldSave = true;
+            }
+            if (!user.email && (email || appleEmail)) {
+                user.email = email || appleEmail;
+                shouldSave = true;
+            }
+            if (!user.firstName && firstName) {
+                user.firstName = firstName;
+                shouldSave = true;
+            }
+            if (!user.lastName && lastName) {
+                user.lastName = lastName;
+                shouldSave = true;
+            }
+            if (shouldSave) {
+                await user.save();
+            }
+        }
         const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id);
         if (dailyBonusClaimed) {
             console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
         }
-        const token = jsonwebtoken_1.default.sign({ userId: user._id, appleId: user.appleId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jsonwebtoken_1.default.sign({ userId: user._id, appleId: user.appleId }, jwtSecret, { expiresIn: '7d' });
         res.json({
             token,
             isNewUser,
@@ -60,8 +221,11 @@ router.post('/apple', async (req, res) => {
         });
     }
     catch (err) {
-        console.error('Apple Auth Error:', err);
-        res.status(401).json({ error: 'Invalid identity token' });
+        console.error('Apple Auth Error (post-verification):', err);
+        res.status(500).json({
+            error: 'Authentication failed due to server error',
+            code: 'auth_server_error',
+        });
     }
 });
 /**

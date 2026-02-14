@@ -135,14 +135,18 @@ struct LoginView: View {
 
                 let firstName = appleIDCredential.fullName?.givenName
                 let lastName = appleIDCredential.fullName?.familyName
+                let email = appleIDCredential.email
+                let userIdentifier = appleIDCredential.user
 
                 isAuthenticating = true
 
                 Task {
                     await appState.handleAppleSignIn(
                         identityToken: identityToken,
+                        userIdentifier: userIdentifier,
                         firstName: firstName,
-                        lastName: lastName
+                        lastName: lastName,
+                        email: email
                     )
 
                     await MainActor.run {
