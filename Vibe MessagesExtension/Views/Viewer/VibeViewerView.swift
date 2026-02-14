@@ -380,6 +380,13 @@ struct VibeViewerView: View {
                         Text(timeAgo(from: vibe.createdAt))
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(.white.opacity(0.7))
+
+                        if let context = storyContextLabel(for: vibe) {
+                            Text(context)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
                     }
                 }
 
@@ -465,16 +472,6 @@ struct VibeViewerView: View {
         VStack(spacing: VibeSpacing.lg) {
             if currentIndex < appState.viewerVibes.count {
                 let vibe = appState.viewerVibes[currentIndex]
-
-                if let context = storyContextLabel(for: vibe) {
-                    Text(context)
-                        .font(VibeTypography.captionSmall)
-                        .foregroundColor(.white.opacity(0.85))
-                        .padding(.horizontal, VibeSpacing.sm)
-                        .padding(.vertical, VibeSpacing.xxxs)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                }
 
                 // Existing reactions
                 if !vibe.reactions.isEmpty {
@@ -662,13 +659,13 @@ struct VibeViewerView: View {
         if vibe.userId == "vibe_team" {
             switch vibe.id {
             case "team_welcome":
-                return "Intro vibe used in this challenge flow"
+                return "intro vibe"
             case "team_tutorial_2":
-                return "Social vibe used in this challenge flow"
+                return "social vibe"
             case "team_tutorial_3":
-                return "Bet vibe used in this challenge"
+                return vibe.parlay?.betId?.isEmpty == false ? "bet vibe linked" : "bet vibe"
             case "team_tutorial_4":
-                return "Tea vibe used in this challenge"
+                return "tea vibe"
             default:
                 break
             }
@@ -676,11 +673,9 @@ struct VibeViewerView: View {
 
         switch vibe.type {
         case .parlay:
-            return vibe.parlay?.betId != nil
-                ? "Bet vibe linked to a challenge"
-                : "Bet vibe - challenge link pending"
+            return vibe.parlay?.betId != nil ? "bet vibe linked" : "bet vibe"
         case .tea:
-            return "Tea vibe used in this challenge"
+            return "tea vibe"
         default:
             return nil
         }

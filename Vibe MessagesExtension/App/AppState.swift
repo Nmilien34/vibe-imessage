@@ -127,7 +127,10 @@ class AppState: ObservableObject {
     var teamTutorialVibes: [Vibe] {
         let chatId = currentChatId ?? "global"
         let legacyConversationId = conversationId ?? "global"
-        let tutorialBetId = activeBets.first?.betId ?? expandedBets.first?.betId
+        let tutorialBetId = bestJoinableBet()?.betId
+            ?? activeBets.first?.betId
+            ?? expandedBets.first?.betId
+            ?? "seed_bet_active_self"
         let slides: [(id: String, text: String, image: String, type: VibeType, parlay: Parlay?, styleName: String?)] = [
             (
                 id: "team_welcome",
