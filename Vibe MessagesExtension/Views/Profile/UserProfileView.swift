@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct UserProfileView: View {
     @EnvironmentObject var appState: AppState
@@ -13,6 +15,11 @@ struct UserProfileView: View {
     @State private var dailyBonusClaimed = false
     @State private var claimAmount: Int?
     @State private var showClaimAnimation = false
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var isUploadingProfilePhoto = false
+    @State private var showUploadError = false
+    @State private var uploadErrorMessage = ""
 
     var body: some View {
         ZStack {
@@ -44,12 +51,25 @@ struct UserProfileView: View {
                 .padding(.bottom, VibeSpacing.xxxl)
             }
         }
-        .overlay(alignment: .topLeading) {
-            backButton
+        .safeAreaInset(edge: .top) {
+            HStack {
+                backButton
+                Spacer()
+            }
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
+            .padding(.top, VibeSpacing.xs)
+            .padding(.bottom, VibeSpacing.xs)
         }
         .task {
             await appState.loadAuraStats()
+            await appState.loadCurrentUserProfile()
             isLoading = false
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .alert("Upload failed", isPresented: $showUploadError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(uploadErrorMessage)
         }
     }
 
@@ -67,28 +87,13 @@ struct UserProfileView: View {
                 .background(.ultraThinMaterial)
                 .clipShape(Circle())
         }
-        .padding(.leading, VibeSpacing.screenHorizontal)
-        .padding(.top, VibeSpacing.sm)
     }
 
     // MARK: - Header
 
     private var headerSection: some View {
         VStack(spacing: VibeSpacing.md) {
-            // Avatar
-            ZStack {
-                Circle()
-                    .fill(VibeTheme.surfaceOverlay)
-                    .frame(width: VibeSpacing.avatarXL, height: VibeSpacing.avatarXL)
-                    .overlay(
-                        Circle()
-                            .stroke(VibeTheme.divider, lineWidth: 1)
-                    )
-
-                Text(String(appState.userFirstName?.prefix(1) ?? "?"))
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
-                    .foregroundColor(VibeTheme.textPrimary)
-            }
+            profileAvatar
 
             VStack(spacing: VibeSpacing.xs) {
                 Text(appState.userFirstName ?? "Vibe User")
@@ -100,7 +105,101 @@ struct UserProfileView: View {
                     .foregroundColor(VibeTheme.textSecondary)
             }
         }
-        .padding(.top, VibeSpacing.xxxl + VibeSpacing.xl)
+        .padding(.top, VibeSpacing.xl)
+    }
+
+    private var profileAvatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                Circle()
+                    .fill(VibeTheme.surfaceOverlay)
+
+                if let urlString = appState.userProfilePictureURL,
+                   let url = URL.httpURL(from: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(VibeTheme.textPrimary)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            initialsAvatar
+                        @unknown default:
+                            initialsAvatar
+                        }
+                    }
+                } else {
+                    initialsAvatar
+                }
+
+                if isUploadingProfilePhoto {
+                    Circle()
+                        .fill(Color.black.opacity(0.35))
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .frame(width: VibeSpacing.avatarXL, height: VibeSpacing.avatarXL)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(VibeTheme.divider, lineWidth: 1)
+            )
+
+            Button {
+                showPhotoPicker = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 28, height: 28)
+                    .background(VibeTheme.accent)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(VibeTheme.background, lineWidth: 2)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(isUploadingProfilePhoto)
+        }
+        .onChange(of: selectedPhotoItem) { _, newValue in
+            guard let newValue else { return }
+            Task {
+                await uploadProfilePhoto(item: newValue)
+            }
+        }
+    }
+
+    private var initialsAvatar: some View {
+        Text(String(appState.userFirstName?.prefix(1) ?? "?").uppercased())
+            .font(.system(size: 48, weight: .bold, design: .rounded))
+            .foregroundColor(VibeTheme.textPrimary)
+    }
+
+    private func uploadProfilePhoto(item: PhotosPickerItem) async {
+        isUploadingProfilePhoto = true
+        defer {
+            isUploadingProfilePhoto = false
+            selectedPhotoItem = nil
+        }
+
+        do {
+            guard let selectedData = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: selectedData),
+                  let uploadData = image.jpegData(compressionQuality: 0.86) else {
+                throw APIError.uploadFailed
+            }
+            try await appState.updateProfilePicture(imageData: uploadData, fileType: "jpg")
+            VibeHaptic.success()
+        } catch {
+            uploadErrorMessage = "Couldn't upload your profile photo. Please try again."
+            showUploadError = true
+            print("UserProfileView Error: Profile photo upload failed: \(error)")
+        }
     }
 
     // MARK: - Aura Balance Card

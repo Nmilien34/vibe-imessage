@@ -139,6 +139,7 @@ struct RootView: View {
             "vibeUserId",
             "vibeAuthToken",
             "vibeUserFirstName",
+            "vibeAuraBalance",
             "vibeBirthdayCollected",
             "vibeBirthdayMonth",
             "vibeBirthdayDay",

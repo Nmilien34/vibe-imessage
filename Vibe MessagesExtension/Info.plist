@@ -26,5 +26,7 @@
 	</dict>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Vibes needs access to save videos to your photo library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Vibes needs access to your photo library so you can choose profile and vibe photos.</string>
 </dict>
 </plist>

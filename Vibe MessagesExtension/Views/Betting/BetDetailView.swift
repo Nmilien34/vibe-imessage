@@ -25,6 +25,25 @@ struct BetDetailView: View {
 
     @State private var isResolving = false
 
+    private var stakeSliderRange: ClosedRange<Double> {
+        let lower = 5.0
+        // Slider with step=5 needs at least 5 points of span.
+        let upper = max(lower + 5.0, Double(min(100, max(5, appState.auraBalance))))
+        return lower...upper
+    }
+
+    private var stakeSliderBinding: Binding<Double> {
+        Binding(
+            get: {
+                min(max(Double(stakeAmount), stakeSliderRange.lowerBound), stakeSliderRange.upperBound)
+            },
+            set: { newValue in
+                let clamped = min(max(newValue, stakeSliderRange.lowerBound), stakeSliderRange.upperBound)
+                stakeAmount = Int(clamped)
+            }
+        )
+    }
+
     var body: some View {
         ZStack {
             VibeTheme.background.ignoresSafeArea()
@@ -242,10 +261,7 @@ struct BetDetailView: View {
                             .foregroundColor(VibeTheme.textPrimary)
                             .contentTransition(.numericText())
 
-                        Slider(value: Binding(
-                            get: { Double(stakeAmount) },
-                            set: { stakeAmount = Int($0) }
-                        ), in: 5...Double(min(100, appState.auraBalance)), step: 5)
+                        Slider(value: stakeSliderBinding, in: stakeSliderRange, step: 5)
                         .tint(selectedSide == .yes ? .green : .red)
 
                         Text("Balance: \(appState.auraBalance)")

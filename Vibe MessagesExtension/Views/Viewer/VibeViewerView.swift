@@ -28,10 +28,16 @@ struct VibeViewerView: View {
     @State private var showStakeSheet = false
     @State private var isResolvingStakeBet = false
     @State private var stakeTargetBet: Bet?
+    @State private var stakeSourceVibe: Vibe?
     @State private var selectedStakeSide: BetSide = .yes
     @State private var stakeAmount: Int = 25
     @State private var isSubmittingStake = false
     @State private var stakeError: String?
+    @State private var stakeResolutionSession = UUID()
+    @State private var showJoinRequestPrompt = false
+    @State private var pendingJoinChatId: String?
+    @State private var pendingJoinBetId: String?
+    @State private var isSubmittingJoinRequest = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -152,7 +158,9 @@ struct VibeViewerView: View {
         .sheet(isPresented: $showStakeSheet) {
             StoryStakeSheet(
                 bet: stakeTargetBet,
-                auraBalance: appState.auraBalance,
+                challengeTitle: stakeSourceVibe?.parlay?.title ?? stakeSourceVibe?.textStatus,
+                allowStarterMode: canStartTutorialChallenge(from: stakeSourceVibe),
+                auraBalance: max(0, appState.auraBalance),
                 selectedSide: $selectedStakeSide,
                 amount: $stakeAmount,
                 isResolvingBet: isResolvingStakeBet,
@@ -175,6 +183,17 @@ struct VibeViewerView: View {
             } else if case .viewer = appState.currentDestination {
                 resumeAfterHold()
             }
+        }
+        .alert("You're not in this challenge chat", isPresented: $showJoinRequestPrompt) {
+            Button("No", role: .cancel) {
+                clearPendingJoinRequest()
+            }
+            Button(isSubmittingJoinRequest ? "Requesting..." : "Yes, Request Join") {
+                Task { await submitJoinRequest() }
+            }
+            .disabled(isSubmittingJoinRequest)
+        } message: {
+            Text("Would you like to request to join? Chat members will see your request and can add you or start a new group chat with you.")
         }
     }
 
@@ -605,45 +624,216 @@ struct VibeViewerView: View {
         }
     }
 
+    @MainActor
     private func openStakeSheet(for vibe: Vibe) async {
         showReactions = false
         stakeError = nil
         isSubmittingStake = false
         selectedStakeSide = .yes
         stakeTargetBet = nil
-        stakeAmount = min(max(10, 5), max(5, appState.auraBalance))
-        isResolvingStakeBet = true
+        stakeSourceVibe = vibe
+
+        // Keep join/stake tied to the same Aura source as profile by refreshing before render.
+        if appState.isAuthenticated {
+            async let profileTask: () = appState.loadCurrentUserProfile()
+            async let auraTask: () = appState.loadAuraStats()
+            _ = await (profileTask, auraTask)
+        }
+
+        let minimumStake = 10
+        let stakeCap = 100
+        let balance = min(max(0, appState.auraBalance), stakeCap)
+        stakeAmount = balance >= minimumStake ? min(25, balance) : balance
         showStakeSheet = true
 
-        let resolved = await appState.resolveBetForStory(vibe)
-        stakeTargetBet = resolved
-        isResolvingStakeBet = false
+        stakeResolutionSession = UUID()
+        let session = stakeResolutionSession
+        let isTutorial = canStartTutorialChallenge(from: vibe)
 
-        if resolved == nil {
-            stakeError = "No active bet found from this story yet."
+        // Tutorial starter flow should never block on remote bet lookup.
+        isResolvingStakeBet = !isTutorial
+        if isTutorial {
+            stakeError = nil
+        }
+
+        Task {
+            let resolved = await appState.resolveBetForStory(vibe)
+            await MainActor.run {
+                guard showStakeSheet, stakeResolutionSession == session else { return }
+                stakeTargetBet = resolved
+                isResolvingStakeBet = false
+
+                if resolved == nil && !isTutorial {
+                    stakeError = "No active bet found from this story yet."
+                }
+            }
+        }
+
+        // Hard-stop loader even if upstream resolution hangs.
+        let timeoutNs: UInt64 = isTutorial ? 2_000_000_000 : 8_000_000_000
+        Task {
+            try? await Task.sleep(nanoseconds: timeoutNs)
+            await MainActor.run {
+                guard showStakeSheet, stakeResolutionSession == session, isResolvingStakeBet else { return }
+                isResolvingStakeBet = false
+                if stakeTargetBet == nil && !isTutorial {
+                    stakeError = "No active bet found from this story yet."
+                }
+            }
         }
     }
 
+    @MainActor
     private func submitStakeFromSheet() async {
-        guard let bet = stakeTargetBet else { return }
-        guard stakeAmount > 0 else { return }
+        let minimumStake = 10
+        let stakeCap = 100
+        let availableBalance = min(max(0, appState.auraBalance), stakeCap)
+        guard availableBalance >= minimumStake else {
+            stakeError = "Need at least \(minimumStake) Aura to join."
+            return
+        }
+        let clampedAmount = min(max(stakeAmount, minimumStake), availableBalance)
+        stakeAmount = clampedAmount
 
         isSubmittingStake = true
         stakeError = nil
 
+        if let bet = stakeTargetBet {
+            let targetChatId = bet.chatId.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !targetChatId.isEmpty {
+                if let hasAccess = await appState.hasAccessToChat(targetChatId), !hasAccess {
+                    isSubmittingStake = false
+                    presentJoinRequestPrompt(chatId: targetChatId, betId: bet.betId)
+                    return
+                }
+            }
+
+            do {
+                _ = try await appState.placeBetStake(
+                    betId: bet.betId,
+                    side: selectedStakeSide,
+                    amount: clampedAmount
+                )
+                isSubmittingStake = false
+                showStakeSheet = false
+                stakeResolutionSession = UUID()
+                VibeHaptic.success()
+            } catch {
+                isSubmittingStake = false
+                if isChatAccessError(error), !targetChatId.isEmpty {
+                    presentJoinRequestPrompt(chatId: targetChatId, betId: bet.betId)
+                    return
+                }
+                stakeError = friendlyStakeErrorMessage(for: error)
+            }
+            return
+        }
+
+        guard let sourceVibe = stakeSourceVibe, canStartTutorialChallenge(from: sourceVibe) else {
+            isSubmittingStake = false
+            return
+        }
+
+        let challengeText = (sourceVibe.parlay?.title ?? sourceVibe.parlay?.question ?? sourceVibe.textStatus ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !challengeText.isEmpty else {
+            isSubmittingStake = false
+            stakeError = "Couldn't start challenge from this story."
+            return
+        }
+
         do {
-            _ = try await appState.placeBetStake(
-                betId: bet.betId,
-                side: selectedStakeSide,
-                amount: stakeAmount
+            _ = try await appState.createBet(
+                betType: .self,
+                description: challengeText,
+                deadline: Date().addingTimeInterval(24 * 60 * 60),
+                initialStake: stakeAmount,
+                initialSide: selectedStakeSide
             )
             isSubmittingStake = false
             showStakeSheet = false
+            stakeResolutionSession = UUID()
             VibeHaptic.success()
         } catch {
             isSubmittingStake = false
+            stakeError = friendlyStakeErrorMessage(for: error)
+        }
+    }
+
+    private func canStartTutorialChallenge(from vibe: Vibe?) -> Bool {
+        guard let vibe else { return false }
+        return vibe.type == .parlay && vibe.userId == "vibe_team"
+    }
+
+    private func isChatAccessError(_ error: Error) -> Bool {
+        let description = error.localizedDescription.lowercased()
+        return description.contains("must be in this chat")
+            || description.contains("not in this chat")
+            || description.contains("do not have access to this bet")
+            || description.contains("you are not in this chat")
+    }
+
+    private func friendlyStakeErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.lowercased()
+
+        if description.contains("deadline has passed")
+            || description.contains("cannot stake on")
+            || description.contains("expired")
+            || description.contains("completed")
+            || description.contains("ducked") {
+            return "This challenge is closed."
+        }
+
+        if description.contains("already staked") {
+            return "You've already joined this challenge."
+        }
+
+        if description.contains("insufficient aura") || description.contains("bankrupt") {
+            return "Not enough Aura to join this challenge."
+        }
+
+        return "Couldn't join this challenge right now. Try again."
+    }
+
+    private func presentJoinRequestPrompt(chatId: String, betId: String?) {
+        pendingJoinChatId = chatId
+        pendingJoinBetId = betId
+        showJoinRequestPrompt = true
+    }
+
+    private func clearPendingJoinRequest() {
+        pendingJoinChatId = nil
+        pendingJoinBetId = nil
+        isSubmittingJoinRequest = false
+    }
+
+    @MainActor
+    private func submitJoinRequest() async {
+        guard let chatId = pendingJoinChatId, !chatId.isEmpty else {
+            stakeError = "Couldn't request access because this challenge has no chat id."
+            clearPendingJoinRequest()
+            return
+        }
+
+        isSubmittingJoinRequest = true
+
+        let displayName = appState.userFirstName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requester = (displayName?.isEmpty == false ? displayName! : "A user")
+        let reason = "\(requester) is trying to join this challenge. If you want to let them in, add them to this chat or start a new group chat with them."
+
+        do {
+            let message = try await appState.requestJoinChallengeChat(
+                chatId: chatId,
+                betId: pendingJoinBetId,
+                reason: reason
+            )
+            stakeError = message
+            VibeHaptic.success()
+        } catch {
             stakeError = error.localizedDescription
         }
+
+        clearPendingJoinRequest()
     }
 
     private func shouldShowTextOverlay(for vibe: Vibe) -> Bool {
@@ -685,6 +875,8 @@ struct VibeViewerView: View {
 // MARK: - Story Stake Sheet
 struct StoryStakeSheet: View {
     let bet: Bet?
+    let challengeTitle: String?
+    let allowStarterMode: Bool
     let auraBalance: Int
     @Binding var selectedSide: BetSide
     @Binding var amount: Int
@@ -694,18 +886,42 @@ struct StoryStakeSheet: View {
     let onStake: () -> Void
     let onSeeMyBets: () -> Void
 
-    private var maxStake: Double {
-        Double(max(5, min(300, auraBalance)))
+    private let minimumStake = 10
+    private let maximumStakeCap = 100
+
+    private var maximumStake: Int {
+        min(max(0, auraBalance), maximumStakeCap)
+    }
+
+    private var canStakeAtAll: Bool {
+        maximumStake >= minimumStake
+    }
+
+    private var sliderRange: ClosedRange<Double> {
+        Double(minimumStake)...Double(maximumStake)
+    }
+
+    private var shouldShowSlider: Bool {
+        canStakeAtAll && maximumStake > minimumStake
+    }
+
+    private var sliderStep: Double {
+        // Keep fine-grained control for most balances and avoid giant jumps at high balances.
+        maximumStake <= 2_000 ? 1 : (maximumStake <= 10_000 ? 5 : 10)
     }
 
     private var canStake: Bool {
-        guard let bet else { return false }
-        return !isResolvingBet
+        if let bet {
+            return !isResolvingBet
+                && !isSubmitting
+                && bet.status == .active
+                && canStakeAtAll
+        }
+
+        return allowStarterMode
+            && !isResolvingBet
             && !isSubmitting
-            && bet.status == .active
-            && !bet.isExpired
-            && amount >= 5
-            && amount <= auraBalance
+            && canStakeAtAll
     }
 
     var body: some View {
@@ -738,15 +954,56 @@ struct StoryStakeSheet: View {
                         .foregroundColor(VibeTheme.textPrimary)
                         .contentTransition(.numericText())
 
-                    Slider(
-                        value: Binding(
-                            get: { Double(amount) },
-                            set: { amount = Int($0) }
-                        ),
-                        in: 5...maxStake,
-                        step: 5
-                    )
-                    .tint(selectedSide == .yes ? .green : .red)
+                    if shouldShowSlider {
+                        Slider(
+                            value: sliderValueBinding,
+                            in: sliderRange,
+                            step: sliderStep
+                        )
+                        .tint(selectedSide == .yes ? .green : .red)
+                        quickStakeChips
+                    } else if canStakeAtAll {
+                        Text("Stake fixed at \(minimumStake) Aura")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    } else {
+                        Text("Need at least \(minimumStake) Aura to join.")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    }
+
+                    Text("Balance: \(auraBalance) Aura")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textTertiary)
+                }
+            } else if allowStarterMode, let challengeTitle, !challengeTitle.isEmpty {
+                Text(challengeTitle)
+                    .font(VibeTypography.bodyMedium)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                    Text("Stake: \(amount) Aura")
+                        .font(VibeTypography.titleSmall)
+                        .foregroundColor(VibeTheme.textPrimary)
+                        .contentTransition(.numericText())
+
+                    if shouldShowSlider {
+                        Slider(
+                            value: sliderValueBinding,
+                            in: sliderRange,
+                            step: sliderStep
+                        )
+                        .tint(selectedSide == .yes ? .green : .red)
+                        quickStakeChips
+                    } else if canStakeAtAll {
+                        Text("Stake fixed at \(minimumStake) Aura")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    } else {
+                        Text("Need at least \(minimumStake) Aura to join.")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    }
 
                     Text("Balance: \(auraBalance) Aura")
                         .font(VibeTypography.captionSmall)
@@ -769,7 +1026,7 @@ struct StoryStakeSheet: View {
                     if isSubmitting {
                         ProgressView().tint(.white)
                     }
-                    Text(isSubmitting ? "Joining..." : "Join & Stake")
+                    Text(isSubmitting ? "Joining..." : (bet == nil && allowStarterMode ? "Start & Stake" : "Join & Stake"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, VibeSpacing.sm)
@@ -795,6 +1052,15 @@ struct StoryStakeSheet: View {
         .padding(.horizontal, VibeSpacing.screenHorizontal)
         .padding(.top, VibeSpacing.md)
         .padding(.bottom, VibeSpacing.xl)
+        .onAppear {
+            clampAmountIntoAllowedRange()
+        }
+        .onChange(of: auraBalance) { _, _ in
+            clampAmountIntoAllowedRange()
+        }
+        .onChange(of: amount) { _, _ in
+            clampAmountIntoAllowedRange()
+        }
     }
 
     private func sideButton(_ side: BetSide) -> some View {
@@ -813,6 +1079,86 @@ struct StoryStakeSheet: View {
                 .continuousCorner(VibeTheme.radiusMedium)
         }
         .buttonStyle(.plain)
+    }
+
+    private var sliderValueBinding: Binding<Double> {
+        Binding(
+            get: {
+                guard canStakeAtAll else { return Double(maximumStake) }
+                return Double(amount).clamped(to: sliderRange)
+            },
+            set: { newValue in
+                guard canStakeAtAll else {
+                    amount = maximumStake
+                    return
+                }
+                amount = Int(newValue.clamped(to: sliderRange))
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var quickStakeChips: some View {
+        if quickStakeAmounts.count > 1 {
+            HStack(spacing: VibeSpacing.xs) {
+                ForEach(Array(quickStakeAmounts.enumerated()), id: \.element) { index, quickAmount in
+                    let isSelected = amount == quickAmount
+                    Button {
+                        amount = quickAmount
+                        VibeHaptic.selection()
+                    } label: {
+                        Text(quickStakeLabel(for: quickAmount, index: index))
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(isSelected ? .white : VibeTheme.textPrimary)
+                            .padding(.horizontal, VibeSpacing.xs)
+                            .padding(.vertical, VibeSpacing.xxxs)
+                            .background(isSelected ? VibeTheme.betAccent : VibeTheme.surfaceOverlay)
+                            .continuousCorner(VibeTheme.radiusSmall)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, VibeSpacing.xxxs)
+        }
+    }
+
+    private var quickStakeAmounts: [Int] {
+        guard canStakeAtAll else { return [] }
+        var values = [minimumStake]
+
+        for ratio in [0.25, 0.5, 0.75] {
+            let scaled = Double(maximumStake) * ratio
+            let rounded = Int((scaled / sliderStep).rounded() * sliderStep)
+            values.append(clampedStake(rounded))
+        }
+
+        values.append(maximumStake)
+        let deduped = Array(Set(values)).sorted()
+        return deduped.filter { $0 >= minimumStake && $0 <= maximumStake }
+    }
+
+    private func quickStakeLabel(for value: Int, index: Int) -> String {
+        if index == 0 { return "Min" }
+        if index == quickStakeAmounts.count - 1 { return "Max" }
+        return "\(value)"
+    }
+
+    private func clampedStake(_ value: Int) -> Int {
+        guard canStakeAtAll else { return maximumStake }
+        return value.clamped(to: minimumStake...maximumStake)
+    }
+
+    private func clampAmountIntoAllowedRange() {
+        let clamped = clampedStake(amount)
+        if amount != clamped {
+            amount = clamped
+        }
+    }
+}
+
+private extension Comparable {
+    func clamped(to limits: ClosedRange<Self>) -> Self {
+        min(max(self, limits.lowerBound), limits.upperBound)
     }
 }
 

@@ -4,6 +4,19 @@ import User from '../models/User';
 
 const router: Router = express.Router();
 
+interface UpdateProfilePictureRequest {
+  profilePicture: string;
+}
+
+const isValidHttpUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 /**
  * @route   GET /api/user/me
  * @desc    Current user's profile + economy snapshot
@@ -43,5 +56,51 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to fetch user' });
   }
 });
+
+/**
+ * @route   PUT /api/user/profile-picture
+ * @desc    Update current user's profile picture URL
+ * @access  Private (JWT required)
+ */
+router.put(
+  '/profile-picture',
+  authMiddleware,
+  async (req: Request<{}, {}, UpdateProfilePictureRequest>, res: Response) => {
+    try {
+      const rawProfilePicture = req.body?.profilePicture;
+      const profilePicture = typeof rawProfilePicture === 'string' ? rawProfilePicture.trim() : '';
+
+      if (!profilePicture) {
+        return res.status(400).json({ error: 'profilePicture is required' });
+      }
+
+      if (!isValidHttpUrl(profilePicture)) {
+        return res.status(400).json({ error: 'profilePicture must be a valid http/https URL' });
+      }
+
+      const user = await User.findByIdAndUpdate(
+        req.userId!,
+        { profilePicture },
+        { new: true, runValidators: true }
+      ).select('_id firstName profilePicture');
+
+      if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          profilePicture: user.profilePicture,
+        },
+      });
+    } catch (err) {
+      console.error('PUT /user/profile-picture error:', err);
+      res.status(500).json({ error: 'Failed to update profile picture' });
+    }
+  }
+);
 
 export default router;

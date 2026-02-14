@@ -1,4 +1,6 @@
 import SwiftUI
+import PhotosUI
+import UIKit
 
 struct BentoDashboardView: View {
     @EnvironmentObject var appState: AppState
@@ -428,24 +430,39 @@ struct LeaderboardRow: View {
 
 struct MeTabView: View {
     @EnvironmentObject var appState: AppState
+    @State private var selectedPhotoItem: PhotosPickerItem?
+    @State private var showPhotoPicker = false
+    @State private var isUploadingProfilePhoto = false
+    @State private var showUploadError = false
+    @State private var uploadErrorMessage = ""
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: VibeSpacing.lg) {
+                HStack {
+                    Button {
+                        VibeHaptic.light()
+                        withAnimation(VibeAnimation.snappy) {
+                            appState.activeTab = .feed
+                        }
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(VibeTheme.textPrimary)
+                            .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+                }
+                .padding(.horizontal, VibeSpacing.screenHorizontal)
+                .padding(.top, VibeSpacing.sm)
+
                 // Avatar + Name
                 VStack(spacing: VibeSpacing.sm) {
-                    Circle()
-                        .fill(VibeTheme.surfaceOverlay)
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Text(String(appState.userFirstName?.prefix(1) ?? "V"))
-                                .font(.system(size: 32, weight: .bold, design: .rounded))
-                                .foregroundColor(VibeTheme.textPrimary)
-                        )
-                        .overlay(
-                            Circle()
-                                .stroke(VibeTheme.divider, lineWidth: 1)
-                        )
+                    profileAvatar
 
                     Text(appState.userFirstName ?? "User")
                         .font(VibeTypography.titleLarge)
@@ -517,6 +534,21 @@ struct MeTabView: View {
             }
             .padding(.bottom, VibeSpacing.xl)
         }
+        .task {
+            await appState.loadCurrentUserProfile()
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .onChange(of: selectedPhotoItem) { _, newValue in
+            guard let newValue else { return }
+            Task {
+                await uploadProfilePhoto(item: newValue)
+            }
+        }
+        .alert("Upload failed", isPresented: $showUploadError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(uploadErrorMessage)
+        }
     }
 
     private var winRateText: String {
@@ -536,6 +568,94 @@ struct MeTabView: View {
     private var streakText: String {
         guard let streak = appState.streak else { return "0" }
         return "\(streak.currentStreak)"
+    }
+
+    private var profileAvatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            ZStack {
+                Circle()
+                    .fill(VibeTheme.surfaceOverlay)
+
+                if let urlString = appState.userProfilePictureURL,
+                   let url = URL.httpURL(from: urlString) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            ProgressView()
+                                .tint(VibeTheme.textPrimary)
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            initialsAvatar
+                        @unknown default:
+                            initialsAvatar
+                        }
+                    }
+                } else {
+                    initialsAvatar
+                }
+
+                if isUploadingProfilePhoto {
+                    Circle()
+                        .fill(Color.black.opacity(0.35))
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+            .frame(width: 80, height: 80)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(VibeTheme.divider, lineWidth: 1)
+            )
+
+            Button {
+                showPhotoPicker = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 24, height: 24)
+                    .background(VibeTheme.accent)
+                    .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(VibeTheme.background, lineWidth: 2)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(isUploadingProfilePhoto)
+        }
+    }
+
+    private var initialsAvatar: some View {
+        Text(String(appState.userFirstName?.prefix(1) ?? "V").uppercased())
+            .font(.system(size: 32, weight: .bold, design: .rounded))
+            .foregroundColor(VibeTheme.textPrimary)
+    }
+
+    private func uploadProfilePhoto(item: PhotosPickerItem) async {
+        isUploadingProfilePhoto = true
+        defer {
+            isUploadingProfilePhoto = false
+            selectedPhotoItem = nil
+        }
+
+        do {
+            guard let selectedData = try await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: selectedData),
+                  let uploadData = image.jpegData(compressionQuality: 0.86) else {
+                throw APIError.uploadFailed
+            }
+            try await appState.updateProfilePicture(imageData: uploadData, fileType: "jpg")
+            VibeHaptic.success()
+        } catch {
+            uploadErrorMessage = "Couldn't upload your profile photo. Please try again."
+            showUploadError = true
+            print("MeTabView Error: Profile photo upload failed: \(error)")
+        }
     }
 }
 

@@ -232,7 +232,7 @@ final class MessageService: Sendable {
             return "Current Mood"
         case .poll:
             if let poll = vibe.poll {
-                return "📊 \(poll.question)"
+                return "📊 \(poll.question ?? "Quick Poll")"
             }
             return "📊 Quick Poll"
         case .dailyDrop:

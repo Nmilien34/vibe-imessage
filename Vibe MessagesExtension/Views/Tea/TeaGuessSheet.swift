@@ -18,6 +18,25 @@ struct TeaGuessSheet: View {
     @State private var errorMessage: String?
     @State private var showSuccess = false
 
+    private var wagerSliderRange: ClosedRange<Double> {
+        let lower = 5.0
+        // Slider with step=5 needs at least 5 points of span.
+        let upper = max(lower + 5.0, Double(min(100, max(5, appState.auraBalance))))
+        return lower...upper
+    }
+
+    private var wagerSliderBinding: Binding<Double> {
+        Binding(
+            get: {
+                min(max(Double(wagerAmount), wagerSliderRange.lowerBound), wagerSliderRange.upperBound)
+            },
+            set: { newValue in
+                let clamped = min(max(newValue, wagerSliderRange.lowerBound), wagerSliderRange.upperBound)
+                wagerAmount = Int(clamped)
+            }
+        )
+    }
+
     var body: some View {
         ZStack {
             VibeTheme.background.ignoresSafeArea()
@@ -101,10 +120,7 @@ struct TeaGuessSheet: View {
                                 .contentTransition(.numericText())
                         }
 
-                        Slider(value: Binding(
-                            get: { Double(wagerAmount) },
-                            set: { wagerAmount = Int($0) }
-                        ), in: 5...Double(min(100, max(5, appState.auraBalance))), step: 5)
+                        Slider(value: wagerSliderBinding, in: wagerSliderRange, step: 5)
                         .tint(.brown)
 
                         Text("Balance: \(appState.auraBalance) Aura")

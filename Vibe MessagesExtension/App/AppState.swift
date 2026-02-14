@@ -46,6 +46,7 @@ struct LockedMessageParams: Equatable {
 
 @MainActor
 class AppState: ObservableObject {
+    private let auraBalanceStorageKey = "vibeAuraBalance"
     // MARK: - Conversation Context
     @Published var conversationId: String?
     @Published var userId: String
@@ -57,6 +58,7 @@ class AppState: ObservableObject {
     @Published var isBirthdayCollected: Bool = false
     @Published var hasRequiredPermissions: Bool = false
     @Published var userFirstName: String?
+    @Published var userProfilePictureURL: String?
 
     // MARK: - Navigation
     @Published var currentDestination: NavigationDestination = .feed
@@ -130,7 +132,6 @@ class AppState: ObservableObject {
         let tutorialBetId = bestJoinableBet()?.betId
             ?? activeBets.first?.betId
             ?? expandedBets.first?.betId
-            ?? "seed_bet_active_self"
         let slides: [(id: String, text: String, image: String, type: VibeType, parlay: Parlay?, styleName: String?)] = [
             (
                 id: "team_welcome",
@@ -289,6 +290,8 @@ class AppState: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "vibePermissionsGranted")
             UserDefaults.standard.removeObject(forKey: "vibeUserId")
             UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
+            UserDefaults.standard.removeObject(forKey: "vibeUserProfilePicture")
+            UserDefaults.standard.removeObject(forKey: "vibeAuraBalance")
             print("AppState: Reset onboarding state via launch argument")
             
             // Force reset of Published properties
@@ -305,17 +308,29 @@ class AppState: ObservableObject {
         self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
         self.isBirthdayCollected = UserDefaults.standard.bool(forKey: "vibeBirthdayCollected")
         self.userFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
+        self.userProfilePictureURL = UserDefaults.standard.string(forKey: "vibeUserProfilePicture")
+        self.auraBalance = max(0, UserDefaults.standard.integer(forKey: auraBalanceStorageKey))
         self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
 
-        // Check for existing session
-        if let storedUserId = UserDefaults.standard.string(forKey: "vibeUserId") {
+        // Check for existing session.
+        // Require both user id and token to avoid "authenticated but no token" state.
+        if
+            let storedUserId = UserDefaults.standard.string(forKey: "vibeUserId"),
+            let storedToken = UserDefaults.standard.string(forKey: "vibeAuthToken"),
+            !storedToken.isEmpty
+        {
             self.userId = storedUserId
             self.isAuthenticated = true
         } else {
-            // Start unauthenticated
             self.userId = "anonymous"
             self.isAuthenticated = false
         }
+    }
+
+    private func updateAuraBalance(_ value: Int) {
+        let safe = max(0, value)
+        auraBalance = safe
+        UserDefaults.standard.set(safe, forKey: auraBalanceStorageKey)
     }
 
     // MARK: - Conversation Handling
@@ -395,10 +410,11 @@ class AppState: ObservableObject {
             async let remindersTask: () = loadReminders()
             async let newsTask: () = loadNews()
             async let auraTask: () = loadAuraStats()
+            async let profileTask: () = loadCurrentUserProfile()
             async let betsTask: () = loadBets()
             async let teaTask: () = loadTeaSpills()
 
-            _ = await (vibesTask, remindersTask, newsTask, auraTask, betsTask, teaTask)
+            _ = await (vibesTask, remindersTask, newsTask, auraTask, profileTask, betsTask, teaTask)
 
             self.isLoading = false
         }
@@ -434,6 +450,79 @@ class AppState: ObservableObject {
 
     func requestCompact() {
         requestPresentationStyle?(.compact)
+    }
+
+    // MARK: - Chat Access
+
+    func hasAccessToChat(_ chatId: String) async -> Bool? {
+        let trimmed = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isAuthenticated, !trimmed.isEmpty else { return false }
+
+        if trimmed == currentChatId {
+            return true
+        }
+
+        struct UserChatsResponse: Decodable {
+            let chats: [ChatSummary]
+        }
+
+        struct ChatSummary: Decodable {
+            let id: String
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                if let mongoId = try container.decodeIfPresent(String.self, forKey: .mongoId), !mongoId.isEmpty {
+                    id = mongoId
+                    return
+                }
+                if let chatId = try container.decodeIfPresent(String.self, forKey: .chatId), !chatId.isEmpty {
+                    id = chatId
+                    return
+                }
+                throw DecodingError.dataCorruptedError(
+                    forKey: .mongoId,
+                    in: container,
+                    debugDescription: "Missing chat id"
+                )
+            }
+
+            enum CodingKeys: String, CodingKey {
+                case mongoId = "_id"
+                case chatId
+            }
+        }
+
+        do {
+            let response: UserChatsResponse = try await APIClient.shared.get("/chat/user/\(userId)/chats")
+            return response.chats.contains { $0.id == trimmed }
+        } catch {
+            print("AppState Error: Checking chat access failed: \(error)")
+            return nil
+        }
+    }
+
+    func requestJoinChallengeChat(chatId: String, betId: String?, reason: String?) async throws -> String {
+        struct JoinRequestBody: Encodable {
+            let reason: String?
+            let betId: String?
+        }
+
+        struct JoinRequestResponse: Decodable {
+            let success: Bool?
+            let message: String?
+        }
+
+        let payload = JoinRequestBody(
+            reason: reason?.trimmingCharacters(in: .whitespacesAndNewlines),
+            betId: betId
+        )
+
+        let response: JoinRequestResponse = try await APIClient.shared.post(
+            "/chat/\(chatId)/request",
+            body: payload
+        )
+
+        return response.message ?? "Join request submitted."
     }
 
     // MARK: - Data Loading
@@ -622,14 +711,83 @@ class AppState: ObservableObject {
 
     // MARK: - Aura Economy
 
+    func loadCurrentUserProfile() async {
+        guard isAuthenticated else { return }
+
+        struct UserProfileResponse: Decodable {
+            let user: UserData
+        }
+
+        struct UserData: Decodable {
+            let id: String
+            let firstName: String?
+            let profilePicture: String?
+            let auraBalance: Int?
+            let vibeScore: Int?
+        }
+
+        do {
+            let response: UserProfileResponse = try await APIClient.shared.get("/user/me")
+
+            if let firstName = response.user.firstName, !firstName.isEmpty {
+                self.userFirstName = firstName
+                UserDefaults.standard.set(firstName, forKey: "vibeUserFirstName")
+            }
+
+            self.userProfilePictureURL = response.user.profilePicture
+            UserDefaults.standard.set(response.user.profilePicture, forKey: "vibeUserProfilePicture")
+
+            if let auraBalance = response.user.auraBalance {
+                updateAuraBalance(auraBalance)
+            }
+            if let vibeScore = response.user.vibeScore {
+                self.vibeScore = vibeScore
+            }
+        } catch {
+            print("AppState Error: Loading profile failed: \(error)")
+        }
+    }
+
     func loadAuraStats() async {
+        guard isAuthenticated else { return }
         do {
             let stats = try await AuraService.shared.getStats()
             self.auraStats = stats
-            self.auraBalance = stats.balance
+            updateAuraBalance(stats.balance)
         } catch {
             print("AppState Error: Loading aura stats failed: \(error)")
         }
+    }
+
+    func updateProfilePicture(imageData: Data, fileType: String = "jpg") async throws {
+        struct UpdateProfilePictureRequest: Encodable {
+            let profilePicture: String
+        }
+
+        struct UpdateProfilePictureResponse: Decodable {
+            let success: Bool?
+            let user: UserData
+        }
+
+        struct UserData: Decodable {
+            let id: String
+            let profilePicture: String?
+        }
+
+        let uploadResult = try await VibeService.shared.uploadMediaWithKey(
+            data: imageData,
+            fileType: fileType,
+            folder: "profiles"
+        )
+
+        let response: UpdateProfilePictureResponse = try await APIClient.shared.put(
+            "/user/profile-picture",
+            body: UpdateProfilePictureRequest(profilePicture: uploadResult.url)
+        )
+
+        let resolvedURL = response.user.profilePicture ?? uploadResult.url
+        self.userProfilePictureURL = resolvedURL
+        UserDefaults.standard.set(resolvedURL, forKey: "vibeUserProfilePicture")
     }
 
     func loadAuraTransactions(limit: Int = 20) async {
@@ -644,7 +802,7 @@ class AppState: ObservableObject {
         do {
             let response = try await AuraService.shared.claimDailyBonus()
             if response.claimed, let newBalance = response.newBalance {
-                self.auraBalance = newBalance
+                updateAuraBalance(newBalance)
             }
             return response
         } catch {
@@ -712,6 +870,7 @@ class AppState: ObservableObject {
     }
 
     func loadBets() async {
+        guard isAuthenticated else { return }
         guard let chatId = currentChatId else { return }
         isLoadingBets = true
         defer { isLoadingBets = false }
@@ -726,6 +885,7 @@ class AppState: ObservableObject {
     }
 
     func loadExpandedBets() async {
+        guard isAuthenticated else { return }
         isLoadingBets = true
         defer { isLoadingBets = false }
 
@@ -819,6 +979,7 @@ class AppState: ObservableObject {
     // MARK: - Tea Spills
 
     func loadTeaSpills() async {
+        guard isAuthenticated else { return }
         guard let chatId = currentChatId else { return }
         isLoadingTea = true
         defer { isLoadingTea = false }
@@ -832,6 +993,7 @@ class AppState: ObservableObject {
     }
 
     func loadExpandedTeaSpills() async {
+        guard isAuthenticated else { return }
         isLoadingTea = true
         defer { isLoadingTea = false }
 
@@ -966,7 +1128,9 @@ class AppState: ObservableObject {
             print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
 
             // Load aura stats after successful auth
-            await loadAuraStats()
+            async let auraTask: () = loadAuraStats()
+            async let profileTask: () = loadCurrentUserProfile()
+            _ = await (auraTask, profileTask)
             _ = await claimDailyBonus()
 
         } catch {
@@ -1015,10 +1179,13 @@ class AppState: ObservableObject {
         UserDefaults.standard.removeObject(forKey: "vibeUserId")
         UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
         UserDefaults.standard.removeObject(forKey: "vibeUserFirstName")
+        UserDefaults.standard.removeObject(forKey: "vibeUserProfilePicture")
+        UserDefaults.standard.removeObject(forKey: "vibeAuraBalance")
 
         isAuthenticated = false
         userId = "anonymous"
         userFirstName = nil
+        userProfilePictureURL = nil
 
         // Clear user-bound state to avoid stale UI after logout.
         auraBalance = 0
@@ -1095,7 +1262,9 @@ class AppState: ObservableObject {
             print("Auth Debug: Dev login successful. UserID: \(self.userId)")
 
             // Load aura stats after successful auth
-            await loadAuraStats()
+            async let auraTask: () = loadAuraStats()
+            async let profileTask: () = loadCurrentUserProfile()
+            _ = await (auraTask, profileTask)
             _ = await claimDailyBonus()
 
         } catch {
@@ -1106,6 +1275,7 @@ class AppState: ObservableObject {
             print("Auth Debug: Falling back to local-only dev login")
             self.userId = testUserId
             self.userFirstName = "Test"
+            self.userProfilePictureURL = nil
             self.isAuthenticated = true
             UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
             UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
@@ -1353,7 +1523,10 @@ class AppState: ObservableObject {
     }
 
     func resolveBetForStory(_ vibe: Vibe) async -> Bet? {
-        guard let betId = vibe.parlay?.betId, !betId.isEmpty else {
+        let rawBetId = vibe.parlay?.betId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasExplicitBetId = rawBetId?.isEmpty == false
+
+        guard let betId = rawBetId, hasExplicitBetId else {
             if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
                 return matched
             }
@@ -1364,9 +1537,7 @@ class AppState: ObservableObject {
             }
 
             // Refresh once to improve first-time reliability in viewer entry points.
-            async let compactRefresh: () = loadBets()
-            async let expandedRefresh: () = loadExpandedBets()
-            _ = await (compactRefresh, expandedRefresh)
+            await refreshBetResolutionCaches()
 
             if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
                 return matched
@@ -1398,12 +1569,37 @@ class AppState: ObservableObject {
             return bet
         } catch {
             print("AppState Error: Failed to open bet \(betId) from story: \(error)")
-            // If specific deep-link fails, still try to route user into a joinable bet flow.
+            // Stale/missing deep-link IDs should still resolve through local + refreshed matching.
+            if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
+                return matched
+            }
+
             if let joinable = bestJoinableBet() {
                 return joinable
             }
+
+            await refreshBetResolutionCaches()
+
+            if let refreshedExact = (activeBets + expandedBets).first(where: { $0.betId == betId }) {
+                return refreshedExact
+            }
+
+            if let matched = matchBetForVibe(vibe, in: activeBets + expandedBets) {
+                return matched
+            }
+
+            if let joinable = bestJoinableBet() {
+                return joinable
+            }
+
             return nil
         }
+    }
+
+    private func refreshBetResolutionCaches() async {
+        async let compactRefresh: () = loadBets()
+        async let expandedRefresh: () = loadExpandedBets()
+        _ = await (compactRefresh, expandedRefresh)
     }
 
     func openBetFromVibe(_ vibe: Vibe) async {
@@ -1441,11 +1637,32 @@ class AppState: ObservableObject {
 
         let query = normalizeMatchText(rawQuery)
         guard !query.isEmpty else { return nil }
+        let queryTokens = Set(matchTokens(rawQuery))
 
-        return scoped.first(where: { bet in
+        let rankedMatches: [(bet: Bet, score: Int)] = scoped.compactMap { bet in
             let description = normalizeMatchText(bet.description)
-            return description.contains(query) || query.contains(description)
-        })
+            if description.contains(query) || query.contains(description) {
+                return (bet: bet, score: 10_000)
+            }
+
+            let descriptionTokens = Set(matchTokens(bet.description))
+            guard !descriptionTokens.isEmpty && !queryTokens.isEmpty else { return nil }
+
+            let overlap = queryTokens.intersection(descriptionTokens).count
+            let minRequired = min(3, max(2, Int(ceil(Double(queryTokens.count) * 0.45))))
+            guard overlap >= minRequired else { return nil }
+
+            return (bet: bet, score: overlap)
+        }
+
+        return rankedMatches
+            .sorted { lhs, rhs in
+                if lhs.score == rhs.score {
+                    return lhs.bet.createdAt > rhs.bet.createdAt
+                }
+                return lhs.score > rhs.score
+            }
+            .first?.bet
     }
 
     private func normalizeMatchText(_ value: String) -> String {
@@ -1454,6 +1671,22 @@ class AppState: ObservableObject {
             .components(separatedBy: CharacterSet.alphanumerics.inverted)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+    }
+
+    private func matchTokens(_ value: String) -> [String] {
+        normalizeMatchText(value)
+            .split(separator: " ")
+            .map(String.init)
+            .map { token in
+                switch token {
+                case "w", "wth":
+                    return "with"
+                case "u":
+                    return "you"
+                default:
+                    return token
+                }
+            }
     }
 
     func navigateToTeaGuess(tea: TeaSpill) {
