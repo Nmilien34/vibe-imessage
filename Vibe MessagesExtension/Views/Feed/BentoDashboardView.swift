@@ -31,8 +31,11 @@ struct BentoDashboardView: View {
             }
         }
         .task {
+            async let auraTask: () = appState.loadAuraStats()
+            async let profileTask: () = appState.loadCurrentUserProfile()
             await appState.loadExpandedBets()
             await appState.loadExpandedTeaSpills()
+            _ = await (auraTask, profileTask)
         }
         .fullScreenCover(isPresented: $appState.shouldShowVibePicker) {
             ExploreAllVibesView()
@@ -76,9 +79,9 @@ struct BentoDashboardView: View {
                     appState.showCreateSheet = true
                 } label: {
                     Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 18, weight: .bold))
                         .foregroundColor(VibeTheme.betAccent)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 40, height: 40)
                         .background(Circle().fill(VibeTheme.surfaceOverlay))
                 }
                 .buttonStyle(.plain)

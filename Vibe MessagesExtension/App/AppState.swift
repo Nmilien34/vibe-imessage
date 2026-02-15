@@ -1499,6 +1499,10 @@ class AppState: ObservableObject {
 
     func navigateToFeed() {
         currentDestination = .feed
+        Task {
+            await loadAuraStats()
+            await loadCurrentUserProfile()
+        }
     }
 
     func navigateToProfile() {

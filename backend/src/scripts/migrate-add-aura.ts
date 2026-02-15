@@ -11,7 +11,7 @@ import 'dotenv/config';
 import mongoose from 'mongoose';
 import User from '../models/User';
 
-const DEFAULT_AURA_BALANCE = 1000;
+const DEFAULT_AURA_BALANCE = 100;
 const DEFAULT_VIBE_SCORE = 100;
 
 export async function migrateUsersToAura() {

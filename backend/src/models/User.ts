@@ -50,7 +50,7 @@ const userSchema = new Schema<IUserDocument, UserModel, IUserMethods>(
     // Aura Economy
     auraBalance: {
       type: Number,
-      default: 1000,
+      default: 100,
     },
     lifetimeAuraEarned: {
       type: Number,

@@ -33,7 +33,7 @@ export async function processLoginUpdates(userId: string): Promise<{
 }> {
   const user = await User.findById(userId);
   if (!user) {
-    return { auraBalance: 1000, vibeScore: 100, dailyBonusClaimed: false };
+    return { auraBalance: 100, vibeScore: 100, dailyBonusClaimed: false };
   }
 
   let dailyBonusClaimed = false;
@@ -42,7 +42,7 @@ export async function processLoginUpdates(userId: string): Promise<{
 
   // Award daily bonus if cooldown has passed (or never claimed)
   if (!lastBonus || (now.getTime() - lastBonus.getTime()) >= BONUS_COOLDOWN_MS) {
-    const newBalance = (user.auraBalance ?? 1000) + DAILY_BONUS_AMOUNT;
+    const newBalance = (user.auraBalance ?? 100) + DAILY_BONUS_AMOUNT;
     user.auraBalance = newBalance;
     user.lifetimeAuraEarned = (user.lifetimeAuraEarned ?? 0) + DAILY_BONUS_AMOUNT;
     user.lastDailyBonus = now;
@@ -69,7 +69,7 @@ export async function processLoginUpdates(userId: string): Promise<{
   await user.save();
 
   return {
-    auraBalance: user.auraBalance ?? 1000,
+    auraBalance: user.auraBalance ?? 100,
     vibeScore,
     dailyBonusClaimed,
   };

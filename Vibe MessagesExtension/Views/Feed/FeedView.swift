@@ -38,6 +38,10 @@ struct FeedView: View {
                 .animation(VibeAnimation.snappy, value: appState.showNetworkErrorBanner)
             }
         }
+        .task {
+            await appState.loadAuraStats()
+            await appState.loadCurrentUserProfile()
+        }
     }
 }
 

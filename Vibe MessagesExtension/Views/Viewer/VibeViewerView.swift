@@ -699,6 +699,12 @@ struct VibeViewerView: View {
         stakeError = nil
 
         if let bet = stakeTargetBet {
+            if bet.status != .active || bet.isExpired {
+                isSubmittingStake = false
+                stakeError = "This challenge is closed. Posted \(relativeDateString(from: bet.createdAt)); closed \(absoluteDateString(from: bet.deadline))."
+                return
+            }
+
             let targetChatId = bet.chatId.trimmingCharacters(in: .whitespacesAndNewlines)
             if !targetChatId.isEmpty {
                 if let hasAccess = await appState.hasAccessToChat(targetChatId), !hasAccess {
@@ -724,7 +730,7 @@ struct VibeViewerView: View {
                     presentJoinRequestPrompt(chatId: targetChatId, betId: bet.betId)
                     return
                 }
-                stakeError = friendlyStakeErrorMessage(for: error)
+                stakeError = friendlyStakeErrorMessage(for: error, bet: bet)
             }
             return
         }
@@ -774,6 +780,10 @@ struct VibeViewerView: View {
     }
 
     private func friendlyStakeErrorMessage(for error: Error) -> String {
+        friendlyStakeErrorMessage(for: error, bet: nil)
+    }
+
+    private func friendlyStakeErrorMessage(for error: Error, bet: Bet?) -> String {
         let description = error.localizedDescription.lowercased()
 
         if description.contains("deadline has passed")
@@ -781,6 +791,9 @@ struct VibeViewerView: View {
             || description.contains("expired")
             || description.contains("completed")
             || description.contains("ducked") {
+            if let bet {
+                return "This challenge is closed. Posted \(relativeDateString(from: bet.createdAt)); closed \(absoluteDateString(from: bet.deadline))."
+            }
             return "This challenge is closed."
         }
 
@@ -793,6 +806,19 @@ struct VibeViewerView: View {
         }
 
         return "Couldn't join this challenge right now. Try again."
+    }
+
+    private func relativeDateString(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func absoluteDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     private func presentJoinRequestPrompt(chatId: String, betId: String?) {
@@ -914,7 +940,6 @@ struct StoryStakeSheet: View {
         if let bet {
             return !isResolvingBet
                 && !isSubmitting
-                && bet.status == .active
                 && canStakeAtAll
         }
 
@@ -942,6 +967,10 @@ struct StoryStakeSheet: View {
                 Text(bet.description)
                     .font(VibeTypography.bodyMedium)
                     .foregroundColor(VibeTheme.textPrimary)
+
+                Text(challengeTimingLine(for: bet))
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
 
                 HStack(spacing: VibeSpacing.sm) {
                     sideButton(.yes)
@@ -1153,6 +1182,28 @@ struct StoryStakeSheet: View {
         if amount != clamped {
             amount = clamped
         }
+    }
+
+    private func challengeTimingLine(for bet: Bet) -> String {
+        let posted = relativeDateString(from: bet.createdAt)
+        let closes = absoluteDateString(from: bet.deadline)
+        if bet.isExpired || bet.status != .active {
+            return "Posted \(posted) • Closed \(closes)"
+        }
+        return "Posted \(posted) • Closes \(closes)"
+    }
+
+    private func relativeDateString(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func absoluteDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 }
 
