@@ -169,9 +169,11 @@ struct TeaComposerView: View {
         .onAppear { isFocused = true }
         .onChange(of: selectedItem) { _, newValue in
             Task {
-                if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                    self.imageData = data
-                    self.backgroundImage = UIImage(data: data)
+                if let data = try? await newValue?.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    let resized = image.preparingForUpload(maxDimension: 1920)
+                    self.backgroundImage = resized
+                    self.imageData = resized.jpegData(compressionQuality: 0.8)
                     self.selectedStyle = .photo
                 }
             }

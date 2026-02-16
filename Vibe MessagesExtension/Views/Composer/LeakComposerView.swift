@@ -134,9 +134,11 @@ struct LeakComposerView: View {
         .padding(.top, VibeSpacing.md)
         .onChange(of: selectedItem) { _, newValue in
             Task {
-                if let data = try? await newValue?.loadTransferable(type: Data.self) {
-                    self.mediaData = data
-                    self.thumbnailImage = UIImage(data: data)
+                if let data = try? await newValue?.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    let resized = image.preparingForUpload(maxDimension: 1920)
+                    self.thumbnailImage = resized
+                    self.mediaData = resized.jpegData(compressionQuality: 0.8)
                 }
             }
         }
