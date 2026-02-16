@@ -338,6 +338,10 @@ class AppState: ObservableObject {
     /// The current virtual chat ID (from our distributed ID system)
     @Published var currentChatId: String?
 
+    /// Task that resolves the real (non-fallback) chat ID in the background.
+    /// Can be awaited by write operations to ensure they never send a fallback ID.
+    private var chatIdResolutionTask: Task<String, Error>?
+
     /// Reference to the current MSConversation for message packing
     var currentConversation: MSConversation?
 
@@ -345,6 +349,7 @@ class AppState: ObservableObject {
         guard let conversation = conversation else {
             conversationId = nil
             currentChatId = nil
+            chatIdResolutionTask = nil
             currentConversation = nil
             return
         }
@@ -370,9 +375,10 @@ class AppState: ObservableObject {
             vibes = teamTutorialVibes
         }
 
-        Task {
+        // Store the resolution task so write operations (createBet, createTeaSpill, createVibe)
+        // can await the real chat ID instead of sending a fallback ID.
+        chatIdResolutionTask = Task {
             // Step 1: Resolve real chat ID with a SHORT timeout (3s).
-            // If backend is cold/down, we proceed with fallback and retry later.
             let resolvedChatId = await withTimeout(seconds: 3) {
                 await ConversationManager.shared.resolveChatID(
                     conversation: conversation,
@@ -383,29 +389,36 @@ class AppState: ObservableObject {
             if let chatId = resolvedChatId {
                 self.currentChatId = chatId
                 print("AppState Debug: Resolved Chat ID to: \(chatId)")
-            } else {
-                print("AppState Debug: Chat ID resolution timed out, using fallback: \(fallbackChatId)")
-                // Retry resolution in background with longer timeout (won't block UI)
-                Task {
-                    let retryId = await withTimeout(seconds: 20) {
-                        await ConversationManager.shared.resolveChatID(
-                            conversation: conversation,
-                            userId: self.userId
-                        )
-                    }
-                    if let retryId = retryId {
-                        self.currentChatId = retryId
-                        print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
-                        // Reload chat-specific data with correct ID
-                        async let reminders: () = loadReminders()
-                        async let bets: () = loadBets()
-                        async let tea: () = loadTeaSpills()
-                        _ = await (reminders, bets, tea)
-                    }
-                }
+                return chatId
             }
 
-            // Step 2: Load all data IN PARALLEL — don't wait for chat ID retry
+            // First attempt timed out — retry with longer timeout
+            print("AppState Debug: Chat ID resolution timed out, retrying...")
+            let retryId = await withTimeout(seconds: 20) {
+                await ConversationManager.shared.resolveChatID(
+                    conversation: conversation,
+                    userId: self.userId
+                )
+            }
+            if let retryId = retryId {
+                self.currentChatId = retryId
+                print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
+                // Reload chat-specific data with correct ID
+                async let reminders: () = loadReminders()
+                async let bets: () = loadBets()
+                async let tea: () = loadTeaSpills()
+                _ = await (reminders, bets, tea)
+                return retryId
+            }
+
+            throw APIError.networkError(
+                NSError(domain: "Vibe", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unable to connect to chat. Please try again."])
+            )
+        }
+
+        // Load all data IN PARALLEL — don't block on chat ID resolution for reads
+        Task {
             async let vibesTask: () = loadVibes()
             async let remindersTask: () = loadReminders()
             async let newsTask: () = loadNews()
@@ -438,6 +451,19 @@ class AppState: ObservableObject {
             }
             return nil
         }
+    }
+
+    /// Awaits the real (non-fallback) chat ID. Throws if resolution fails or no conversation is set.
+    func awaitResolvedChatId() async throws -> String {
+        // Fast path: already resolved
+        if let chatId = currentChatId, !chatId.hasPrefix("fallback_") {
+            return chatId
+        }
+        // Await the background resolution task
+        guard let task = chatIdResolutionTask else {
+            throw APIError.invalidURL
+        }
+        return try await task.value
     }
 
     func setPresentationStyle(_ style: MSMessagesAppPresentationStyle) {
@@ -917,9 +943,7 @@ class AppState: ObservableObject {
         initialSide: BetSide = .yes,
         targetUserId: String? = nil
     ) async throws -> Bet {
-        guard let chatId = currentChatId else {
-            throw APIError.invalidURL
-        }
+        let chatId = try await awaitResolvedChatId()
         let bet = try await BettingService.shared.createBet(
             chatId: chatId,
             betType: betType,
@@ -1014,9 +1038,7 @@ class AppState: ObservableObject {
     }
 
     func createTeaSpill(mysteryText: String, answer: String, options: [String], deadline: Date) async throws -> TeaSpill {
-        guard let chatId = currentChatId else {
-            throw APIError.invalidURL
-        }
+        let chatId = try await awaitResolvedChatId()
         let tea = try await TeaSpillService.shared.createTeaSpill(
             chatId: chatId,
             mysteryText: mysteryText,
@@ -1295,10 +1317,8 @@ class AppState: ObservableObject {
                     textStatus: String? = nil, styleName: String? = nil,
                     etaStatus: String? = nil,
                     isLocked: Bool = false) async throws -> Vibe {
-        // Use the virtual chatId from our distributed ID system
-        guard let chatId = currentChatId else {
-            throw APIError.invalidURL
-        }
+        // Await the real (non-fallback) chatId before creating
+        let chatId = try await awaitResolvedChatId()
 
         var request = CreateVibeRequest(
             userId: userId,
