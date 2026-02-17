@@ -762,6 +762,10 @@ struct VibeViewerView: View {
             VibeHaptic.success()
         } catch {
             isSubmittingStake = false
+            if isChatAccessError(error) {
+                stakeError = "Connecting to chat... please try again in a moment."
+                return
+            }
             stakeError = friendlyStakeErrorMessage(for: error)
         }
     }
@@ -805,7 +809,15 @@ struct VibeViewerView: View {
             return "Not enough Aura to join this challenge."
         }
 
-        return "Couldn't join this challenge right now. Try again."
+        if description.contains("must be a member") || description.contains("must be in this chat") {
+            return "Connecting to chat... please try again in a moment."
+        }
+
+        if description.contains("unable to connect to chat") || description.contains("network error") {
+            return "Couldn't reach the server. Check your connection and try again."
+        }
+
+        return "Something went wrong: \(error.localizedDescription)"
     }
 
     private func relativeDateString(from date: Date) -> String {
