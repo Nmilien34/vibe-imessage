@@ -1,4 +1,11 @@
 {
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/DailyDropComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/DailyDropComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/DailyDropComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/DailyDropComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/DailyDropComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/DailyDropComposerView.swiftdeps"
+  },
   "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/ETAComposerView.swift" : {
     "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/ETAComposerView.swiftconstvalues",
     "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/ETAComposerView.d",

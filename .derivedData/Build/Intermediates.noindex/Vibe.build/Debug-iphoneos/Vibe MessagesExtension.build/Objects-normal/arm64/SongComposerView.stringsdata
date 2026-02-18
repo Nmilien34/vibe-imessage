@@ -1,0 +1,40 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/SongComposerView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "No results found",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 114
+        }
+      },
+      {
+        "comment": "",
+        "key": "Search songs, artists...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 29
+        }
+      },
+      {
+        "comment": "",
+        "key": "Choose Different Song",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 97
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share Song",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 86
+        }
+      }
+    ]
+  },
+  "version": 1
+}

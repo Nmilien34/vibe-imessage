@@ -1,0 +1,176 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Betting/BetDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Created by %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 161
+        }
+      },
+      {
+        "comment": "",
+        "key": "Expired",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 151
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ends %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 154
+        }
+      },
+      {
+        "comment": "",
+        "key": "POT",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 171
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 177
+        }
+      },
+      {
+        "comment": "",
+        "key": "YES (%lld)",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 205
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 208
+        }
+      },
+      {
+        "comment": "",
+        "key": "NO (%lld)",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 216
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 219
+        }
+      },
+      {
+        "comment": "",
+        "key": "You staked %lld Aura on %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 238
+        }
+      },
+      {
+        "comment": "",
+        "key": "PLACE YOUR STAKE",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 248
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 259
+        }
+      },
+      {
+        "comment": "",
+        "key": "Balance: %lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 267
+        }
+      },
+      {
+        "comment": "",
+        "key": "Staking...",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 281
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake %lld Aura",
+        "location": {
+          "startingColumn": 61,
+          "startingLine": 281
+        }
+      },
+      {
+        "comment": "",
+        "key": "PARTICIPANTS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 326
+        }
+      },
+      {
+        "comment": "",
+        "key": "No stakes yet",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 330
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 359
+        }
+      },
+      {
+        "comment": "",
+        "key": "PROOF",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 380
+        }
+      },
+      {
+        "comment": "",
+        "key": "RESOLVE BET",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 416
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as Ducked",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 428
+        }
+      }
+    ]
+  },
+  "version": 1
+}

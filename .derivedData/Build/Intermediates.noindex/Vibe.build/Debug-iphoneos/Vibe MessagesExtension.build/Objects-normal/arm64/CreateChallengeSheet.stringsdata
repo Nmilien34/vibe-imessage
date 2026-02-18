@@ -1,0 +1,224 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Components/CreateChallengeSheet.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "New Challenge",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 305
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge type",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 373
+        }
+      },
+      {
+        "comment": "",
+        "key": "Use a starter",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 420
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add stake",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 422
+        }
+      },
+      {
+        "comment": "",
+        "key": "Set deadline",
+        "location": {
+          "startingColumn": 23,
+          "startingLine": 424
+        }
+      },
+      {
+        "comment": "",
+        "key": "Spice level",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 450
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick a %@ starter",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 486
+        }
+      },
+      {
+        "comment": "",
+        "key": "Other",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 499
+        }
+      },
+      {
+        "comment": "",
+        "key": "Description",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 562
+        }
+      },
+      {
+        "comment": "",
+        "key": "Write your own or pick a starter above.",
+        "location": {
+          "startingColumn": 43,
+          "startingLine": 566
+        }
+      },
+      {
+        "comment": "",
+        "key": "Starter loaded. Edit it to match your vibe.",
+        "location": {
+          "startingColumn": 87,
+          "startingLine": 566
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/500",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 596
+        }
+      },
+      {
+        "comment": "",
+        "key": "Target",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 624
+        }
+      },
+      {
+        "comment": "",
+        "key": "@%@",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 647
+        }
+      },
+      {
+        "comment": "",
+        "key": "Answer (secret)",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 669
+        }
+      },
+      {
+        "comment": "",
+        "key": "The real answer...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 673
+        }
+      },
+      {
+        "comment": "",
+        "key": "Options (2-4)",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 687
+        }
+      },
+      {
+        "comment": "",
+        "key": "Option %lld",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 693
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Option",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 730
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 745
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 761
+        }
+      },
+      {
+        "comment": "",
+        "key": "Deadline",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 781
+        }
+      },
+      {
+        "comment": "",
+        "key": "Creation Fee",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 814
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 823
+        }
+      },
+      {
+        "comment": "",
+        "key": "Total",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 834
+        }
+      },
+      {
+        "comment": "",
+        "key": "Post Tea",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 860
+        }
+      },
+      {
+        "comment": "",
+        "key": "Create Challenge",
+        "location": {
+          "startingColumn": 62,
+          "startingLine": 860
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,32 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/RootView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Having trouble?",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 93
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reset App",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 102
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 115
+        }
+      }
+    ]
+  },
+  "version": 1
+}

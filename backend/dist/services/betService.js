@@ -33,10 +33,29 @@ const BetProof_1 = __importDefault(require("../models/BetProof"));
 const BetResolution_1 = __importDefault(require("../models/BetResolution"));
 const AuraTransaction_1 = __importDefault(require("../models/AuraTransaction"));
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
+const chatMembershipService_1 = require("./chatMembershipService");
 const CREATION_COST = 10;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MIN_DEADLINE_HOURS = 1;
 const MIN_STAKE = 10;
+async function requireChatMembership(chatId, userId, errorMessage) {
+    let membership = await ChatMember_1.default.findOne({ chatId, userId });
+    if (!membership) {
+        const repaired = await (0, chatMembershipService_1.ensureChatMembershipIfKnown)(chatId, userId);
+        if (repaired) {
+            membership = await ChatMember_1.default.findOne({ chatId, userId });
+        }
+    }
+    if (!membership) {
+        throw new Error(errorMessage);
+    }
+}
+function isDuplicateKeyError(error) {
+    return (typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 11000);
+}
 async function createBet(input) {
     const { chatId, creatorId, betType, description, deadline, initialStake, initialSide, targetUserId, } = input;
     // ── Validate description ────────────────────────────────────
@@ -54,10 +73,7 @@ async function createBet(input) {
         throw new Error(`Deadline must be in the future (at least ${MIN_DEADLINE_HOURS} hour from now)`);
     }
     // ── Verify creator is in chat ───────────────────────────────
-    const creatorInChat = await ChatMember_1.default.findOne({ chatId, userId: creatorId });
-    if (!creatorInChat) {
-        throw new Error('You must be a member of this chat to create bets');
-    }
+    await requireChatMembership(chatId, creatorId, 'You must be a member of this chat to create bets');
     // ── Validate initial stake/side ─────────────────────────────
     if (!Number.isInteger(initialStake) || initialStake < MIN_STAKE) {
         throw new Error(`Initial stake must be an integer >= ${MIN_STAKE}`);
@@ -90,10 +106,7 @@ async function createBet(input) {
         if (!target) {
             throw new Error('Target user not found');
         }
-        const targetInChat = await ChatMember_1.default.findOne({ chatId, userId: targetUserId });
-        if (!targetInChat) {
-            throw new Error('Target user must be in this chat');
-        }
+        await requireChatMembership(chatId, targetUserId, 'Target user must be in this chat');
     }
     // ── Create bet and creator's initial stake ──────────────────
     const betId = `bet_${Date.now()}_${(0, uuid_1.v4)().substring(0, 6)}`;
@@ -157,8 +170,13 @@ async function getBetsByChatId(chatId, status, limit = 50) {
     return await Bet_1.default.find(query).sort({ createdAt: -1 }).limit(limit);
 }
 async function isUserInChat(userId, chatId) {
-    const membership = await ChatMember_1.default.findOne({ chatId, userId });
-    return !!membership;
+    try {
+        await requireChatMembership(chatId, userId, 'not in chat');
+        return true;
+    }
+    catch {
+        return false;
+    }
 }
 // ═══════════════════════════════════════════════════════════
 // STAKING FUNCTIONS
@@ -191,14 +209,14 @@ async function placeBetStake(params) {
     if (amount < MIN_STAKE) {
         throw new Error(`Minimum stake is ${MIN_STAKE} Aura`);
     }
+    if (!Number.isInteger(amount)) {
+        throw new Error(`Minimum stake is ${MIN_STAKE} Aura`);
+    }
     if ((user.auraBalance ?? 0) < amount) {
         throw new Error(`Insufficient Aura. Need ${amount}, have ${user.auraBalance ?? 0}`);
     }
     // ── Validate user is in chat ────────────────────────────────
-    const membership = await ChatMember_1.default.findOne({ chatId: bet.chatId, userId });
-    if (!membership) {
-        throw new Error('You must be in this chat to bet');
-    }
+    await requireChatMembership(bet.chatId, userId, 'You must be in this chat to bet');
     // ── Prevent duplicate stakes ────────────────────────────────
     const existing = await BetParticipant_1.default.findOne({ betId, userId });
     if (existing) {
@@ -210,13 +228,22 @@ async function placeBetStake(params) {
     }
     // ── Execute transaction ─────────────────────────────────────
     const participantId = `participant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    const participant = await BetParticipant_1.default.create({
-        participantId,
-        betId,
-        userId,
-        side,
-        amount,
-    });
+    let participant;
+    try {
+        participant = await BetParticipant_1.default.create({
+            participantId,
+            betId,
+            userId,
+            side,
+            amount,
+        });
+    }
+    catch (error) {
+        if (isDuplicateKeyError(error)) {
+            throw new Error('You have already staked on this bet');
+        }
+        throw error;
+    }
     // Deduct Aura (held in escrow)
     const newBalance = (user.auraBalance ?? 0) - amount;
     user.auraBalance = newBalance;

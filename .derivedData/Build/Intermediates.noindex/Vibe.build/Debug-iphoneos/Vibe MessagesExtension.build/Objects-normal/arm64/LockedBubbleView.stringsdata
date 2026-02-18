@@ -1,0 +1,32 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/LockedBubbleView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Tap to Unveil",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 42
+        }
+      },
+      {
+        "comment": "",
+        "key": "Unlock %@'s update by posting your own.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 46
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap to participate",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 60
+        }
+      }
+    ]
+  },
+  "version": 1
+}

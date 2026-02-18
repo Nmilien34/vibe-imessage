@@ -153,10 +153,10 @@ router.post('/:betId/stake', authMiddleware, async (req: Request, res: Response)
       });
     }
 
-    // Validate amount is a positive number
-    if (typeof amount !== 'number' || amount <= 0 || !Number.isInteger(amount)) {
+    // Validate minimum stake amount
+    if (typeof amount !== 'number' || amount < 10 || !Number.isInteger(amount)) {
       return res.status(400).json({
-        error: 'Amount must be a positive integer'
+        error: 'Amount must be an integer >= 10'
       });
     }
 

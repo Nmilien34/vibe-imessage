@@ -12,7 +12,7 @@ export type TeaSpillStatus = 'active' | 'revealed' | 'expired';
 export type ChatSourceType = 'imessage' | 'virtual';
 export type MembershipType = 'full' | 'virtual';
 export type MemberRole = 'admin' | 'member';
-export type VisibilitySource = 'past_chat' | 'contact' | 'manual';
+export type VisibilitySource = 'past_chat' | 'past_connection' | 'contact' | 'manual';
 export type JoinRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
 export type JoinDecision = 'approve' | 'deny';
 export interface ISongData {

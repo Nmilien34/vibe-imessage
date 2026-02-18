@@ -932,9 +932,10 @@ struct CreateChallengeSheet: View {
     }
 
     private func loadChatMembersIfNeeded() async {
-        guard !hasAttemptedMemberLoad, let chatId = appState.currentChatId else { return }
+        guard !hasAttemptedMemberLoad else { return }
         hasAttemptedMemberLoad = true
         do {
+            let chatId = try await appState.awaitResolvedChatId()
             let response: ChatMembersResponse = try await APIClient.shared.get("/chat/\(chatId)/members")
             let mapped = response.members.map { (id: $0.id, name: $0.displayName) }
             await MainActor.run {

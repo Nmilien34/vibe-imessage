@@ -159,7 +159,7 @@ async function createTestUsers() {
             existing.firstName = userData.firstName;
             existing.lastName = userData.lastName;
             existing.email = userData.email;
-            existing.auraBalance = 2500;
+            existing.auraBalance = 100;
             existing.vibeScore = 120;
             if (!existing.joinedChatIds.includes(exports.TEST_CHAT_ID)) {
                 existing.joinedChatIds.push(exports.TEST_CHAT_ID);
@@ -173,7 +173,7 @@ async function createTestUsers() {
                 firstName: userData.firstName,
                 lastName: userData.lastName,
                 email: userData.email,
-                auraBalance: 2500,
+                auraBalance: 100,
                 vibeScore: 120,
                 joinedChatIds: [exports.TEST_CHAT_ID],
             });

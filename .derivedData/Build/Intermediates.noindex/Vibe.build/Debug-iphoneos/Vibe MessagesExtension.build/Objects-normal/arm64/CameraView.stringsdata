@@ -1,0 +1,24 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/CameraView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Simulator Camera Mode\nTap Record to Test",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 40
+        }
+      },
+      {
+        "comment": "",
+        "key": "Starting camera...",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 129
+        }
+      }
+    ]
+  },
+  "version": 1
+}

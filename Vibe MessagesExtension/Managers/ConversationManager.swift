@@ -46,37 +46,52 @@ class ConversationManager: ObservableObject {
     ) async -> String {
         isResolvingChat = true
         defer { isResolvingChat = false }
+        let mappingKey = conversationMappingKey(for: conversation)
 
         // Step 1: Check if there's a selected message with chat_id
         if let selectedMessage = conversation.selectedMessage,
            let url = selectedMessage.url,
-           let chatId = extractChatId(from: url) {
-            // Save this mapping for future use
-            saveChatIdMapping(
-                localParticipantId: conversation.localParticipantIdentifier.uuidString,
-                chatId: chatId
-            )
-            // Join this chat on the backend
-            await joinChat(chatId: chatId, userId: userId)
-            currentChatId = chatId
-            print("ConversationManager: Resolved chat_id from selected message: \(chatId)")
-            return chatId
+           let embeddedChatId = extractChatId(from: url) {
+            if isValidBackendChatId(embeddedChatId),
+               let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: embeddedChatId) {
+                saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+                currentChatId = resolved
+                print("ConversationManager: Resolved chat_id from selected message: \(resolved)")
+                return resolved
+            }
+            print("ConversationManager: Ignoring invalid/unresolvable selected chat_id: \(embeddedChatId)")
         }
 
         // Step 2: Check UserDefaults for existing mapping
-        let localId = conversation.localParticipantIdentifier.uuidString
-        if let savedChatId = getChatIdMapping(for: localId) {
-            currentChatId = savedChatId
-            print("ConversationManager: Found saved chat_id: \(savedChatId)")
-            return savedChatId
+        let legacyLocalId = conversation.localParticipantIdentifier.uuidString
+        let savedChatId = getChatIdMapping(for: mappingKey) ?? getChatIdMapping(for: legacyLocalId)
+        if let savedChatId {
+            if isValidBackendChatId(savedChatId),
+               let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: savedChatId) {
+                saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+                currentChatId = resolved
+                print("ConversationManager: Found saved chat_id: \(resolved)")
+                return resolved
+            }
+
+            // Stale mapping (old fallback/invalid id): clear and recreate.
+            removeChatIdMapping(for: mappingKey)
+            removeChatIdMapping(for: legacyLocalId)
         }
 
-        // Step 3: Create a new chat
-        let newChatId = await createNewChat(userId: userId)
-        saveChatIdMapping(localParticipantId: localId, chatId: newChatId)
-        currentChatId = newChatId
-        print("ConversationManager: Created new chat_id: \(newChatId)")
-        return newChatId
+        // Step 3: Resolve/create a backend chat.
+        if let newChatId = await resolveChatOnBackend(userId: userId, preferredChatId: nil) {
+            saveChatIdMapping(mappingKey: mappingKey, chatId: newChatId)
+            currentChatId = newChatId
+            print("ConversationManager: Created new chat_id: \(newChatId)")
+            return newChatId
+        }
+
+        // Last-resort local fallback; write paths will reject this id.
+        let fallbackId = "fallback_\(UUID().uuidString)"
+        currentChatId = fallbackId
+        print("ConversationManager: Backend resolve failed, using \(fallbackId)")
+        return fallbackId
     }
 
     // MARK: - Function B: Pack Message
@@ -217,62 +232,77 @@ class ConversationManager: ObservableObject {
 
     // MARK: - UserDefaults Mapping
 
-    private func saveChatIdMapping(localParticipantId: String, chatId: String) {
-        let key = userDefaultsPrefix + localParticipantId
-        UserDefaults.standard.set(chatId, forKey: key)
-        print("ConversationManager: Saved mapping \(localParticipantId) -> \(chatId)")
+    private func conversationMappingKey(for conversation: MSConversation) -> String {
+        let local = conversation.localParticipantIdentifier.uuidString
+        let remotes = conversation.remoteParticipantIdentifiers
+            .map(\.uuidString)
+            .sorted()
+            .joined(separator: "|")
+
+        return remotes.isEmpty ? local : "\(local)|\(remotes)"
     }
 
-    private func getChatIdMapping(for localParticipantId: String) -> String? {
-        let key = userDefaultsPrefix + localParticipantId
+    private func saveChatIdMapping(mappingKey: String, chatId: String) {
+        let key = userDefaultsPrefix + mappingKey
+        UserDefaults.standard.set(chatId, forKey: key)
+        print("ConversationManager: Saved mapping \(mappingKey) -> \(chatId)")
+    }
+
+    private func getChatIdMapping(for mappingKey: String) -> String? {
+        let key = userDefaultsPrefix + mappingKey
         return UserDefaults.standard.string(forKey: key)
+    }
+
+    private func removeChatIdMapping(for mappingKey: String) {
+        let key = userDefaultsPrefix + mappingKey
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    private func isValidBackendChatId(_ chatId: String) -> Bool {
+        chatId.hasPrefix(chatIdPrefix) && chatId.count > chatIdPrefix.count
     }
 
     // MARK: - Backend API Calls
 
-    private func createNewChat(userId: String) async -> String {
-        // Call backend to create the chat
+    private func resolveChatOnBackend(
+        userId: String,
+        preferredChatId: String?
+    ) async -> String? {
         do {
-            let response: ChatResponse = try await APIClient.shared.post(
-                "/chat/create",
-                body: CreateChatRequest(userId: userId, title: nil, type: "group")
+            let response: ResolveChatAPIResponse = try await APIClient.shared.post(
+                "/chat/resolve",
+                body: ResolveChatAPIRequest(
+                    userId: userId,
+                    chatId: preferredChatId,
+                    appleUUID: nil,
+                    title: nil
+                )
             )
-            // Use the chatId returned by the backend
-            print("ConversationManager: Backend created chat: \(response.chatId)")
+
+            guard isValidBackendChatId(response.chatId) else {
+                print("ConversationManager: Invalid backend chat id format: \(response.chatId)")
+                return nil
+            }
+
             return response.chatId
         } catch {
-            print("ConversationManager: Failed to create chat on backend: \(error)")
-            // Fallback: generate a local ID if backend fails
-            let fallbackId = "chat_\(UUID().uuidString)"
-            print("ConversationManager: Using fallback local chat ID: \(fallbackId)")
-            return fallbackId
-        }
-    }
-
-    private func joinChat(chatId: String, userId: String) async {
-        do {
-            let _: JoinChatResponse = try await APIClient.shared.post(
-                "/chat/join",
-                body: JoinChatRequest(userId: userId, chatId: chatId)
-            )
-            print("ConversationManager: Joined chat \(chatId)")
-        } catch {
-            print("ConversationManager: Failed to join chat: \(error)")
+            print("ConversationManager: Failed to resolve chat on backend: \(error)")
+            return nil
         }
     }
 }
 
 // MARK: - Request/Response Types
 
-struct CreateChatRequest: Codable {
+struct ResolveChatAPIRequest: Codable {
     let userId: String
+    let chatId: String?
+    let appleUUID: String?
     let title: String?
-    let type: String
 }
 
-struct ChatResponse: Codable {
+struct ResolveChatAPIResponse: Codable {
     let chatId: String
-    let chat: ChatData?
 }
 
 struct ChatData: Codable {
@@ -285,14 +315,4 @@ struct ChatData: Codable {
         case title
         case members
     }
-}
-
-struct JoinChatRequest: Codable {
-    let userId: String
-    let chatId: String
-}
-
-struct JoinChatResponse: Codable {
-    let success: Bool
-    let chat: ChatData?
 }

@@ -1,0 +1,32 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/UnlockPromptView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Post your story to unlock",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 66
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@'s Vibe!",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 70
+        }
+      },
+      {
+        "comment": "",
+        "key": "Open Camera",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 86
+        }
+      }
+    ]
+  },
+  "version": 1
+}

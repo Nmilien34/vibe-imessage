@@ -15,7 +15,7 @@ exports.migrateUsersToAura = migrateUsersToAura;
 require("dotenv/config");
 const mongoose_1 = __importDefault(require("mongoose"));
 const User_1 = __importDefault(require("../models/User"));
-const DEFAULT_AURA_BALANCE = 1000;
+const DEFAULT_AURA_BALANCE = 100;
 const DEFAULT_VIBE_SCORE = 100;
 async function migrateUsersToAura() {
     console.log('Starting Aura migration...');

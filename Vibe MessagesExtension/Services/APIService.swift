@@ -24,6 +24,16 @@ class APIService {
         self.decoder.dateDecodingStrategy = .iso8601
     }
 
+    private var authToken: String? {
+        UserDefaults.standard.string(forKey: "vibeAuthToken")
+    }
+
+    private func applyAuth(to request: inout URLRequest) {
+        if let token = authToken, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
     // MARK: - Mock Data
     private var mockVibes: [Vibe] = APIService.generateMockVibes()
 
@@ -187,6 +197,7 @@ class APIService {
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
 
         request.httpBody = body
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -249,6 +260,7 @@ class APIService {
         
         let body: [String: String] = ["userId": userId]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        applyAuth(to: &request)
         
         let (_, response) = try await URLSession.shared.data(for: request)
         
@@ -460,6 +472,7 @@ class APIService {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         request.httpBody = try encoder.encode(requestBody)
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -507,6 +520,7 @@ class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(ReactRequest(userId: userId, emoji: emoji))
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -553,6 +567,7 @@ class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(ViewRequest(userId: userId))
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -563,20 +578,21 @@ class APIService {
         return try decoder.decode(Vibe.self, from: data)
     }
 
-    func vote(vibeId: String, optionId: String, userId: String) async throws -> Vibe {
+    func vote(vibeId: String, optionIndex: Int, userId: String) async throws -> Vibe {
         guard let url = URL.httpURL(from: "\(baseURL)/vibes/\(vibeId)/vote") else {
             throw APIError.invalidURL
         }
         
         struct VoteRequest: Codable {
             let userId: String
-            let optionId: String
+            let optionIndex: Int
         }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(VoteRequest(userId: userId, optionId: optionId))
+        request.httpBody = try JSONEncoder().encode(VoteRequest(userId: userId, optionIndex: optionIndex))
+        applyAuth(to: &request)
         
         let (data, response) = try await URLSession.shared.data(for: request)
         
@@ -601,6 +617,7 @@ class APIService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(RespondRequest(userId: userId, status: status))
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -678,6 +695,7 @@ class APIService {
         request.httpBody = try encoder.encode(CreateReminderRequest(
             chatId: chatId, userId: userId, type: type, emoji: emoji, title: title, date: date
         ))
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -703,6 +721,7 @@ class APIService {
         request.httpMethod = "DELETE"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: ["userId": userId])
+        applyAuth(to: &request)
 
         let (_, response) = try await URLSession.shared.data(for: request)
 

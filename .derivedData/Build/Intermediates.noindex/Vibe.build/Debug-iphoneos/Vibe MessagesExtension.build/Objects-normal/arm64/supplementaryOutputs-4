@@ -1,4 +1,11 @@
 {
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Theme/VibeAnimations.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeAnimations.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeAnimations.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeAnimations.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeAnimations.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeAnimations.swiftdeps"
+  },
   "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Theme/VibeSpacing.swift" : {
     "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeSpacing.swiftconstvalues",
     "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/VibeSpacing.d",
@@ -54,12 +61,5 @@
     "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/BetListView.dia",
     "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/BetListView.o",
     "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/BetListView.swiftdeps"
-  },
-  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Common/LocalVideoPlayerView.swift" : {
-    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/LocalVideoPlayerView.swiftconstvalues",
-    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/LocalVideoPlayerView.d",
-    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/LocalVideoPlayerView.dia",
-    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/LocalVideoPlayerView.o",
-    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphoneos/Vibe MessagesExtension.build/Objects-normal/arm64/LocalVideoPlayerView.swiftdeps"
   }
 }

@@ -1,0 +1,40 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/MediaEditorView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Type something...",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 71
+        }
+      },
+      {
+        "comment": "",
+        "key": "No Image Data",
+        "location": {
+          "startingColumn": 44,
+          "startingLine": 122
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ - %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 176
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share Vibe",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 201
+        }
+      }
+    ]
+  },
+  "version": 1
+}

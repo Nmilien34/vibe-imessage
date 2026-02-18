@@ -22,10 +22,15 @@ const upload = (0, multer_1.default)({
  */
 router.post('/upload', auth_1.authMiddleware, upload.single('video'), async (req, res) => {
     try {
-        const { userId, chatId, isLocked } = req.body;
+        const authenticatedUserId = req.userId;
+        const { userId: requestedUserId, chatId, isLocked } = req.body;
+        const userId = authenticatedUserId;
         const file = req.file;
         if (!file) {
             return res.status(400).json({ error: 'No video file provided' });
+        }
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot upload as another user' });
         }
         if (!userId || !chatId) {
             return res.status(400).json({ error: 'userId and chatId are required' });
@@ -85,8 +90,13 @@ router.get('/:videoId', async (req, res) => {
  */
 router.post('/:videoId/unlock', auth_1.authMiddleware, async (req, res) => {
     try {
+        const authenticatedUserId = req.userId;
         const { videoId } = req.params;
-        const { userId } = req.body;
+        const { userId: requestedUserId } = req.body;
+        const userId = authenticatedUserId;
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot unlock as another user' });
+        }
         const vibe = await Vibe_1.default.findByIdAndUpdate(videoId, { $addToSet: { unlockedBy: userId } }, { new: true });
         if (!vibe) {
             return res.status(404).json({ error: 'Story not found' });

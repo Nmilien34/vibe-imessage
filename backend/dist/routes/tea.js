@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = __importDefault(require("express"));
 const auth_1 = require("../middleware/auth");
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
+const chatMembershipService_1 = require("../services/chatMembershipService");
 const teaService_1 = require("../services/teaService");
 const router = express_1.default.Router();
 function sanitizeTeaForViewer(tea, viewerId) {
@@ -17,6 +18,16 @@ function sanitizeTeaForViewer(tea, viewerId) {
         answer: canSeeAnswer ? teaObj.answer : undefined,
         creatorId: isCreator ? teaObj.creatorId : 'anonymous',
     };
+}
+async function hasChatMembership(chatId, userId) {
+    let membership = await ChatMember_1.default.findOne({ chatId, userId });
+    if (!membership) {
+        const repaired = await (0, chatMembershipService_1.ensureChatMembershipIfKnown)(chatId, userId);
+        if (repaired) {
+            membership = await ChatMember_1.default.findOne({ chatId, userId });
+        }
+    }
+    return !!membership;
 }
 /**
  * @route   POST /api/tea/create
@@ -123,7 +134,7 @@ router.get('/chat/:chatId', auth_1.authMiddleware, async (req, res) => {
         const userId = req.userId;
         const { chatId } = req.params;
         const { status, limit, offset } = req.query;
-        const membership = await ChatMember_1.default.findOne({ chatId, userId });
+        const membership = await hasChatMembership(chatId, userId);
         if (!membership) {
             return res.status(403).json({ error: 'You are not in this chat' });
         }
@@ -156,7 +167,7 @@ router.get('/:teaId', auth_1.authMiddleware, async (req, res) => {
         if (!tea) {
             return res.status(404).json({ error: 'Tea spill not found' });
         }
-        const membership = await ChatMember_1.default.findOne({ chatId: tea.chatId, userId });
+        const membership = await hasChatMembership(tea.chatId, userId);
         if (!membership) {
             return res.status(403).json({ error: 'You are not in this chat' });
         }
@@ -180,7 +191,7 @@ router.get('/:teaId/guesses', auth_1.authMiddleware, async (req, res) => {
         if (!tea) {
             return res.status(404).json({ error: 'Tea spill not found' });
         }
-        const membership = await ChatMember_1.default.findOne({ chatId: tea.chatId, userId });
+        const membership = await hasChatMembership(tea.chatId, userId);
         if (!membership) {
             return res.status(403).json({ error: 'You are not in this chat' });
         }

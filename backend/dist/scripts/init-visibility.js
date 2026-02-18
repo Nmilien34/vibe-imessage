@@ -34,7 +34,7 @@ async function initializeVisibility() {
                     permissionId: `perm_${(0, uuid_1.v4)()}`,
                     userId: owner,
                     visibleToUserId: viewer,
-                    source: 'past_chat',
+                    source: 'past_connection',
                     grantedAt: conn.establishedAt,
                 });
                 created++;

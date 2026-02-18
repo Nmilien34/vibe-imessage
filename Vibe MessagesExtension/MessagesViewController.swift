@@ -115,18 +115,23 @@ class MessagesViewController: MSMessagesAppViewController {
 
         // CRITICAL: Join the chat if we have a chat_id
         // This is how users get added to chats when receiving messages
-        if let chatId = chatId {
+        if let chatId = chatId, chatId.hasPrefix("chat_") {
             Task {
-                _ = await ConversationManager.shared.resolveChatID(
-                    conversation: conversation,
-                    userId: appState.userId
-                )
-                // The resolveChatID will parse the chat_id from selectedMessage
-                // and join the chat automatically
-
-                // Also update appState's currentChatId
-                await MainActor.run {
-                    appState.currentChatId = chatId
+                if appState.isAuthenticated {
+                    let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                        conversation: conversation,
+                        userId: appState.userId
+                    )
+                    // Use backend-resolved id when available; fall back to parsed id.
+                    await MainActor.run {
+                        appState.currentChatId = resolvedChatId.hasPrefix("chat_")
+                            ? resolvedChatId
+                            : chatId
+                    }
+                } else {
+                    await MainActor.run {
+                        appState.currentChatId = chatId
+                    }
                 }
                 
                 // Refresh vibes for the new chat
@@ -227,7 +232,7 @@ class MessagesViewController: MSMessagesAppViewController {
             URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970)))
         ]
 
-        if let chatId = appState.currentChatId {
+        if let chatId = appState.currentChatId, !chatId.hasPrefix("fallback_") {
             queryItems.append(URLQueryItem(name: "chat_id", value: chatId))
         }
 

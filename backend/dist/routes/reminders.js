@@ -10,7 +10,12 @@ const router = express_1.default.Router();
 // POST /api/reminders — create a reminder
 router.post('/', auth_1.authMiddleware, async (req, res) => {
     try {
-        const { chatId, userId, type, emoji, title, date } = req.body;
+        const authenticatedUserId = req.userId;
+        const { chatId, userId: requestedUserId, type, emoji, title, date } = req.body;
+        const userId = authenticatedUserId;
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot create reminder for another user' });
+        }
         if (!chatId || !userId || !type || !emoji || !title || !date) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
@@ -41,7 +46,12 @@ router.get('/:chatId', async (req, res) => {
 // DELETE /api/reminders/:id — delete a reminder (creator only)
 router.delete('/:id', auth_1.authMiddleware, async (req, res) => {
     try {
-        const { userId } = req.body;
+        const authenticatedUserId = req.userId;
+        const { userId: requestedUserId } = req.body;
+        const userId = authenticatedUserId;
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot delete reminder as another user' });
+        }
         const reminder = await Reminder_1.default.findById(req.params.id);
         if (!reminder) {
             return res.status(404).json({ error: 'Reminder not found' });

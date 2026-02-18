@@ -1,6 +1,7 @@
 import express, { Request, Response, Router } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import ChatMember from '../models/ChatMember';
+import { ensureChatMembershipIfKnown } from '../services/chatMembershipService';
 import {
   createTeaSpill,
   guessTeaSpill,
@@ -24,6 +25,17 @@ function sanitizeTeaForViewer(tea: any, viewerId: string) {
     answer: canSeeAnswer ? teaObj.answer : undefined,
     creatorId: isCreator ? teaObj.creatorId : 'anonymous',
   };
+}
+
+async function hasChatMembership(chatId: string, userId: string): Promise<boolean> {
+  let membership = await ChatMember.findOne({ chatId, userId });
+  if (!membership) {
+    const repaired = await ensureChatMembershipIfKnown(chatId, userId);
+    if (repaired) {
+      membership = await ChatMember.findOne({ chatId, userId });
+    }
+  }
+  return !!membership;
 }
 
 /**
@@ -142,7 +154,7 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
     const { chatId } = req.params;
     const { status, limit, offset } = req.query;
 
-    const membership = await ChatMember.findOne({ chatId, userId });
+    const membership = await hasChatMembership(chatId, userId);
     if (!membership) {
       return res.status(403).json({ error: 'You are not in this chat' });
     }
@@ -179,7 +191,7 @@ router.get('/:teaId', authMiddleware, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Tea spill not found' });
     }
 
-    const membership = await ChatMember.findOne({ chatId: tea.chatId, userId });
+    const membership = await hasChatMembership(tea.chatId, userId);
     if (!membership) {
       return res.status(403).json({ error: 'You are not in this chat' });
     }
@@ -206,7 +218,7 @@ router.get('/:teaId/guesses', authMiddleware, async (req: Request, res: Response
       return res.status(404).json({ error: 'Tea spill not found' });
     }
 
-    const membership = await ChatMember.findOne({ chatId: tea.chatId, userId });
+    const membership = await hasChatMembership(tea.chatId, userId);
     if (!membership) {
       return res.status(403).json({ error: 'You are not in this chat' });
     }

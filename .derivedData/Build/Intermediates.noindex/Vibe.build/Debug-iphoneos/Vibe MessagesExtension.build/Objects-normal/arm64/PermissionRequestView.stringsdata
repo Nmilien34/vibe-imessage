@@ -1,0 +1,48 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Onboarding/PermissionRequestView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "One last thing...",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 20
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vibe needs access to your camera and audio to share your vibes with the squad.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 24
+        }
+      },
+      {
+        "comment": "",
+        "key": "Continue to Vibe",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 59
+        }
+      },
+      {
+        "comment": "",
+        "key": "Dev: Skip Permissions",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 72
+        }
+      },
+      {
+        "comment": "",
+        "key": "Allow",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 155
+        }
+      }
+    ]
+  },
+  "version": 1
+}

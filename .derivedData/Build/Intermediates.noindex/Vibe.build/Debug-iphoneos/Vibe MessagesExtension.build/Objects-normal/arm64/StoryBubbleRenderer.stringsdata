@@ -1,0 +1,128 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Services/StoryBubbleRenderer.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Tap to Unveil",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 90
+        }
+      },
+      {
+        "comment": "",
+        "key": "Expires in %lldh",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 110
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vibes",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 115
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap to Unveil",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 170
+        }
+      },
+      {
+        "comment": "",
+        "key": "😊",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 252
+        }
+      },
+      {
+        "comment": "",
+        "key": "🫣 New Leak",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 281
+        }
+      },
+      {
+        "comment": "",
+        "key": "🎨 Doodle",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 287
+        }
+      },
+      {
+        "comment": "",
+        "key": "💸 New Parlay",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 349
+        }
+      },
+      {
+        "comment": "",
+        "key": "New Vibe",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "Expires in 24h",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 190
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vibez",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 194
+        }
+      },
+      {
+        "comment": "",
+        "key": "📊 Poll",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 258
+        }
+      },
+      {
+        "comment": "",
+        "key": "🎵 Now Playing",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 302
+        }
+      },
+      {
+        "comment": "",
+        "key": "🎲 Daily Drop",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 315
+        }
+      },
+      {
+        "comment": "",
+        "key": "💸 Parlay",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 332
+        }
+      }
+    ]
+  },
+  "version": 1
+}

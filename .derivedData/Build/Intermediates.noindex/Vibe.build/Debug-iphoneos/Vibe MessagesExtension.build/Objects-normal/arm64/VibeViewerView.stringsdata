@@ -1,0 +1,264 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Viewer/VibeViewerView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "You're not in this challenge chat",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 187
+        }
+      },
+      {
+        "comment": "",
+        "key": "No",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Requesting...",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 191
+        }
+      },
+      {
+        "comment": "",
+        "key": "Yes, Request Join",
+        "location": {
+          "startingColumn": 64,
+          "startingLine": 191
+        }
+      },
+      {
+        "comment": "",
+        "key": "Would you like to request to join? Chat members will see your request and can add you or start a new group chat with you.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 196
+        }
+      },
+      {
+        "comment": "",
+        "key": "No vibes to show",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 273
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 419
+        }
+      },
+      {
+        "comment": "",
+        "key": "+%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 507
+        }
+      },
+      {
+        "comment": "",
+        "key": "React",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 543
+        }
+      },
+      {
+        "comment": "",
+        "key": "Join & Stake",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 562
+        }
+      },
+      {
+        "comment": "",
+        "key": "Drop Tea",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 579
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 593
+        }
+      },
+      {
+        "comment": "",
+        "key": "Join Challenge",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 966
+        }
+      },
+      {
+        "comment": "",
+        "key": "No active challenge is linked to this story yet.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1054
+        }
+      },
+      {
+        "comment": "",
+        "key": "Loading challenge...",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 973
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake: %lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 993
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake fixed at %lld Aura",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1007
+        }
+      },
+      {
+        "comment": "",
+        "key": "Need at least %lld Aura to join.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1011
+        }
+      },
+      {
+        "comment": "",
+        "key": "Balance: %lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1016
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake: %lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1026
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake fixed at %lld Aura",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1040
+        }
+      },
+      {
+        "comment": "",
+        "key": "Need at least %lld Aura to join.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1044
+        }
+      },
+      {
+        "comment": "",
+        "key": "Balance: %lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1049
+        }
+      },
+      {
+        "comment": "",
+        "key": "Joining...",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 1070
+        }
+      },
+      {
+        "comment": "",
+        "key": "Start & Stake",
+        "location": {
+          "startingColumn": 90,
+          "startingLine": 1070
+        }
+      },
+      {
+        "comment": "",
+        "key": "Join & Stake",
+        "location": {
+          "startingColumn": 108,
+          "startingLine": 1070
+        }
+      },
+      {
+        "comment": "",
+        "key": "See My Bets",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1083
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1522
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld votes",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1624
+        }
+      },
+      {
+        "comment": "",
+        "key": "Doodle failed to load",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 1694
+        }
+      },
+      {
+        "comment": "",
+        "key": "Doodle incoming...",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1707
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%%",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1781
+        }
+      }
+    ]
+  },
+  "version": 1
+}

@@ -1,0 +1,128 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Components/ErrorViews.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Try Again",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 150
+        }
+      },
+      {
+        "comment": "",
+        "key": "Open Settings",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 165
+        }
+      },
+      {
+        "comment": "",
+        "key": "Camera Access Needed",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 245
+        }
+      },
+      {
+        "comment": "",
+        "key": "To share vibes, Vibe needs access to your camera. Enable it in Settings to start recording.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 249
+        }
+      },
+      {
+        "comment": "",
+        "key": "Open Settings",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 265
+        }
+      },
+      {
+        "comment": "",
+        "key": "Not Now",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 279
+        }
+      },
+      {
+        "comment": "",
+        "key": "Retry",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 314
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upload Failed",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 358
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 374
+        }
+      },
+      {
+        "comment": "",
+        "key": "Try Again",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 392
+        }
+      },
+      {
+        "comment": "",
+        "key": "Video Unavailable",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 421
+        }
+      },
+      {
+        "comment": "",
+        "key": "This video couldn't be played",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 425
+        }
+      },
+      {
+        "comment": "",
+        "key": "Retry",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 436
+        }
+      },
+      {
+        "comment": "",
+        "key": "Image couldn't be loaded",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 470
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap to retry",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 479
+        }
+      }
+    ]
+  },
+  "version": 1
+}

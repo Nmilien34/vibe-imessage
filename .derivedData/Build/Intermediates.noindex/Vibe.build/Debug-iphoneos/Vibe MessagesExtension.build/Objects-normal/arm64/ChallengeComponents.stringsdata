@@ -1,0 +1,80 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Components/ChallengeComponents.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 49
+        }
+      },
+      {
+        "comment": "",
+        "key": "@%@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 222
+        }
+      },
+      {
+        "comment": "",
+        "key": "pot",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 238
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 243
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld stakes",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 246
+        }
+      },
+      {
+        "comment": "",
+        "key": "TEA",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 355
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld options",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 380
+        }
+      },
+      {
+        "comment": "",
+        "key": "Revealed",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 391
+        }
+      },
+      {
+        "comment": "",
+        "key": "Guess",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 400
+        }
+      }
+    ]
+  },
+  "version": 1
+}

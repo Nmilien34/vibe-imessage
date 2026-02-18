@@ -377,44 +377,49 @@ class AppState: ObservableObject {
 
         // Store the resolution task so write operations (createBet, createTeaSpill, createVibe)
         // can await the real chat ID instead of sending a fallback ID.
-        chatIdResolutionTask = Task {
-            // Step 1: Resolve real chat ID with a SHORT timeout (3s).
-            let resolvedChatId = await withTimeout(seconds: 3) {
-                await ConversationManager.shared.resolveChatID(
-                    conversation: conversation,
-                    userId: self.userId
+        if isAuthenticated && userId != "anonymous" {
+            chatIdResolutionTask = Task {
+                // Step 1: Resolve real chat ID with a SHORT timeout (3s).
+                let resolvedChatId = await withTimeout(seconds: 3) {
+                    await ConversationManager.shared.resolveChatID(
+                        conversation: conversation,
+                        userId: self.userId
+                    )
+                }
+
+                if let chatId = resolvedChatId, !chatId.hasPrefix("fallback_") {
+                    self.currentChatId = chatId
+                    print("AppState Debug: Resolved Chat ID to: \(chatId)")
+                    return chatId
+                }
+
+                // First attempt timed out — retry with longer timeout
+                print("AppState Debug: Chat ID resolution timed out, retrying...")
+                let retryId = await withTimeout(seconds: 20) {
+                    await ConversationManager.shared.resolveChatID(
+                        conversation: conversation,
+                        userId: self.userId
+                    )
+                }
+                if let retryId = retryId, !retryId.hasPrefix("fallback_") {
+                    self.currentChatId = retryId
+                    print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
+                    // Reload chat-specific data with correct ID
+                    async let reminders: () = loadReminders()
+                    async let bets: () = loadBets()
+                    async let tea: () = loadTeaSpills()
+                    _ = await (reminders, bets, tea)
+                    return retryId
+                }
+
+                throw APIError.networkError(
+                    NSError(domain: "Vibe", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Unable to connect to chat. Please try again."])
                 )
             }
-
-            if let chatId = resolvedChatId {
-                self.currentChatId = chatId
-                print("AppState Debug: Resolved Chat ID to: \(chatId)")
-                return chatId
-            }
-
-            // First attempt timed out — retry with longer timeout
-            print("AppState Debug: Chat ID resolution timed out, retrying...")
-            let retryId = await withTimeout(seconds: 20) {
-                await ConversationManager.shared.resolveChatID(
-                    conversation: conversation,
-                    userId: self.userId
-                )
-            }
-            if let retryId = retryId {
-                self.currentChatId = retryId
-                print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
-                // Reload chat-specific data with correct ID
-                async let reminders: () = loadReminders()
-                async let bets: () = loadBets()
-                async let tea: () = loadTeaSpills()
-                _ = await (reminders, bets, tea)
-                return retryId
-            }
-
-            throw APIError.networkError(
-                NSError(domain: "Vibe", code: -1,
-                        userInfo: [NSLocalizedDescriptionKey: "Unable to connect to chat. Please try again."])
-            )
+        } else {
+            chatIdResolutionTask = nil
+            print("AppState Debug: Skipping chat resolution until authenticated")
         }
 
         // Load all data IN PARALLEL — don't block on chat ID resolution for reads
@@ -459,11 +464,27 @@ class AppState: ObservableObject {
         if let chatId = currentChatId, !chatId.hasPrefix("fallback_") {
             return chatId
         }
+        guard isAuthenticated else {
+            throw APIError.httpError(statusCode: 401, message: "Please sign in to continue.")
+        }
         // Await the background resolution task
         guard let task = chatIdResolutionTask else {
-            throw APIError.invalidURL
+            throw APIError.networkError(
+                NSError(
+                    domain: "Vibe",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Chat is still initializing. Please try again."]
+                )
+            )
         }
         return try await task.value
+    }
+
+    private func resolvedChatIdForRead() async -> String? {
+        if let chatId = currentChatId, !chatId.hasPrefix("fallback_") {
+            return chatId
+        }
+        return try? await awaitResolvedChatId()
     }
 
     func setPresentationStyle(_ style: MSMessagesAppPresentationStyle) {
@@ -704,7 +725,7 @@ class AppState: ObservableObject {
     // MARK: - Reminders
 
     func loadReminders() async {
-        guard let chatId = currentChatId else { return }
+        guard let chatId = await resolvedChatIdForRead() else { return }
         do {
             let loaded = try await APIService.shared.getReminders(chatId: chatId)
             self.reminders = loaded
@@ -714,7 +735,7 @@ class AppState: ObservableObject {
     }
 
     func createReminder(type: ReminderType, emoji: String, title: String, date: Date) async {
-        guard let chatId = currentChatId else { return }
+        guard let chatId = await resolvedChatIdForRead() else { return }
         do {
             let reminder = try await APIService.shared.createReminder(
                 chatId: chatId, userId: userId, type: type, emoji: emoji, title: title, date: date
@@ -897,7 +918,7 @@ class AppState: ObservableObject {
 
     func loadBets() async {
         guard isAuthenticated else { return }
-        guard let chatId = currentChatId else { return }
+        guard let chatId = await resolvedChatIdForRead() else { return }
         isLoadingBets = true
         defer { isLoadingBets = false }
 
@@ -1004,7 +1025,7 @@ class AppState: ObservableObject {
 
     func loadTeaSpills() async {
         guard isAuthenticated else { return }
-        guard let chatId = currentChatId else { return }
+        guard let chatId = await resolvedChatIdForRead() else { return }
         isLoadingTea = true
         defer { isLoadingTea = false }
 
@@ -1149,6 +1170,10 @@ class AppState: ObservableObject {
             
             print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
 
+            if let conversation = currentConversation {
+                setConversation(conversation)
+            }
+
             // Load aura stats after successful auth
             async let auraTask: () = loadAuraStats()
             async let profileTask: () = loadCurrentUserProfile()
@@ -1283,6 +1308,10 @@ class AppState: ObservableObject {
 
             print("Auth Debug: Dev login successful. UserID: \(self.userId)")
 
+            if let conversation = currentConversation {
+                setConversation(conversation)
+            }
+
             // Load aura stats after successful auth
             async let auraTask: () = loadAuraStats()
             async let profileTask: () = loadCurrentUserProfile()
@@ -1405,10 +1434,24 @@ class AppState: ObservableObject {
     }
 
     func vote(on vibe: Vibe, optionId: String) async {
+        guard let poll = vibe.poll else {
+            self.error = "Poll is unavailable."
+            return
+        }
+        let optionIndex: Int
+        if let index = poll.options.firstIndex(where: { $0.id == optionId }) {
+            optionIndex = index
+        } else if let parsed = Int(optionId), parsed >= 0, parsed < poll.options.count {
+            optionIndex = parsed
+        } else {
+            self.error = "Invalid poll option."
+            return
+        }
+
         do {
             let updatedVibe = try await APIService.shared.vote(
                 vibeId: vibe.id,
-                optionId: optionId,
+                optionIndex: optionIndex,
                 userId: userId
             )
             updateVibe(updatedVibe)

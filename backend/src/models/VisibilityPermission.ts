@@ -1,7 +1,7 @@
 import mongoose, { Schema, Model } from 'mongoose';
 import { IVisibilityPermission, VisibilitySource } from '../types';
 
-const sources: VisibilitySource[] = ['past_chat', 'contact', 'manual'];
+const sources: VisibilitySource[] = ['past_chat', 'past_connection', 'contact', 'manual'];
 
 const visibilityPermissionSchema = new Schema<IVisibilityPermission>({
   permissionId: { type: String, required: true, unique: true },

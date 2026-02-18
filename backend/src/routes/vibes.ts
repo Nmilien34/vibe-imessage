@@ -13,7 +13,7 @@ interface VibeQueryParams {
 }
 
 interface CreateVibeRequest {
-  userId: string;
+  userId?: string;
   chatId?: string;
   conversationId?: string;
   type: VibeType;
@@ -38,17 +38,18 @@ interface CreateVibeRequest {
 }
 
 interface ReactRequest {
-  userId: string;
+  userId?: string;
   emoji: string;
 }
 
 interface ViewRequest {
-  userId: string;
+  userId?: string;
 }
 
 interface VoteRequest {
-  userId: string;
-  optionIndex: number;
+  userId?: string;
+  optionIndex?: number;
+  optionId?: string;
 }
 
 // Helper to extract S3 key from URL
@@ -182,8 +183,9 @@ router.get('/:conversationId/history', async (req: Request<VibeQueryParams>, res
  */
 router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const {
-      userId,
+      userId: requestedUserId,
       chatId,
       conversationId,
       type,
@@ -202,6 +204,11 @@ router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>,
       oderId,
       isLocked,
     } = req.body;
+    const userId = authenticatedUserId;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot create vibe for another user' });
+    }
 
     const effectiveChatId = chatId || conversationId;
 
@@ -267,8 +274,14 @@ router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>,
  */
 router.post('/:vibeId/react', authMiddleware, async (req: Request<{ vibeId: string }, {}, ReactRequest>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { vibeId } = req.params;
-    const { userId, emoji } = req.body;
+    const { userId: requestedUserId, emoji } = req.body;
+    const userId = authenticatedUserId;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot react as another user' });
+    }
 
     const vibe = await Vibe.findById(vibeId);
     if (!vibe) {
@@ -292,14 +305,24 @@ router.post('/:vibeId/react', authMiddleware, async (req: Request<{ vibeId: stri
  */
 router.post('/:vibeId/view', authMiddleware, async (req: Request<{ vibeId: string }, {}, ViewRequest>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { vibeId } = req.params;
-    const { userId } = req.body;
+    const { userId: requestedUserId } = req.body;
+    const userId = authenticatedUserId;
 
-    await Vibe.findByIdAndUpdate(vibeId, {
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot mark viewed as another user' });
+    }
+
+    const vibe = await Vibe.findByIdAndUpdate(vibeId, {
       $addToSet: { viewedBy: userId },
-    });
+    }, { new: true });
 
-    res.json({ success: true });
+    if (!vibe) {
+      return res.status(404).json({ error: 'Vibe not found' });
+    }
+
+    res.json(vibe);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
@@ -312,8 +335,25 @@ router.post('/:vibeId/view', authMiddleware, async (req: Request<{ vibeId: strin
  */
 router.post('/:vibeId/vote', authMiddleware, async (req: Request<{ vibeId: string }, {}, VoteRequest>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { vibeId } = req.params;
-    const { userId, optionIndex } = req.body;
+    const { userId: requestedUserId, optionIndex, optionId } = req.body;
+    const userId = authenticatedUserId;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot vote as another user' });
+    }
+
+    const normalizedOptionIndex =
+      typeof optionIndex === 'number'
+        ? optionIndex
+        : typeof optionId === 'string'
+          ? Number(optionId)
+          : NaN;
+
+    if (!Number.isInteger(normalizedOptionIndex) || normalizedOptionIndex < 0) {
+      return res.status(400).json({ error: 'optionIndex must be a non-negative integer' });
+    }
 
     const vibe = await Vibe.findById(vibeId);
     if (!vibe || vibe.type !== 'poll') {
@@ -321,11 +361,15 @@ router.post('/:vibeId/vote', authMiddleware, async (req: Request<{ vibeId: strin
     }
 
     if (vibe.poll) {
+      const pollOptions = vibe.poll.options || [];
+      if (pollOptions.length === 0 || normalizedOptionIndex >= pollOptions.length) {
+        return res.status(400).json({ error: 'Invalid optionIndex for this poll' });
+      }
       if (!vibe.poll.votes) {
         vibe.poll.votes = [];
       }
       vibe.poll.votes = vibe.poll.votes.filter(v => v.userId !== userId);
-      vibe.poll.votes.push({ userId, optionIndex });
+      vibe.poll.votes.push({ userId, optionIndex: normalizedOptionIndex });
       await vibe.save();
     }
 
@@ -362,8 +406,14 @@ router.get('/:conversationId/streak', async (req: Request<{ conversationId: stri
  */
 router.post('/:vibeId/parlay/respond', authMiddleware, async (req: Request<{ vibeId: string }>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { vibeId } = req.params;
-    const { userId, status } = req.body;
+    const { userId: requestedUserId, status } = req.body;
+    const userId = authenticatedUserId;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot respond as another user' });
+    }
 
     if (!['accepted', 'declined'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status. Must be accepted or declined.' });

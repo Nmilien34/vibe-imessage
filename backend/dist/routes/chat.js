@@ -10,6 +10,7 @@ const User_1 = __importDefault(require("../models/User"));
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
 const auth_1 = require("../middleware/auth");
 const chatService_1 = require("../services/chatService");
+const chatMembershipService_1 = require("../services/chatMembershipService");
 const router = express_1.default.Router();
 /**
  * @route   POST /api/chat/resolve
@@ -24,10 +25,42 @@ const router = express_1.default.Router();
  */
 router.post('/resolve', async (req, res) => {
     try {
-        const { userId, chatId, appleUUID, title } = req.body;
-        if (!userId) {
+        const { userId: requestedUserId, chatId, appleUUID, title } = req.body;
+        if (!requestedUserId) {
             return res.status(400).json({ error: 'userId is required' });
         }
+        // Resolve canonical user first so all downstream membership writes
+        // (Chat.members, User.joinedChatIds, ChatMember.userId) stay aligned.
+        let user = await User_1.default.findById(requestedUserId);
+        if (!user) {
+            user = await User_1.default.findOne({ appleId: requestedUserId });
+        }
+        if (!user && appleUUID) {
+            user = await User_1.default.findOne({ appleUUID });
+        }
+        if (!user) {
+            user = new User_1.default({
+                _id: requestedUserId,
+                appleUUID: appleUUID || undefined,
+                joinedChatIds: [],
+            });
+            await user.save();
+        }
+        else {
+            let userChanged = false;
+            if (appleUUID && user.appleUUID !== appleUUID) {
+                user.appleUUID = appleUUID;
+                userChanged = true;
+            }
+            if (!user.appleId && requestedUserId !== user._id) {
+                user.appleId = requestedUserId;
+                userChanged = true;
+            }
+            if (userChanged) {
+                await user.save();
+            }
+        }
+        const userId = user._id.toString();
         let isNew = false;
         let isNewMember = false;
         let chat;
@@ -40,6 +73,7 @@ router.post('/resolve', async (req, res) => {
                     _id: chatId,
                     title: title || null,
                     members: [userId],
+                    createdBy: userId,
                     lastActivityAt: new Date(),
                 });
                 await chat.save();
@@ -68,30 +102,12 @@ router.post('/resolve', async (req, res) => {
             isNew = true;
             isNewMember = true;
         }
-        // Ensure user exists and has this chat in their joinedChatIds.
-        // Fallback chain prevents identity split: client sends appleId as userId,
-        // but an older doc may have been created with a different _id.
-        let user = await User_1.default.findById(userId);
-        if (!user) {
-            user = await User_1.default.findOne({ appleId: userId });
-        }
-        if (!user && appleUUID) {
-            user = await User_1.default.findOne({ appleUUID });
-        }
-        if (!user) {
-            user = new User_1.default({
-                _id: userId,
-                appleUUID: appleUUID || undefined,
-                joinedChatIds: [chat._id],
-            });
-            await user.save();
-        }
-        else {
-            if (appleUUID && user.appleUUID !== appleUUID) {
-                user.appleUUID = appleUUID;
-            }
-            await user.joinChat(chat._id);
-        }
+        await user.joinChat(chat._id.toString());
+        await (0, chatMembershipService_1.ensureChatMembership)({
+            chatId: chat._id.toString(),
+            userId,
+            membershipType: 'full',
+        });
         const response = {
             chatId: chat._id,
             chat: chat.toObject(),
@@ -112,9 +128,11 @@ router.post('/resolve', async (req, res) => {
  */
 router.post('/create', auth_1.authMiddleware, async (req, res) => {
     try {
-        const { userId, title, type = 'group' } = req.body;
-        if (!userId) {
-            return res.status(400).json({ error: 'userId is required' });
+        const authenticatedUserId = req.userId;
+        const { userId: requestedUserId, title, type = 'group' } = req.body;
+        const userId = authenticatedUserId;
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot create chat for another user' });
         }
         const chatId = `chat_${(0, uuid_1.v4)()}`;
         const chat = new Chat_1.default({
@@ -140,6 +158,12 @@ router.post('/create', auth_1.authMiddleware, async (req, res) => {
         else {
             await user.joinChat(chatId);
         }
+        await (0, chatMembershipService_1.ensureChatMembership)({
+            chatId,
+            userId,
+            membershipType: 'full',
+            role: 'admin',
+        });
         const response = {
             chatId,
             chat: chat.toObject(),
@@ -159,20 +183,27 @@ router.post('/create', auth_1.authMiddleware, async (req, res) => {
  */
 router.post('/join', auth_1.authMiddleware, async (req, res) => {
     try {
-        const { userId, chatId } = req.body;
-        if (!userId || !chatId) {
-            return res.status(400).json({ error: 'userId and chatId are required' });
+        const authenticatedUserId = req.userId;
+        const { userId: requestedUserId, chatId } = req.body;
+        const userId = authenticatedUserId;
+        if (!chatId) {
+            return res.status(400).json({ error: 'chatId is required' });
+        }
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot join chat for another user' });
         }
         let chat = await Chat_1.default.findById(chatId);
+        const wasMember = !!chat?.members.includes(userId);
         if (!chat) {
             chat = new Chat_1.default({
                 _id: chatId,
                 members: [userId],
+                createdBy: userId,
                 lastActivityAt: new Date(),
             });
             await chat.save();
         }
-        else {
+        else if (!wasMember) {
             await chat.addMember(userId);
         }
         let user = await User_1.default.findById(userId);
@@ -189,10 +220,15 @@ router.post('/join', auth_1.authMiddleware, async (req, res) => {
         else {
             await user.joinChat(chatId);
         }
+        await (0, chatMembershipService_1.ensureChatMembership)({
+            chatId,
+            userId,
+            membershipType: 'full',
+        });
         const response = {
             success: true,
             chat: chat.toObject(),
-            isNewMember: !chat.members.includes(userId), // Note: This will be false since we just added them
+            isNewMember: !wasMember,
         };
         res.json(response);
     }
@@ -323,7 +359,13 @@ router.get('/:chatId/requests', auth_1.authMiddleware, async (req, res) => {
         const userId = req.userId;
         const { chatId } = req.params;
         // Verify user is a member
-        const member = await ChatMember_1.default.findOne({ chatId, userId });
+        let member = await ChatMember_1.default.findOne({ chatId, userId });
+        if (!member) {
+            const repaired = await (0, chatMembershipService_1.ensureChatMembershipIfKnown)(chatId, userId);
+            if (repaired) {
+                member = await ChatMember_1.default.findOne({ chatId, userId });
+            }
+        }
         if (!member) {
             return res.status(403).json({
                 error: 'Only chat members can view join requests'

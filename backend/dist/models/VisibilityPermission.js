@@ -34,7 +34,7 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const sources = ['past_chat', 'contact', 'manual'];
+const sources = ['past_chat', 'past_connection', 'contact', 'manual'];
 const visibilityPermissionSchema = new mongoose_1.Schema({
     permissionId: { type: String, required: true, unique: true },
     userId: { type: String, required: true, index: true },

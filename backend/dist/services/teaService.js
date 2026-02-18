@@ -23,15 +23,31 @@ const TeaSpill_1 = __importDefault(require("../models/TeaSpill"));
 const TeaGuess_1 = __importDefault(require("../models/TeaGuess"));
 const AuraTransaction_1 = __importDefault(require("../models/AuraTransaction"));
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
+const chatMembershipService_1 = require("./chatMembershipService");
 const CREATION_COST = 10;
 const MIN_GUESS_AMOUNT = 10;
+async function requireChatMembership(chatId, userId, errorMessage) {
+    let membership = await ChatMember_1.default.findOne({ chatId, userId });
+    if (!membership) {
+        const repaired = await (0, chatMembershipService_1.ensureChatMembershipIfKnown)(chatId, userId);
+        if (repaired) {
+            membership = await ChatMember_1.default.findOne({ chatId, userId });
+        }
+    }
+    if (!membership) {
+        throw new Error(errorMessage);
+    }
+}
+function isDuplicateKeyError(error) {
+    return (typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 11000);
+}
 async function createTeaSpill(input) {
     const { chatId, creatorId, mysteryText, answer, options, deadline } = input;
     // Verify creator is in chat
-    const membership = await ChatMember_1.default.findOne({ chatId, userId: creatorId });
-    if (!membership) {
-        throw new Error('You must be a member of this chat to create a tea spill');
-    }
+    await requireChatMembership(chatId, creatorId, 'You must be a member of this chat to create a tea spill');
     // Verify creator has sufficient Aura
     const creator = await User_1.default.findById(creatorId);
     if (!creator) {
@@ -82,10 +98,7 @@ async function guessTeaSpill(input) {
     if (tea.deadline <= new Date())
         throw new Error('Tea spill deadline has passed');
     // Verify chat membership
-    const membership = await ChatMember_1.default.findOne({ chatId: tea.chatId, userId });
-    if (!membership) {
-        throw new Error('You must be in this chat to guess');
-    }
+    await requireChatMembership(tea.chatId, userId, 'You must be in this chat to guess');
     // Creator cannot guess on their own tea
     if (userId === tea.creatorId) {
         throw new Error('Creator cannot guess on their own tea spill');
@@ -96,6 +109,9 @@ async function guessTeaSpill(input) {
     }
     // Validate amount
     if (amount < MIN_GUESS_AMOUNT) {
+        throw new Error(`Minimum guess amount is ${MIN_GUESS_AMOUNT} Aura`);
+    }
+    if (!Number.isInteger(amount)) {
         throw new Error(`Minimum guess amount is ${MIN_GUESS_AMOUNT} Aura`);
     }
     // Check user balance
@@ -127,13 +143,22 @@ async function guessTeaSpill(input) {
         description: `Guessed on tea spill: "${tea.mysteryText.substring(0, 50)}"`,
     });
     // Create guess
-    const teaGuess = await TeaGuess_1.default.create({
-        guessId,
-        teaId,
-        userId,
-        guess,
-        amount,
-    });
+    let teaGuess;
+    try {
+        teaGuess = await TeaGuess_1.default.create({
+            guessId,
+            teaId,
+            userId,
+            guess,
+            amount,
+        });
+    }
+    catch (error) {
+        if (isDuplicateKeyError(error)) {
+            throw new Error('You have already guessed on this tea spill');
+        }
+        throw error;
+    }
     return teaGuess;
 }
 function computeProportionalPayouts(guesses, totalPot, payoutType) {

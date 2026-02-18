@@ -74,7 +74,7 @@ const userSchema = new mongoose_1.Schema({
     // Aura Economy
     auraBalance: {
         type: Number,
-        default: 1000,
+        default: 100,
     },
     lifetimeAuraEarned: {
         type: Number,

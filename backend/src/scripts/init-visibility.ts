@@ -33,7 +33,7 @@ export async function initializeVisibility() {
           permissionId: `perm_${uuidv4()}`,
           userId: owner,
           visibleToUserId: viewer,
-          source: 'past_chat',
+          source: 'past_connection',
           grantedAt: conn.establishedAt,
         });
         created++;

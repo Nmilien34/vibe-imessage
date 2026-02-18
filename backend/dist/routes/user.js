@@ -7,6 +7,15 @@ const express_1 = __importDefault(require("express"));
 const auth_1 = require("../middleware/auth");
 const User_1 = __importDefault(require("../models/User"));
 const router = express_1.default.Router();
+const isValidHttpUrl = (value) => {
+    try {
+        const url = new URL(value);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    }
+    catch {
+        return false;
+    }
+};
 /**
  * @route   GET /api/user/me
  * @desc    Current user's profile + economy snapshot
@@ -41,6 +50,39 @@ router.get('/me', auth_1.authMiddleware, async (req, res) => {
     catch (err) {
         console.error('GET /user/me error:', err);
         res.status(500).json({ error: 'Failed to fetch user' });
+    }
+});
+/**
+ * @route   PUT /api/user/profile-picture
+ * @desc    Update current user's profile picture URL
+ * @access  Private (JWT required)
+ */
+router.put('/profile-picture', auth_1.authMiddleware, async (req, res) => {
+    try {
+        const rawProfilePicture = req.body?.profilePicture;
+        const profilePicture = typeof rawProfilePicture === 'string' ? rawProfilePicture.trim() : '';
+        if (!profilePicture) {
+            return res.status(400).json({ error: 'profilePicture is required' });
+        }
+        if (!isValidHttpUrl(profilePicture)) {
+            return res.status(400).json({ error: 'profilePicture must be a valid http/https URL' });
+        }
+        const user = await User_1.default.findByIdAndUpdate(req.userId, { profilePicture }, { new: true, runValidators: true }).select('_id firstName profilePicture');
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({
+            success: true,
+            user: {
+                id: user._id,
+                firstName: user.firstName,
+                profilePicture: user.profilePicture,
+            },
+        });
+    }
+    catch (err) {
+        console.error('PUT /user/profile-picture error:', err);
+        res.status(500).json({ error: 'Failed to update profile picture' });
     }
 });
 exports.default = router;

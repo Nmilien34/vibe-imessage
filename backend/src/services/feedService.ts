@@ -13,6 +13,7 @@ import ChatMember from '../models/ChatMember';
 import UserConnection from '../models/UserConnection';
 import VisibilityPermission from '../models/VisibilityPermission';
 import { getBetTotals, getBetParticipants } from './betService';
+import { ensureChatMembership } from './chatMembershipService';
 
 interface FeedBet {
   bet: any;
@@ -38,9 +39,28 @@ export async function generateFeed(params: {
 }> {
   const { userId, limit = 20, offset = 0, status = 'active' } = params;
 
+  const user = await User.findById(userId).select('joinedChatIds');
+
   // Get all chat IDs where user is a member (full access)
-  const memberships = await ChatMember.find({ userId });
-  const memberChatIds = memberships.map(m => m.chatId);
+  let memberships = await ChatMember.find({ userId });
+
+  // Repair legacy data where only User.joinedChatIds was populated.
+  if (memberships.length === 0 && user?.joinedChatIds?.length) {
+    await Promise.all(
+      user.joinedChatIds.map(chatId =>
+        ensureChatMembership({
+          chatId,
+          userId,
+          membershipType: 'full',
+        })
+      )
+    );
+    memberships = await ChatMember.find({ userId });
+  }
+
+  const memberChatIds = memberships.length > 0
+    ? memberships.map(m => m.chatId)
+    : (user?.joinedChatIds || []);
 
   // Get past connections (users who shared chats with this user)
   const connections = await UserConnection.find({
@@ -87,65 +107,62 @@ export async function generateFeed(params: {
     status
   }).sort({ createdAt: -1 });
 
+  const formatBet = (bet: any) => ({
+    betId: bet.betId,
+    chatId: bet.chatId,
+    creatorId: bet.creatorId,
+    betType: bet.betType,
+    description: bet.description,
+    deadline: bet.deadline,
+    targetUserId: bet.targetUserId,
+    creationCost: bet.creationCost,
+    status: bet.status,
+    createdAt: bet.createdAt
+  });
+
+  // Hydrate all cards concurrently to avoid O(n) serialized DB latency.
+  const memberFeedBets: FeedBet[] = await Promise.all(
+    memberBets.map(async (bet) => {
+      const [totals, participants] = await Promise.all([
+        getBetTotals(bet.betId),
+        getBetParticipants(bet.betId),
+      ]);
+
+      return {
+        bet: formatBet(bet),
+        accessLevel: 'full',
+        source: 'chat_member',
+        canBet: true,
+        totals,
+        participantCount: participants.length
+      };
+    })
+  );
+
+  const viewOnlyFeedBets: FeedBet[] = await Promise.all(
+    viewOnlyBets.map(async (bet) => {
+      const [totals, participants] = await Promise.all([
+        getBetTotals(bet.betId),
+        getBetParticipants(bet.betId),
+      ]);
+
+      const source = connectedUserIds.includes(bet.creatorId)
+        ? 'past_connection'
+        : 'contact';
+
+      return {
+        bet: formatBet(bet),
+        accessLevel: 'view_only',
+        source,
+        canBet: false,
+        totals,
+        participantCount: participants.length
+      };
+    })
+  );
+
   // Combine and sort by urgency/freshness
-  const allBets: FeedBet[] = [];
-
-  // Add member bets (full access)
-  for (const bet of memberBets) {
-    const totals = await getBetTotals(bet.betId);
-    const participants = await getBetParticipants(bet.betId);
-
-    allBets.push({
-      bet: {
-        betId: bet.betId,
-        chatId: bet.chatId,
-        creatorId: bet.creatorId,
-        betType: bet.betType,
-        description: bet.description,
-        deadline: bet.deadline,
-        targetUserId: bet.targetUserId,
-        creationCost: bet.creationCost,
-        status: bet.status,
-        createdAt: bet.createdAt
-      },
-      accessLevel: 'full',
-      source: 'chat_member',
-      canBet: true,
-      totals,
-      participantCount: participants.length
-    });
-  }
-
-  // Add view-only bets
-  for (const bet of viewOnlyBets) {
-    const totals = await getBetTotals(bet.betId);
-    const participants = await getBetParticipants(bet.betId);
-
-    // Determine source
-    const source = connectedUserIds.includes(bet.creatorId)
-      ? 'past_connection'
-      : 'contact';
-
-    allBets.push({
-      bet: {
-        betId: bet.betId,
-        chatId: bet.chatId,
-        creatorId: bet.creatorId,
-        betType: bet.betType,
-        description: bet.description,
-        deadline: bet.deadline,
-        targetUserId: bet.targetUserId,
-        creationCost: bet.creationCost,
-        status: bet.status,
-        createdAt: bet.createdAt
-      },
-      accessLevel: 'view_only',
-      source,
-      canBet: false, // Must join chat to bet
-      totals,
-      participantCount: participants.length
-    });
-  }
+  const allBets: FeedBet[] = [...memberFeedBets, ...viewOnlyFeedBets];
 
   // Sort by:
   // 1. Urgency (bets ending soon first for active bets)

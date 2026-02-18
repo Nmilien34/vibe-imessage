@@ -17,18 +17,32 @@ exports.grantVisibility = grantVisibility;
 exports.revokeVisibility = revokeVisibility;
 exports.createConnection = createConnection;
 const Bet_1 = __importDefault(require("../models/Bet"));
+const User_1 = __importDefault(require("../models/User"));
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
 const UserConnection_1 = __importDefault(require("../models/UserConnection"));
 const VisibilityPermission_1 = __importDefault(require("../models/VisibilityPermission"));
 const betService_1 = require("./betService");
+const chatMembershipService_1 = require("./chatMembershipService");
 /**
  * Generate personalized feed for a user
  */
 async function generateFeed(params) {
     const { userId, limit = 20, offset = 0, status = 'active' } = params;
+    const user = await User_1.default.findById(userId).select('joinedChatIds');
     // Get all chat IDs where user is a member (full access)
-    const memberships = await ChatMember_1.default.find({ userId });
-    const memberChatIds = memberships.map(m => m.chatId);
+    let memberships = await ChatMember_1.default.find({ userId });
+    // Repair legacy data where only User.joinedChatIds was populated.
+    if (memberships.length === 0 && user?.joinedChatIds?.length) {
+        await Promise.all(user.joinedChatIds.map(chatId => (0, chatMembershipService_1.ensureChatMembership)({
+            chatId,
+            userId,
+            membershipType: 'full',
+        })));
+        memberships = await ChatMember_1.default.find({ userId });
+    }
+    const memberChatIds = memberships.length > 0
+        ? memberships.map(m => m.chatId)
+        : (user?.joinedChatIds || []);
     // Get past connections (users who shared chats with this user)
     const connections = await UserConnection_1.default.find({
         $or: [{ userId1: userId }, { userId2: userId }]
@@ -67,60 +81,52 @@ async function generateFeed(params) {
         chatId: { $nin: memberChatIds },
         status
     }).sort({ createdAt: -1 });
-    // Combine and sort by urgency/freshness
-    const allBets = [];
-    // Add member bets (full access)
-    for (const bet of memberBets) {
-        const totals = await (0, betService_1.getBetTotals)(bet.betId);
-        const participants = await (0, betService_1.getBetParticipants)(bet.betId);
-        allBets.push({
-            bet: {
-                betId: bet.betId,
-                chatId: bet.chatId,
-                creatorId: bet.creatorId,
-                betType: bet.betType,
-                description: bet.description,
-                deadline: bet.deadline,
-                targetUserId: bet.targetUserId,
-                creationCost: bet.creationCost,
-                status: bet.status,
-                createdAt: bet.createdAt
-            },
+    const formatBet = (bet) => ({
+        betId: bet.betId,
+        chatId: bet.chatId,
+        creatorId: bet.creatorId,
+        betType: bet.betType,
+        description: bet.description,
+        deadline: bet.deadline,
+        targetUserId: bet.targetUserId,
+        creationCost: bet.creationCost,
+        status: bet.status,
+        createdAt: bet.createdAt
+    });
+    // Hydrate all cards concurrently to avoid O(n) serialized DB latency.
+    const memberFeedBets = await Promise.all(memberBets.map(async (bet) => {
+        const [totals, participants] = await Promise.all([
+            (0, betService_1.getBetTotals)(bet.betId),
+            (0, betService_1.getBetParticipants)(bet.betId),
+        ]);
+        return {
+            bet: formatBet(bet),
             accessLevel: 'full',
             source: 'chat_member',
             canBet: true,
             totals,
             participantCount: participants.length
-        });
-    }
-    // Add view-only bets
-    for (const bet of viewOnlyBets) {
-        const totals = await (0, betService_1.getBetTotals)(bet.betId);
-        const participants = await (0, betService_1.getBetParticipants)(bet.betId);
-        // Determine source
+        };
+    }));
+    const viewOnlyFeedBets = await Promise.all(viewOnlyBets.map(async (bet) => {
+        const [totals, participants] = await Promise.all([
+            (0, betService_1.getBetTotals)(bet.betId),
+            (0, betService_1.getBetParticipants)(bet.betId),
+        ]);
         const source = connectedUserIds.includes(bet.creatorId)
             ? 'past_connection'
             : 'contact';
-        allBets.push({
-            bet: {
-                betId: bet.betId,
-                chatId: bet.chatId,
-                creatorId: bet.creatorId,
-                betType: bet.betType,
-                description: bet.description,
-                deadline: bet.deadline,
-                targetUserId: bet.targetUserId,
-                creationCost: bet.creationCost,
-                status: bet.status,
-                createdAt: bet.createdAt
-            },
+        return {
+            bet: formatBet(bet),
             accessLevel: 'view_only',
             source,
-            canBet: false, // Must join chat to bet
+            canBet: false,
             totals,
             participantCount: participants.length
-        });
-    }
+        };
+    }));
+    // Combine and sort by urgency/freshness
+    const allBets = [...memberFeedBets, ...viewOnlyFeedBets];
     // Sort by:
     // 1. Urgency (bets ending soon first for active bets)
     // 2. Stakes (high Aura pots)

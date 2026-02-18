@@ -16,7 +16,7 @@ const upload = multer({
 });
 
 interface UploadRequestBody {
-  userId: string;
+  userId?: string;
   chatId: string;
   isLocked: string | boolean;
 }
@@ -26,7 +26,7 @@ interface VideoParams {
 }
 
 interface UnlockRequest {
-  userId: string;
+  userId?: string;
 }
 
 interface ChatParams {
@@ -39,11 +39,17 @@ interface ChatParams {
  */
 router.post('/upload', authMiddleware, upload.single('video'), async (req: Request<{}, {}, UploadRequestBody>, res: Response) => {
   try {
-    const { userId, chatId, isLocked } = req.body;
+    const authenticatedUserId = req.userId!;
+    const { userId: requestedUserId, chatId, isLocked } = req.body;
+    const userId = authenticatedUserId;
     const file = req.file;
 
     if (!file) {
       return res.status(400).json({ error: 'No video file provided' });
+    }
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot upload as another user' });
     }
 
     if (!userId || !chatId) {
@@ -110,8 +116,14 @@ router.get('/:videoId', async (req: Request<VideoParams>, res: Response) => {
  */
 router.post('/:videoId/unlock', authMiddleware, async (req: Request, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { videoId } = req.params;
-    const { userId } = req.body;
+    const { userId: requestedUserId } = req.body as UnlockRequest;
+    const userId = authenticatedUserId;
+
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot unlock as another user' });
+    }
 
     const vibe = await Vibe.findByIdAndUpdate(
       videoId,

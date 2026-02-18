@@ -10,6 +10,10 @@ import ChatMember from '../models/ChatMember';
 import Chat from '../models/Chat';
 import User from '../models/User';
 import { IJoinRequest } from '../types';
+import {
+  ensureChatMembership,
+  ensureChatMembershipIfKnown,
+} from './chatMembershipService';
 
 /**
  * Create a join request for a chat
@@ -36,7 +40,10 @@ export async function createJoinRequest(params: {
 
   // Check if already a member
   const existingMember = await ChatMember.findOne({ chatId, userId });
-  if (existingMember) {
+  if (existingMember || chat.members.includes(userId) || user.joinedChatIds.includes(chatId)) {
+    if (!existingMember) {
+      await ensureChatMembership({ chatId, userId, membershipType: 'full' });
+    }
     throw new Error('You are already a member of this chat');
   }
 
@@ -91,10 +98,19 @@ export async function voteOnJoinRequest(params: {
   }
 
   // Verify voter is a member of the chat
-  const voterMember = await ChatMember.findOne({
+  let voterMember = await ChatMember.findOne({
     chatId: request.chatId,
     userId: voterId
   });
+  if (!voterMember) {
+    const repaired = await ensureChatMembershipIfKnown(request.chatId, voterId);
+    if (repaired) {
+      voterMember = await ChatMember.findOne({
+        chatId: request.chatId,
+        userId: voterId
+      });
+    }
+  }
   if (!voterMember) {
     throw new Error('Only chat members can vote on join requests');
   }
@@ -142,12 +158,11 @@ export async function voteOnJoinRequest(params: {
     request.resolvedAt = new Date();
     await request.save();
 
-    // Add to chat_members as virtual member
-    await ChatMember.create({
+    await ensureChatMembership({
       chatId: request.chatId,
       userId: request.userId,
       membershipType: 'virtual',
-      role: 'member'
+      role: 'member',
     });
 
     resolved = true;

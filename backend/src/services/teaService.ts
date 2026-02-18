@@ -12,9 +12,33 @@ import TeaGuess from '../models/TeaGuess';
 import AuraTransaction from '../models/AuraTransaction';
 import ChatMember from '../models/ChatMember';
 import { ITeaSpill, ITeaGuess } from '../types';
+import { ensureChatMembershipIfKnown } from './chatMembershipService';
 
 const CREATION_COST = 10;
 const MIN_GUESS_AMOUNT = 10;
+
+async function requireChatMembership(chatId: string, userId: string, errorMessage: string): Promise<void> {
+  let membership = await ChatMember.findOne({ chatId, userId });
+  if (!membership) {
+    const repaired = await ensureChatMembershipIfKnown(chatId, userId);
+    if (repaired) {
+      membership = await ChatMember.findOne({ chatId, userId });
+    }
+  }
+
+  if (!membership) {
+    throw new Error(errorMessage);
+  }
+}
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: number }).code === 11000
+  );
+}
 
 // ═══════════════════════════════════════════════════════════
 // CREATE TEA SPILL
@@ -33,10 +57,7 @@ export async function createTeaSpill(input: CreateTeaSpillInput): Promise<ITeaSp
   const { chatId, creatorId, mysteryText, answer, options, deadline } = input;
 
   // Verify creator is in chat
-  const membership = await ChatMember.findOne({ chatId, userId: creatorId });
-  if (!membership) {
-    throw new Error('You must be a member of this chat to create a tea spill');
-  }
+  await requireChatMembership(chatId, creatorId, 'You must be a member of this chat to create a tea spill');
 
   // Verify creator has sufficient Aura
   const creator = await User.findById(creatorId);
@@ -105,10 +126,7 @@ export async function guessTeaSpill(input: GuessTeaSpillInput): Promise<ITeaGues
   if (tea.deadline <= new Date()) throw new Error('Tea spill deadline has passed');
 
   // Verify chat membership
-  const membership = await ChatMember.findOne({ chatId: tea.chatId, userId });
-  if (!membership) {
-    throw new Error('You must be in this chat to guess');
-  }
+  await requireChatMembership(tea.chatId, userId, 'You must be in this chat to guess');
 
   // Creator cannot guess on their own tea
   if (userId === tea.creatorId) {
@@ -122,6 +140,9 @@ export async function guessTeaSpill(input: GuessTeaSpillInput): Promise<ITeaGues
 
   // Validate amount
   if (amount < MIN_GUESS_AMOUNT) {
+    throw new Error(`Minimum guess amount is ${MIN_GUESS_AMOUNT} Aura`);
+  }
+  if (!Number.isInteger(amount)) {
     throw new Error(`Minimum guess amount is ${MIN_GUESS_AMOUNT} Aura`);
   }
 
@@ -159,13 +180,21 @@ export async function guessTeaSpill(input: GuessTeaSpillInput): Promise<ITeaGues
   });
 
   // Create guess
-  const teaGuess = await TeaGuess.create({
-    guessId,
-    teaId,
-    userId,
-    guess,
-    amount,
-  });
+  let teaGuess: ITeaGuess;
+  try {
+    teaGuess = await TeaGuess.create({
+      guessId,
+      teaId,
+      userId,
+      guess,
+      amount,
+    });
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      throw new Error('You have already guessed on this tea spill');
+    }
+    throw error;
+  }
 
   return teaGuess;
 }

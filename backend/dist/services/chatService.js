@@ -19,6 +19,7 @@ const JoinRequestVote_1 = __importDefault(require("../models/JoinRequestVote"));
 const ChatMember_1 = __importDefault(require("../models/ChatMember"));
 const Chat_1 = __importDefault(require("../models/Chat"));
 const User_1 = __importDefault(require("../models/User"));
+const chatMembershipService_1 = require("./chatMembershipService");
 /**
  * Create a join request for a chat
  */
@@ -36,7 +37,10 @@ async function createJoinRequest(params) {
     }
     // Check if already a member
     const existingMember = await ChatMember_1.default.findOne({ chatId, userId });
-    if (existingMember) {
+    if (existingMember || chat.members.includes(userId) || user.joinedChatIds.includes(chatId)) {
+        if (!existingMember) {
+            await (0, chatMembershipService_1.ensureChatMembership)({ chatId, userId, membershipType: 'full' });
+        }
         throw new Error('You are already a member of this chat');
     }
     // Check if pending request already exists
@@ -74,10 +78,19 @@ async function voteOnJoinRequest(params) {
         throw new Error(`Request is already ${request.status}`);
     }
     // Verify voter is a member of the chat
-    const voterMember = await ChatMember_1.default.findOne({
+    let voterMember = await ChatMember_1.default.findOne({
         chatId: request.chatId,
         userId: voterId
     });
+    if (!voterMember) {
+        const repaired = await (0, chatMembershipService_1.ensureChatMembershipIfKnown)(request.chatId, voterId);
+        if (repaired) {
+            voterMember = await ChatMember_1.default.findOne({
+                chatId: request.chatId,
+                userId: voterId
+            });
+        }
+    }
     if (!voterMember) {
         throw new Error('Only chat members can vote on join requests');
     }
@@ -117,12 +130,11 @@ async function voteOnJoinRequest(params) {
         request.status = 'approved';
         request.resolvedAt = new Date();
         await request.save();
-        // Add to chat_members as virtual member
-        await ChatMember_1.default.create({
+        await (0, chatMembershipService_1.ensureChatMembership)({
             chatId: request.chatId,
             userId: request.userId,
             membershipType: 'virtual',
-            role: 'member'
+            role: 'member',
         });
         resolved = true;
         outcome = 'approved';

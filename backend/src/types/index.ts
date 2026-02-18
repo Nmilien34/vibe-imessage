@@ -42,7 +42,7 @@ export type MembershipType = 'full' | 'virtual';
 export type MemberRole = 'admin' | 'member';
 
 // Discovery
-export type VisibilitySource = 'past_chat' | 'contact' | 'manual';
+export type VisibilitySource = 'past_chat' | 'past_connection' | 'contact' | 'manual';
 
 // Join Request
 export type JoinRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';

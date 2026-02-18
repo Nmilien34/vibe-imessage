@@ -1,0 +1,16 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/SketchComposerView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Send Doodle",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 75
+        }
+      }
+    ]
+  },
+  "version": 1
+}
