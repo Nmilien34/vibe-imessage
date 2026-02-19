@@ -8,6 +8,7 @@ const apple_signin_auth_1 = __importDefault(require("apple-signin-auth"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const User_1 = __importDefault(require("../models/User"));
 const auraService_1 = require("../services/auraService");
+const contactNetworkService_1 = require("../services/contactNetworkService");
 const router = express_1.default.Router();
 const DEFAULT_APPLE_AUDIENCES = [
     'nickmilien.com.vibes.MessagesExtension',
@@ -200,6 +201,17 @@ router.post('/apple', async (req, res) => {
                 await user.save();
             }
         }
+        if (user.contactDiscoveryEnabled) {
+            try {
+                await (0, contactNetworkService_1.registerVerifiedEmailIdentifier)({
+                    userId: user._id,
+                    email: user.email || appleEmail || email,
+                });
+            }
+            catch (identifierError) {
+                console.error('Auth identifier registration warning:', identifierError);
+            }
+        }
         const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id);
         if (dailyBonusClaimed) {
             console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
@@ -255,6 +267,17 @@ router.post('/dev-login', async (req, res) => {
             await user.save();
             isNewUser = true;
             console.log(`Dev login: Created new test user ${userId}`);
+        }
+        if (user.contactDiscoveryEnabled) {
+            try {
+                await (0, contactNetworkService_1.registerVerifiedEmailIdentifier)({
+                    userId: user._id,
+                    email: user.email,
+                });
+            }
+            catch (identifierError) {
+                console.error('Dev auth identifier registration warning:', identifierError);
+            }
         }
         const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id);
         if (dailyBonusClaimed) {

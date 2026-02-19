@@ -14,6 +14,7 @@ import UserConnection from '../models/UserConnection';
 import VisibilityPermission from '../models/VisibilityPermission';
 import { getBetTotals, getBetParticipants } from './betService';
 import { ensureChatMembership } from './chatMembershipService';
+import { getAudienceGraph } from './contactNetworkService';
 
 interface FeedBet {
   bet: any;
@@ -62,36 +63,10 @@ export async function generateFeed(params: {
     ? memberships.map(m => m.chatId)
     : (user?.joinedChatIds || []);
 
-  // Get past connections (users who shared chats with this user)
-  const connections = await UserConnection.find({
-    $or: [{ userId1: userId }, { userId2: userId }]
-  });
-  const connectedUserIds = connections.map(c =>
-    c.userId1 === userId ? c.userId2 : c.userId1
-  );
-
-  // Get contacts who user has granted visibility to (and vice versa)
-  const visibilityGrants = await VisibilityPermission.find({
-    $or: [
-      { userId: userId, revokedAt: null },
-      { visibleToUserId: userId, revokedAt: null }
-    ]
-  });
-
-  // Build set of users who can see this user's bets
-  const contactUserIds: string[] = [];
-  for (const grant of visibilityGrants) {
-    if (grant.userId === userId) {
-      // User granted visibility to someone
-      contactUserIds.push(grant.visibleToUserId);
-    } else {
-      // Someone granted visibility to user
-      contactUserIds.push(grant.userId);
-    }
-  }
-
-  // Deduplicate
-  const allVisibleUserIds = [...new Set([...connectedUserIds, ...contactUserIds])];
+  const audienceGraph = await getAudienceGraph({ userId });
+  const connectedUserIds = audienceGraph.groupUserIds;
+  const contactUserIds = audienceGraph.contactUserIds;
+  const allVisibleUserIds = audienceGraph.mergedUserIds;
 
   // Query 1: Bets from chats user is in (full access)
   const memberBets = await Bet.find({
@@ -146,7 +121,7 @@ export async function generateFeed(params: {
         getBetParticipants(bet.betId),
       ]);
 
-      const source = connectedUserIds.includes(bet.creatorId)
+      const source = connectedUserIds.includes(bet.creatorId) && !contactUserIds.includes(bet.creatorId)
         ? 'past_connection'
         : 'contact';
 

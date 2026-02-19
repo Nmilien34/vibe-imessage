@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.NewsItem = exports.JoinRequestVote = exports.JoinRequest = exports.VisibilityPermission = exports.UserConnection = exports.ChatMember = exports.TeaGuess = exports.TeaSpill = exports.AuraTransaction = exports.BetResolution = exports.BetProof = exports.BetParticipant = exports.Bet = exports.ArchivedVibe = exports.Reminder = exports.Streak = exports.Chat = exports.HISTORY_RETENTION_DAYS = exports.FEED_EXPIRATION_DAYS = exports.Vibe = exports.User = void 0;
+exports.NewsItem = exports.JoinRequestVote = exports.JoinRequest = exports.UserIdentifier = exports.VisibilityPermission = exports.UserConnection = exports.ChatMember = exports.TeaGuess = exports.TeaSpill = exports.AuraTransaction = exports.BetResolution = exports.BetProof = exports.BetParticipant = exports.Bet = exports.ArchivedVibe = exports.Reminder = exports.Streak = exports.Chat = exports.HISTORY_RETENTION_DAYS = exports.FEED_EXPIRATION_DAYS = exports.Vibe = exports.User = void 0;
 var User_1 = require("./User");
 Object.defineProperty(exports, "User", { enumerable: true, get: function () { return __importDefault(User_1).default; } });
 var Vibe_1 = require("./Vibe");
@@ -38,6 +38,8 @@ var UserConnection_1 = require("./UserConnection");
 Object.defineProperty(exports, "UserConnection", { enumerable: true, get: function () { return __importDefault(UserConnection_1).default; } });
 var VisibilityPermission_1 = require("./VisibilityPermission");
 Object.defineProperty(exports, "VisibilityPermission", { enumerable: true, get: function () { return __importDefault(VisibilityPermission_1).default; } });
+var UserIdentifier_1 = require("./UserIdentifier");
+Object.defineProperty(exports, "UserIdentifier", { enumerable: true, get: function () { return __importDefault(UserIdentifier_1).default; } });
 var JoinRequest_1 = require("./JoinRequest");
 Object.defineProperty(exports, "JoinRequest", { enumerable: true, get: function () { return __importDefault(JoinRequest_1).default; } });
 var JoinRequestVote_1 = require("./JoinRequestVote");

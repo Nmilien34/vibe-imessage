@@ -59,6 +59,8 @@ struct RootView: View {
                         } else {
                             FeedView()
                         }
+                    case .networkSettings:
+                        NetworkSettingsView()
                     }
                 }
             }

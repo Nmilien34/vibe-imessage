@@ -20,6 +20,10 @@ import {
   revokeVisibility,
   createConnection,
 } from '../services/feedService';
+import {
+  getAudienceGraph,
+  syncContactNetwork,
+} from '../services/contactNetworkService';
 
 const router: Router = express.Router();
 
@@ -33,6 +37,12 @@ interface StoriesQuery {
   userId?: string;
   chatIds?: string; // Comma-separated chat IDs
   limit?: string;
+}
+
+interface SyncContactsRequest {
+  contactHashes?: string[];
+  replace?: boolean;
+  enableDiscovery?: boolean;
 }
 
 interface ChatParams {
@@ -150,17 +160,13 @@ async function groupVibesIntoStories(
 
 /**
  * @route   GET /api/feed/my-feed
- * @query   { userId, limit?, offset? }
+ * @query   { limit?, offset? }
  * @desc    Get unified feed - all vibes from all chats user belongs to
  */
-router.get('/my-feed', optionalAuth, async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
+router.get('/my-feed', authMiddleware, async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
   try {
-    const userId = req.userId || req.query.userId;
+    const userId = req.userId!;
     const { limit = '50', offset = '0' } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
 
     const user = await User.findById(userId);
     if (!user || !user.joinedChatIds || user.joinedChatIds.length === 0) {
@@ -441,6 +447,50 @@ router.get('/user/:oderId/vibes', async (req: Request<{ oderId: string }, {}, {}
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * @route   GET /api/feed/audience
+ * @desc    Preview merged audience graph (group network + contact network)
+ * @access  Private
+ */
+router.get('/audience', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const audience = await getAudienceGraph({ userId });
+    res.json(audience);
+  } catch (error: any) {
+    console.error('Audience graph error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/feed/contacts/sync
+ * @desc    Sync hashed contacts and update contact-based visibility graph
+ * @access  Private
+ */
+router.post('/contacts/sync', authMiddleware, async (req: Request<{}, {}, SyncContactsRequest>, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { contactHashes, replace, enableDiscovery } = req.body;
+
+    if (!Array.isArray(contactHashes)) {
+      return res.status(400).json({ error: 'contactHashes must be an array' });
+    }
+
+    const result = await syncContactNetwork({
+      userId,
+      contactHashes,
+      replace,
+      enableDiscovery,
+    });
+
+    res.json(result);
+  } catch (error: any) {
+    console.error('Contact sync error:', error);
+    res.status(400).json({ error: error.message });
   }
 });
 

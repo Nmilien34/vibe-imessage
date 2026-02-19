@@ -23,7 +23,7 @@ const betSchema = new Schema<IBet>(
       index: true,
     },
     targetUserId: { type: String },
-    creationCost: { type: Number, default: 10 },
+    creationCost: { type: Number, default: 2 },
   },
   { timestamps: true }
 );

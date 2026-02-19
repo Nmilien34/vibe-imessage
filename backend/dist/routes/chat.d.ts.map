@@ -1,1 +1,1 @@
-{"version":3,"file":"chat.d.ts","sourceRoot":"","sources":["../../src/routes/chat.ts"],"names":[],"mappings":"AAAA,OAAgB,EAAqB,MAAM,EAAE,MAAM,SAAS,CAAC;AA2B7D,QAAA,MAAM,MAAM,EAAE,MAAyB,CAAC;AAsjBxC,eAAe,MAAM,CAAC"}
+{"version":3,"file":"chat.d.ts","sourceRoot":"","sources":["../../src/routes/chat.ts"],"names":[],"mappings":"AAAA,OAAgB,EAAqB,MAAM,EAAE,MAAM,SAAS,CAAC;AA2B7D,QAAA,MAAM,MAAM,EAAE,MAAyB,CAAC;AAikBxC,eAAe,MAAM,CAAC"}

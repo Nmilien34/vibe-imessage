@@ -55,6 +55,10 @@ const userSchema = new mongoose_1.Schema({
         type: String,
         lowercase: true,
     },
+    contactDiscoveryEnabled: {
+        type: Boolean,
+        default: false,
+    },
     profilePicture: { type: String },
     birthday: {
         month: { type: Number },

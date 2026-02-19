@@ -102,6 +102,42 @@ struct TypeTag: View {
     }
 }
 
+// MARK: - Source Tag
+
+struct SourceTag: View {
+    let source: String
+
+    private var label: String {
+        switch source {
+        case "chat_member": return "Your GC"
+        case "past_connection": return "Network"
+        case "contact": return "Contact"
+        default: return ""
+        }
+    }
+
+    private var color: Color {
+        switch source {
+        case "chat_member": return .teal
+        case "past_connection": return .purple
+        case "contact": return VibeTheme.accentBlue
+        default: return VibeTheme.textTertiary
+        }
+    }
+
+    var body: some View {
+        if !label.isEmpty {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(color)
+                .padding(.horizontal, VibeSpacing.xs)
+                .padding(.vertical, 3)
+                .background(color.opacity(0.1))
+                .clipShape(Capsule())
+        }
+    }
+}
+
 // MARK: - Stake Bar
 
 struct StakeBar: View {
@@ -177,6 +213,7 @@ struct BetCard: View {
     @EnvironmentObject var appState: AppState
     let bet: Bet
     var totals: BetTotals? = nil
+    var source: String? = nil
     var interactionStyle: BetCardInteractionStyle = .detail
 
     private var resolvedTotals: BetTotals? {
@@ -208,6 +245,9 @@ struct BetCard: View {
                     Spacer()
 
                     TypeTag(betType: bet.betType)
+                    if let source = source {
+                        SourceTag(source: source)
+                    }
                     CountdownBadge(deadline: bet.deadline)
                 }
 

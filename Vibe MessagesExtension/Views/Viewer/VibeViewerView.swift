@@ -34,6 +34,7 @@ struct VibeViewerView: View {
     @State private var isSubmittingStake = false
     @State private var stakeError: String?
     @State private var stakeResolutionSession = UUID()
+    @State private var showViewerList = false
     @State private var showJoinRequestPrompt = false
     @State private var pendingJoinChatId: String?
     @State private var pendingJoinBetId: String?
@@ -176,6 +177,11 @@ struct VibeViewerView: View {
             )
             .presentationDetents([.fraction(0.5), .large])
             .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showViewerList) {
+            if let vibe = currentVibe {
+                ViewerListSheet(viewerIds: vibe.viewedBy)
+            }
         }
         .onChange(of: showStakeSheet) { _, isPresented in
             if isPresented {
@@ -587,18 +593,27 @@ struct VibeViewerView: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        // Views count
-                        HStack(spacing: VibeSpacing.xxs) {
-                            Image(systemName: "eye.fill")
-                            Text("\(vibe.viewedBy.count)")
-                                .contentTransition(.numericText())
+                        // Views count — tappable for own stories
+                        Button {
+                            if vibe.userId == appState.userId {
+                                VibeHaptic.light()
+                                Task { await appState.loadBatchUsers(ids: vibe.viewedBy) }
+                                showViewerList = true
+                            }
+                        } label: {
+                            HStack(spacing: VibeSpacing.xxs) {
+                                Image(systemName: "eye.fill")
+                                Text("\(vibe.viewedBy.count)")
+                                    .contentTransition(.numericText())
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, VibeSpacing.sm)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Capsule())
                         }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, VibeSpacing.sm)
-                        .padding(.vertical, VibeSpacing.xs)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -1883,6 +1898,57 @@ struct ViewerSkeletonView: View {
             }
         }
         .vibeShimmer()
+    }
+}
+
+// MARK: - Viewer List Sheet
+
+struct ViewerListSheet: View {
+    @EnvironmentObject var appState: AppState
+    let viewerIds: [String]
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(viewerIds, id: \.self) { viewerId in
+                    HStack(spacing: VibeSpacing.md) {
+                        if let cached = appState.userCache[viewerId],
+                           let picUrl = cached.profilePicture,
+                           let url = URL.httpURL(from: picUrl) {
+                            AsyncImage(url: url) { image in
+                                image.resizable().scaledToFill()
+                            } placeholder: {
+                                viewerInitialsCircle(for: viewerId)
+                            }
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                        } else {
+                            viewerInitialsCircle(for: viewerId)
+                        }
+
+                        Text(appState.nameForUser(viewerId))
+                            .font(VibeTypography.bodyMedium)
+                            .foregroundColor(VibeTheme.textPrimary)
+                    }
+                    .listRowBackground(VibeTheme.cardBackground)
+                }
+            }
+            .listStyle(.plain)
+            .navigationTitle("Seen by \(viewerIds.count)")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func viewerInitialsCircle(for userId: String) -> some View {
+        Circle()
+            .fill(VibeTheme.surfaceOverlay)
+            .frame(width: 36, height: 36)
+            .overlay(
+                Text(String(appState.nameForUser(userId).prefix(1)).uppercased())
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(VibeTheme.textPrimary)
+            )
     }
 }
 

@@ -284,6 +284,7 @@ class APIService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -325,6 +326,7 @@ class APIService {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        applyAuth(to: &request)
 
         let (data, response) = try await URLSession.shared.data(for: request)
 

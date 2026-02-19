@@ -36,6 +36,10 @@ struct BentoDashboardView: View {
             await appState.loadExpandedBets()
             await appState.loadExpandedTeaSpills()
             _ = await (auraTask, profileTask)
+
+            Task.detached(priority: .background) {
+                await appState.syncContactsIfNeeded()
+            }
         }
         .fullScreenCover(isPresented: $appState.shouldShowVibePicker) {
             ExploreAllVibesView()
@@ -190,6 +194,7 @@ struct FeedTabView: View {
                         BetCard(
                             bet: bet,
                             totals: appState.betTotalsById[bet.betId],
+                            source: appState.betSourceById[bet.betId],
                             interactionStyle: .detail
                         )
                     }
@@ -524,6 +529,11 @@ struct MeTabView: View {
 
                     QuickLinkRow(icon: "list.bullet", title: "My Bets", color: VibeTheme.betAccent) {
                         appState.navigateToBetList()
+                    }
+                    Divider().padding(.leading, 44)
+
+                    QuickLinkRow(icon: "person.2.fill", title: "My Network", color: VibeTheme.accent) {
+                        appState.navigateToNetworkSettings()
                     }
                     Divider().padding(.leading, 44)
 

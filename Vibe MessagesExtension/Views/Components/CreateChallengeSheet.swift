@@ -259,7 +259,12 @@ struct CreateChallengeSheet: View {
         starterChoices.first(where: { $0.id == selectedStarterId })
     }
 
-    private var creationFee: Int { 10 }
+    private let betCreationFee = 2
+    private let teaCreationFee = 10
+
+    private var creationFee: Int {
+        selectedKind == .tea ? teaCreationFee : betCreationFee
+    }
     private var totalCost: Int {
         selectedKind.needsStake ? creationFee + stakeAmount : creationFee
     }

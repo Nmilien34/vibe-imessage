@@ -9,6 +9,7 @@ import Foundation
 import Messages
 import SwiftUI
 import Combine
+import Contacts
 
 enum PresentationMode {
     case compact
@@ -26,6 +27,7 @@ enum NavigationDestination: Equatable {
     case betList
     case teaGuess
     case teaReveal
+    case networkSettings
 }
 
 enum DashboardTab: Int, CaseIterable {
@@ -33,7 +35,7 @@ enum DashboardTab: Int, CaseIterable {
 }
 
 enum BetStatusFilter: String, CaseIterable {
-    case all, active, completed
+    case all, active, completed, expired, ducked
 }
 
 /// Parameters for a locked message that was tapped
@@ -98,12 +100,21 @@ class AppState: ObservableObject {
     @Published var showCreateSheet = false
     @Published var betFilter: BetStatusFilter = .all
 
+    // MARK: - User Cache & Network
+    @Published var userCache: [String: CachedUser] = [:]
+    @Published var audienceGraph: AudienceGraph?
+    @Published var networkUsers: [NetworkUser] = []
+    @Published var contactDiscoveryEnabled: Bool = false
+    @Published var betSourceById: [String: String] = [:]
+
     var filteredBets: [Bet] {
         let source = expandedBets
         switch betFilter {
         case .all: return source
         case .active: return source.filter { $0.status == .active }
         case .completed: return source.filter { $0.status == .completed }
+        case .expired: return source.filter { $0.status == .expired }
+        case .ducked: return source.filter { $0.status == .ducked }
         }
     }
 
@@ -572,6 +583,41 @@ class AppState: ObservableObject {
         return response.message ?? "Join request submitted."
     }
 
+    func syncContactHashes(_ contactHashes: [String], replace: Bool = true, enableDiscovery: Bool = true) async {
+        guard isAuthenticated else { return }
+
+        struct SyncContactsRequest: Encodable {
+            let contactHashes: [String]
+            let replace: Bool
+            let enableDiscovery: Bool
+        }
+
+        struct SyncContactsResponse: Decodable {
+            let processed: Int?
+            let matchedUsers: Int?
+            let audienceSize: Int?
+        }
+
+        let sanitized = Array(Set(contactHashes.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }))
+            .filter { !$0.isEmpty }
+
+        guard !sanitized.isEmpty else { return }
+
+        do {
+            let response: SyncContactsResponse = try await APIClient.shared.post(
+                "/feed/contacts/sync",
+                body: SyncContactsRequest(
+                    contactHashes: sanitized,
+                    replace: replace,
+                    enableDiscovery: enableDiscovery
+                )
+            )
+            print("AppState Debug: Synced contacts. Processed=\(response.processed ?? 0), Matches=\(response.matchedUsers ?? 0), Audience=\(response.audienceSize ?? 0)")
+        } catch {
+            print("AppState Error: Contact sync failed: \(error)")
+        }
+    }
+
     // MARK: - Data Loading
 
     /**
@@ -872,6 +918,7 @@ class AppState: ObservableObject {
         for item in items {
             betTotalsById[item.bet.betId] = item.totals
             betCanStakeById[item.bet.betId] = item.canBet && item.bet.status == .active
+            betSourceById[item.bet.betId] = item.source
         }
     }
 
@@ -939,10 +986,15 @@ class AppState: ObservableObject {
         do {
             async let active = BettingService.shared.getDiscoverBets(status: .active)
             async let completed = BettingService.shared.getDiscoverBets(status: .completed)
+            async let expired = BettingService.shared.getDiscoverBets(status: .expired)
+            async let ducked = BettingService.shared.getDiscoverBets(status: .ducked)
 
             let activeResponse = try await active
             let completedResponse = try await completed
+            let expiredResponse = try await expired
+            let duckedResponse = try await ducked
             let combinedItems = activeResponse.bets + completedResponse.bets
+                + expiredResponse.bets + duckedResponse.bets
 
             cacheDiscoverBetItems(combinedItems)
 
@@ -951,6 +1003,10 @@ class AppState: ObservableObject {
                 .sorted { $0.createdAt > $1.createdAt }
 
             self.expandedBets = deduplicateBets(bets)
+
+            // Populate user cache with real names
+            let creatorIds = Array(Set(combinedItems.map(\.bet.creatorId)))
+            await loadBatchUsers(ids: creatorIds)
         } catch {
             print("AppState Error: Loading expanded bets failed: \(error)")
         }
@@ -1929,17 +1985,121 @@ class AppState: ObservableObject {
     func nameForUser(_ id: String) -> String {
         if id == userId { return "You" }
         if id == "vibe_team" { return "Vibez" }
-        
+
+        // Check user cache for real names from backend
+        if let cached = userCache[id] {
+            return cached.displayName
+        }
+
         // Consistent Friend Mappings for simulator/mock
         if id.contains("friend_1") || id.contains("friend1") { return "Sarah" }
         if id.contains("friend_2") || id.contains("friend2") { return "Mike" }
         if id.contains("friend_3") || id.contains("friend3") { return "Jess" }
         if id.contains("friend_4") || id.contains("friend4") { return "Alex" }
         if id.contains("friend_5") || id.contains("friend5") { return "Sam" }
-        
+
         // Deterministic Fallback
         let names = ["Emma", "Liam", "Olivia", "Noah", "Ava", "Ethan", "Sophia", "Mason"]
         let index = abs(id.hashValue) % names.count
         return names[index]
+    }
+
+    // MARK: - User Cache & Network
+
+    func loadBatchUsers(ids: [String]) async {
+        let uncachedIds = ids.filter { userCache[$0] == nil && $0 != userId && $0 != "vibe_team" }
+        guard !uncachedIds.isEmpty else { return }
+
+        let chunks = stride(from: 0, to: uncachedIds.count, by: 100).map {
+            Array(uncachedIds[$0..<min($0 + 100, uncachedIds.count)])
+        }
+
+        for chunk in chunks {
+            do {
+                struct BatchRequest: Encodable { let userIds: [String] }
+                let response: BatchUserResponse = try await APIClient.shared.post(
+                    "/user/batch",
+                    body: BatchRequest(userIds: chunk)
+                )
+                for user in response.users {
+                    userCache[user.id] = user
+                }
+            } catch {
+                print("AppState Error: Batch user load failed: \(error)")
+            }
+        }
+    }
+
+    func loadAudienceGraph() async {
+        guard isAuthenticated else { return }
+        do {
+            let graph: AudienceGraph = try await APIClient.shared.get("/feed/audience")
+            self.audienceGraph = graph
+
+            await loadBatchUsers(ids: graph.mergedUserIds)
+
+            var result: [NetworkUser] = []
+            for uid in graph.groupUserIds {
+                if let cached = userCache[uid] {
+                    result.append(NetworkUser(id: uid, user: cached, source: "group"))
+                }
+            }
+            for uid in graph.contactUserIds where !graph.groupUserIds.contains(uid) {
+                if let cached = userCache[uid] {
+                    result.append(NetworkUser(id: uid, user: cached, source: "contact"))
+                }
+            }
+            self.networkUsers = result
+        } catch {
+            print("AppState Error: Loading audience graph failed: \(error)")
+        }
+    }
+
+    func revokeVisibility(targetUserId: String) async {
+        struct RevokeRequest: Encodable { let targetUserId: String }
+        struct RevokeResponse: Codable { let success: Bool }
+        do {
+            let _: RevokeResponse = try await APIClient.shared.post(
+                "/feed/visibility/revoke",
+                body: RevokeRequest(targetUserId: targetUserId)
+            )
+            await loadAudienceGraph()
+        } catch {
+            print("AppState Error: Revoking visibility failed: \(error)")
+        }
+    }
+
+    func toggleContactDiscovery(enabled: Bool) async {
+        struct DiscoveryRequest: Encodable {
+            let contactHashes: [String]
+            let enableDiscovery: Bool
+        }
+        struct DiscoveryResponse: Codable {
+            let processed: Int?
+            let audienceSize: Int?
+        }
+        do {
+            let _: DiscoveryResponse = try await APIClient.shared.post(
+                "/feed/contacts/sync",
+                body: DiscoveryRequest(contactHashes: [], enableDiscovery: enabled)
+            )
+            self.contactDiscoveryEnabled = enabled
+            await loadAudienceGraph()
+        } catch {
+            print("AppState Error: Toggling contact discovery failed: \(error)")
+        }
+    }
+
+    func navigateToNetworkSettings() {
+        currentDestination = .networkSettings
+        requestExpand()
+        Task { await loadAudienceGraph() }
+    }
+
+    func syncContactsIfNeeded() async {
+        guard isAuthenticated, contactDiscoveryEnabled else { return }
+        // Re-run contact hash sync in background using existing syncContactHashes
+        // This is a no-op if discovery is disabled
+        await syncContactHashes([], replace: false, enableDiscovery: true)
     }
 }

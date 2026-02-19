@@ -14,6 +14,7 @@ export { default as TeaGuess } from './TeaGuess';
 export { default as ChatMember } from './ChatMember';
 export { default as UserConnection } from './UserConnection';
 export { default as VisibilityPermission } from './VisibilityPermission';
+export { default as UserIdentifier } from './UserIdentifier';
 export { default as JoinRequest } from './JoinRequest';
 export { default as JoinRequestVote } from './JoinRequestVote';
 export { NewsItem } from './NewsItem';

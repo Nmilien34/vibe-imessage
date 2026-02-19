@@ -38,6 +38,10 @@ interface JoinChatRequest {
   chatId: string;
 }
 
+function isLikelyBackendChatId(chatId: string): boolean {
+  return chatId.startsWith('chat_') && chatId.length > 'chat_'.length + 8;
+}
+
 /**
  * @route   POST /api/chat/resolve
  * @desc    Resolve or create a chat - The "Trojan Horse" endpoint
@@ -49,26 +53,33 @@ interface JoinChatRequest {
  *             and return their most recent chat, or create a new one
  *          3. Always ensures user is a member of the returned chat
  */
-router.post('/resolve', async (req: Request<{}, {}, ResolveChatRequest>, res: Response) => {
+router.post('/resolve', authMiddleware, async (req: Request<{}, {}, ResolveChatRequest>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { userId: requestedUserId, chatId, appleUUID, title } = req.body;
+    const normalizedUserId = requestedUserId || authenticatedUserId;
 
-    if (!requestedUserId) {
-      return res.status(400).json({ error: 'userId is required' });
+    if (requestedUserId && requestedUserId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot resolve chat for another user' });
+    }
+
+    if (chatId && !isLikelyBackendChatId(chatId)) {
+      return res.status(400).json({ error: 'Invalid chatId format' });
     }
 
     // Resolve canonical user first so all downstream membership writes
     // (Chat.members, User.joinedChatIds, ChatMember.userId) stay aligned.
-    let user = await User.findById(requestedUserId);
+    let user = await User.findById(normalizedUserId);
     if (!user) {
-      user = await User.findOne({ appleId: requestedUserId });
+      user = await User.findOne({ appleId: normalizedUserId });
     }
     if (!user && appleUUID) {
       user = await User.findOne({ appleUUID });
     }
     if (!user) {
       user = new User({
-        _id: requestedUserId,
+        _id: normalizedUserId,
+        appleId: normalizedUserId,
         appleUUID: appleUUID || undefined,
         joinedChatIds: [],
       });
@@ -79,8 +90,8 @@ router.post('/resolve', async (req: Request<{}, {}, ResolveChatRequest>, res: Re
         user.appleUUID = appleUUID;
         userChanged = true;
       }
-      if (!user.appleId && requestedUserId !== user._id) {
-        user.appleId = requestedUserId;
+      if (!user.appleId && normalizedUserId !== user._id) {
+        user.appleId = normalizedUserId;
         userChanged = true;
       }
       if (userChanged) {

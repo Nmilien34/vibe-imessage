@@ -13,6 +13,7 @@ export type ChatSourceType = 'imessage' | 'virtual';
 export type MembershipType = 'full' | 'virtual';
 export type MemberRole = 'admin' | 'member';
 export type VisibilitySource = 'past_chat' | 'past_connection' | 'contact' | 'manual';
+export type ContactIdentifierKind = 'email' | 'phone';
 export type JoinRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
 export type JoinDecision = 'approve' | 'deny';
 export interface ISongData {
@@ -75,6 +76,7 @@ export interface IUserDocument {
     firstName?: string;
     lastName?: string;
     email?: string;
+    contactDiscoveryEnabled?: boolean;
     profilePicture?: string;
     birthday?: IBirthday;
     joinedChatIds: string[];
@@ -281,6 +283,15 @@ export interface IVisibilityPermission {
     source: VisibilitySource;
     grantedAt: Date;
     revokedAt?: Date;
+}
+export interface IUserIdentifier {
+    _id: Types.ObjectId;
+    userId: string;
+    kind: ContactIdentifierKind;
+    hash: string;
+    verifiedAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
 export interface IJoinRequest {
     _id: Types.ObjectId;

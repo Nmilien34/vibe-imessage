@@ -17,7 +17,7 @@ import ChatMember from '../models/ChatMember';
 import { BetType, BetStatus, IBet, IBetParticipant, IBetProof, IBetResolution } from '../types';
 import { ensureChatMembershipIfKnown } from './chatMembershipService';
 
-const CREATION_COST = 10;
+const CREATION_COST = 2;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MIN_DEADLINE_HOURS = 1;
 const MIN_STAKE = 10;

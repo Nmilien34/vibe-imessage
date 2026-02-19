@@ -12,6 +12,9 @@ const auth_1 = require("../middleware/auth");
 const chatService_1 = require("../services/chatService");
 const chatMembershipService_1 = require("../services/chatMembershipService");
 const router = express_1.default.Router();
+function isLikelyBackendChatId(chatId) {
+    return chatId.startsWith('chat_') && chatId.length > 'chat_'.length + 8;
+}
 /**
  * @route   POST /api/chat/resolve
  * @desc    Resolve or create a chat - The "Trojan Horse" endpoint
@@ -23,24 +26,30 @@ const router = express_1.default.Router();
  *             and return their most recent chat, or create a new one
  *          3. Always ensures user is a member of the returned chat
  */
-router.post('/resolve', async (req, res) => {
+router.post('/resolve', auth_1.authMiddleware, async (req, res) => {
     try {
+        const authenticatedUserId = req.userId;
         const { userId: requestedUserId, chatId, appleUUID, title } = req.body;
-        if (!requestedUserId) {
-            return res.status(400).json({ error: 'userId is required' });
+        const normalizedUserId = requestedUserId || authenticatedUserId;
+        if (requestedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Cannot resolve chat for another user' });
+        }
+        if (chatId && !isLikelyBackendChatId(chatId)) {
+            return res.status(400).json({ error: 'Invalid chatId format' });
         }
         // Resolve canonical user first so all downstream membership writes
         // (Chat.members, User.joinedChatIds, ChatMember.userId) stay aligned.
-        let user = await User_1.default.findById(requestedUserId);
+        let user = await User_1.default.findById(normalizedUserId);
         if (!user) {
-            user = await User_1.default.findOne({ appleId: requestedUserId });
+            user = await User_1.default.findOne({ appleId: normalizedUserId });
         }
         if (!user && appleUUID) {
             user = await User_1.default.findOne({ appleUUID });
         }
         if (!user) {
             user = new User_1.default({
-                _id: requestedUserId,
+                _id: normalizedUserId,
+                appleId: normalizedUserId,
                 appleUUID: appleUUID || undefined,
                 joinedChatIds: [],
             });
@@ -52,8 +61,8 @@ router.post('/resolve', async (req, res) => {
                 user.appleUUID = appleUUID;
                 userChanged = true;
             }
-            if (!user.appleId && requestedUserId !== user._id) {
-                user.appleId = requestedUserId;
+            if (!user.appleId && normalizedUserId !== user._id) {
+                user.appleId = normalizedUserId;
                 userChanged = true;
             }
             if (userChanged) {

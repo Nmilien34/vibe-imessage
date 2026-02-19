@@ -103,4 +103,38 @@ router.put(
   }
 );
 
+/**
+ * @route   POST /api/user/batch
+ * @desc    Batch lookup user profiles by IDs (max 100)
+ * @access  Private (JWT required)
+ */
+router.post('/batch', authMiddleware, async (req: Request<{}, {}, { userIds: string[] }>, res: Response) => {
+  try {
+    const { userIds } = req.body;
+
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ error: 'userIds must be a non-empty array' });
+    }
+
+    if (userIds.length > 100) {
+      return res.status(400).json({ error: 'Maximum 100 userIds per request' });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } })
+      .select('_id firstName lastName profilePicture');
+
+    res.json({
+      users: users.map(u => ({
+        id: u._id,
+        firstName: u.firstName || null,
+        lastName: u.lastName || null,
+        profilePicture: u.profilePicture || null,
+      })),
+    });
+  } catch (err) {
+    console.error('POST /user/batch error:', err);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
 export default router;

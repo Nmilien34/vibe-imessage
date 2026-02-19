@@ -1,5 +1,6 @@
 import SwiftUI
 import Contacts
+import CryptoKit
 
 struct BirthdayCollectionView: View {
     @EnvironmentObject var appState: AppState
@@ -124,6 +125,8 @@ struct BirthdayCollectionView: View {
                 return
             }
 
+            await syncContactNetwork(from: store)
+
             let keysToFetch: [CNKeyDescriptor] = [CNContactBirthdayKey as CNKeyDescriptor]
 
             if let firstName = appState.userFirstName, !firstName.isEmpty {
@@ -145,6 +148,62 @@ struct BirthdayCollectionView: View {
         }
 
         showManualInput()
+    }
+
+    private func syncContactNetwork(from store: CNContactStore) async {
+        guard appState.isAuthenticated else { return }
+
+        let keys: [CNKeyDescriptor] = [
+            CNContactEmailAddressesKey as CNKeyDescriptor,
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+        ]
+
+        let request = CNContactFetchRequest(keysToFetch: keys)
+        var hashes = Set<String>()
+
+        do {
+            try store.enumerateContacts(with: request) { contact, stop in
+                for emailValue in contact.emailAddresses {
+                    if let hashed = hashEmail(emailValue.value as String) {
+                        hashes.insert(hashed)
+                    }
+                }
+
+                for phoneValue in contact.phoneNumbers {
+                    if let hashed = hashPhone(phoneValue.value.stringValue) {
+                        hashes.insert(hashed)
+                    }
+                }
+
+                if hashes.count >= 5000 {
+                    stop.pointee = true
+                }
+            }
+
+            guard !hashes.isEmpty else { return }
+            await appState.syncContactHashes(Array(hashes), replace: true, enableDiscovery: true)
+        } catch {
+            print("Contacts sync error: \(error)")
+        }
+    }
+
+    private func hashEmail(_ value: String) -> String? {
+        let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return nil }
+        return "e:\(sha256Hex("email:\(normalized)"))"
+    }
+
+    private func hashPhone(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = trimmed.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+        guard !digits.isEmpty else { return nil }
+        let normalized = trimmed.hasPrefix("+") ? "+\(digits)" : digits
+        return "p:\(sha256Hex("phone:\(normalized)"))"
+    }
+
+    private func sha256Hex(_ input: String) -> String {
+        let digest = SHA256.hash(data: Data(input.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
     }
 
     @MainActor

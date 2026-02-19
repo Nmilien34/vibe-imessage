@@ -3,6 +3,7 @@ import appleSignin from 'apple-signin-auth';
 import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { processLoginUpdates } from '../services/auraService';
+import { registerVerifiedEmailIdentifier } from '../services/contactNetworkService';
 
 const router: Router = express.Router();
 
@@ -262,6 +263,17 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
       }
     }
 
+    if (user.contactDiscoveryEnabled) {
+      try {
+        await registerVerifiedEmailIdentifier({
+          userId: user._id,
+          email: user.email || appleEmail || email,
+        });
+      } catch (identifierError) {
+        console.error('Auth identifier registration warning:', identifierError);
+      }
+    }
+
     const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);
     if (dailyBonusClaimed) {
       console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
@@ -327,6 +339,17 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
       await user.save();
       isNewUser = true;
       console.log(`Dev login: Created new test user ${userId}`);
+    }
+
+    if (user.contactDiscoveryEnabled) {
+      try {
+        await registerVerifiedEmailIdentifier({
+          userId: user._id,
+          email: user.email,
+        });
+      } catch (identifierError) {
+        console.error('Dev auth identifier registration warning:', identifierError);
+      }
     }
 
     const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);

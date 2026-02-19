@@ -30,6 +30,10 @@ const userSchema = new Schema<IUserDocument, UserModel, IUserMethods>(
       type: String,
       lowercase: true,
     },
+    contactDiscoveryEnabled: {
+      type: Boolean,
+      default: false,
+    },
     profilePicture: { type: String },
     birthday: {
       month: { type: Number },

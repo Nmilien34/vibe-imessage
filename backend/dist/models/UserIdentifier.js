@@ -34,28 +34,23 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const betTypes = ['self', 'callout', 'dare'];
-const betStatuses = ['active', 'completed', 'expired', 'ducked'];
-const betSchema = new mongoose_1.Schema({
-    betId: { type: String, required: true, unique: true },
-    chatId: { type: String, required: true, index: true },
-    creatorId: { type: String, required: true, index: true },
-    betType: {
+const identifierKinds = ['email', 'phone'];
+const userIdentifierSchema = new mongoose_1.Schema({
+    userId: { type: String, required: true, index: true },
+    kind: {
         type: String,
-        enum: betTypes,
+        enum: identifierKinds,
         required: true,
     },
-    description: { type: String, required: true },
-    deadline: { type: Date, required: true, index: true },
-    status: {
-        type: String,
-        enum: betStatuses,
-        default: 'active',
-        index: true,
-    },
-    targetUserId: { type: String },
-    creationCost: { type: Number, default: 2 },
-}, { timestamps: true });
-const Bet = mongoose_1.default.model('Bet', betSchema);
-exports.default = Bet;
-//# sourceMappingURL=Bet.js.map
+    hash: { type: String, required: true, index: true },
+    verifiedAt: { type: Date, default: Date.now },
+}, {
+    timestamps: true,
+});
+// One verified identifier can belong to only one account.
+userIdentifierSchema.index({ kind: 1, hash: 1 }, { unique: true });
+// Prevent duplicate claims by the same user.
+userIdentifierSchema.index({ userId: 1, kind: 1, hash: 1 }, { unique: true });
+const UserIdentifier = mongoose_1.default.model('UserIdentifier', userIdentifierSchema);
+exports.default = UserIdentifier;
+//# sourceMappingURL=UserIdentifier.js.map

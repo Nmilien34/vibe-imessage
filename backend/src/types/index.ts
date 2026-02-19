@@ -43,6 +43,7 @@ export type MemberRole = 'admin' | 'member';
 
 // Discovery
 export type VisibilitySource = 'past_chat' | 'past_connection' | 'contact' | 'manual';
+export type ContactIdentifierKind = 'email' | 'phone';
 
 // Join Request
 export type JoinRequestStatus = 'pending' | 'approved' | 'denied' | 'expired';
@@ -127,6 +128,7 @@ export interface IUserDocument {
   firstName?: string;
   lastName?: string;
   email?: string;
+  contactDiscoveryEnabled?: boolean;
   profilePicture?: string;
   birthday?: IBirthday;
   joinedChatIds: string[];
@@ -377,6 +379,16 @@ export interface IVisibilityPermission {
   source: VisibilitySource;
   grantedAt: Date;
   revokedAt?: Date;
+}
+
+export interface IUserIdentifier {
+  _id: Types.ObjectId;
+  userId: string;
+  kind: ContactIdentifierKind;
+  hash: string;
+  verifiedAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ============================================================================
