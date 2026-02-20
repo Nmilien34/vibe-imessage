@@ -9,9 +9,14 @@ import {
   getBetTotals,
   getBetParticipants,
   getUserStake,
+  getUserBetStakeTransactions,
   submitBetProof,
   getBetProofs,
   deleteBetProof,
+  claimBetResolution,
+  getPendingResolutionClaim,
+  confirmBetResolution,
+  disputeBetResolution,
   resolveBet,
   getBetResolution,
   autoExpireBets
@@ -191,7 +196,8 @@ router.post('/:betId/stake', authMiddleware, async (req: Request, res: Response)
       'Insufficient Aura',
       'Minimum stake',
       'must be in this chat',
-      'already staked'
+      'already staked',
+      'only add to your existing'
     ];
 
     const isUserError = userErrors.some(msg => error.message?.includes(msg));
@@ -323,6 +329,64 @@ router.get('/:betId/my-stake', authMiddleware, async (req: Request, res: Respons
 });
 
 /**
+ * @route   GET /api/bets/:betId/my-stake-transactions
+ * @desc    Get current user's stake transaction history for this bet
+ * @access  Private (JWT required)
+ */
+router.get('/:betId/my-stake-transactions', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+    const { limit } = req.query;
+
+    let parsedLimit = 50;
+    if (limit) {
+      parsedLimit = parseInt(limit as string, 10);
+      if (isNaN(parsedLimit) || parsedLimit < 1) parsedLimit = 50;
+      if (parsedLimit > 100) parsedLimit = 100;
+    }
+
+    const bet = await getBetById(betId);
+    if (!bet) {
+      return res.status(404).json({ error: 'Bet not found' });
+    }
+
+    const canAccess = await isUserInChat(userId, bet.chatId);
+    if (!canAccess) {
+      return res.status(403).json({
+        error: 'You do not have access to this bet'
+      });
+    }
+
+    const transactions = await getUserBetStakeTransactions({
+      betId,
+      userId,
+      limit: parsedLimit
+    });
+
+    res.json({
+      transactions: transactions.map(t => ({
+        transactionId: t.transactionId,
+        amount: t.amount,
+        balanceAfter: t.balanceAfter,
+        description: t.description,
+        referenceId: t.referenceId,
+        createdAt: t.createdAt
+      })),
+      totalStaked: transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0),
+      count: transactions.length
+    });
+
+  } catch (error: any) {
+    console.error('Stake transaction history error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch stake transaction history',
+      message: error.message
+    });
+  }
+});
+
+/**
  * @route   GET /api/bets/:betId
  * @desc    Get bet by ID with participants, totals, and user's stake
  * @access  Private (JWT required)
@@ -424,10 +488,10 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
     }
 
     // Validate status
-    if (status && !['active', 'completed', 'expired', 'ducked'].includes(status as string)) {
+    if (status && !['active', 'pending_resolution', 'completed', 'expired', 'ducked'].includes(status as string)) {
       return res.status(400).json({
         error: 'Invalid status',
-        allowed: ['active', 'completed', 'expired', 'ducked']
+        allowed: ['active', 'pending_resolution', 'completed', 'expired', 'ducked']
       });
     }
 
@@ -521,6 +585,7 @@ router.post('/:betId/proof', authMiddleware, async (req: Request, res: Response)
       'Deadline has passed',
       'Only the bet creator',
       'Only the target user',
+      'Only the bet creator or target user',
       'Media type must be',
       'Media URL and key',
       'Invalid media URL',
@@ -631,6 +696,326 @@ router.delete('/proofs/:proofId', authMiddleware, async (req: Request, res: Resp
 
     res.status(500).json({
       error: 'Failed to delete proof',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/bets/:betId/resolution-claim
+ * @desc    Get pending resolution claim details for a bet
+ * @access  Private (JWT required)
+ */
+router.get('/:betId/resolution-claim', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+
+    const bet = await getBetById(betId);
+    if (!bet) {
+      return res.status(404).json({ error: 'Bet not found' });
+    }
+
+    const canAccess = await isUserInChat(userId, bet.chatId);
+    if (!canAccess) {
+      return res.status(403).json({
+        error: 'You do not have access to this bet'
+      });
+    }
+
+    const claim = await getPendingResolutionClaim(betId);
+
+    if (!claim) {
+      return res.json({ claim: null });
+    }
+
+    const canReview = claim.reviewerIds.includes(userId);
+    const hasActed = claim.confirmedBy.includes(userId) || claim.disputedBy.includes(userId);
+
+    res.json({
+      claim: {
+        claimId: claim.claimId,
+        betId: claim.betId,
+        proofId: claim.proofId,
+        proposedOutcome: claim.proposedOutcome,
+        proposedBy: claim.proposedBy,
+        reviewerIds: claim.reviewerIds,
+        confirmedBy: claim.confirmedBy,
+        disputedBy: claim.disputedBy,
+        status: claim.status,
+        notes: claim.notes,
+        autoConfirmAt: claim.autoConfirmAt,
+        finalizedAt: claim.finalizedAt,
+        createdAt: claim.createdAt,
+        updatedAt: claim.updatedAt,
+      },
+      viewer: {
+        canReview,
+        hasActed,
+      }
+    });
+  } catch (error: any) {
+    console.error('Resolution claim fetch error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch resolution claim',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/claim-resolution
+ * @desc    Submit proof + claim a pending resolution outcome
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/claim-resolution', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+    const { outcome, mediaType, mediaUrl, mediaKey, thumbnailUrl, thumbnailKey, caption, notes } = req.body;
+
+    if (!outcome || !mediaType || !mediaUrl || !mediaKey) {
+      return res.status(400).json({
+        error: 'Missing required fields',
+        required: ['outcome', 'mediaType', 'mediaUrl', 'mediaKey']
+      });
+    }
+
+    const validOutcomes = ['yes', 'no', 'ducked'];
+    if (!validOutcomes.includes(outcome)) {
+      return res.status(400).json({
+        error: 'Invalid outcome',
+        allowed: validOutcomes
+      });
+    }
+
+    if (!['photo', 'video'].includes(mediaType)) {
+      return res.status(400).json({
+        error: 'Invalid mediaType',
+        allowed: ['photo', 'video']
+      });
+    }
+
+    const result = await claimBetResolution({
+      betId,
+      userId,
+      outcome,
+      mediaType,
+      mediaUrl,
+      mediaKey,
+      thumbnailUrl,
+      thumbnailKey,
+      caption,
+      notes,
+    });
+
+    res.status(201).json({
+      success: true,
+      claim: {
+        claimId: result.claim.claimId,
+        betId: result.claim.betId,
+        proofId: result.claim.proofId,
+        proposedOutcome: result.claim.proposedOutcome,
+        proposedBy: result.claim.proposedBy,
+        reviewerIds: result.claim.reviewerIds,
+        confirmedBy: result.claim.confirmedBy,
+        disputedBy: result.claim.disputedBy,
+        status: result.claim.status,
+        notes: result.claim.notes,
+        autoConfirmAt: result.claim.autoConfirmAt,
+        finalizedAt: result.claim.finalizedAt,
+        createdAt: result.claim.createdAt,
+        updatedAt: result.claim.updatedAt,
+      },
+      proof: {
+        proofId: result.proof.proofId,
+        betId: result.proof.betId,
+        userId: result.proof.userId,
+        mediaType: result.proof.mediaType,
+        mediaUrl: result.proof.mediaUrl,
+        thumbnailUrl: result.proof.thumbnailUrl,
+        caption: result.proof.caption,
+        createdAt: result.proof.createdAt,
+      },
+      resolution: result.resolution ? {
+        resolutionId: result.resolution.resolutionId,
+        betId: result.resolution.betId,
+        outcome: result.resolution.outcome,
+        resolvedBy: result.resolution.resolvedBy,
+        resolvedAt: result.resolution.resolvedAt,
+        notes: result.resolution.notes,
+      } : null,
+      message: result.resolution
+        ? 'Claim auto-confirmed. Bet resolved immediately.'
+        : 'Resolution claim submitted. Waiting for confirm/dispute window.'
+    });
+  } catch (error: any) {
+    console.error('Claim resolution error:', error);
+
+    if (error.message === 'Bet not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('Only the bet creator can claim resolution') ||
+      error.message?.includes('not allowed to')
+    ) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('pending resolution claim already exists')
+      || error.message?.includes('already confirmed')
+      || error.message?.includes('already disputed')
+    ) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    const userErrors = [
+      'Cannot claim resolution for',
+      'Invalid outcome',
+      'Only callouts can be marked as ducked',
+      'Cannot submit proof',
+      'Deadline has passed',
+      'Media URL and key',
+      'Invalid media URL',
+      'Caption too long'
+    ];
+
+    const isUserError = userErrors.some(msg => error.message?.includes(msg));
+    if (isUserError) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to claim resolution',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/confirm-resolution
+ * @desc    Confirm pending resolution claim
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/confirm-resolution', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+
+    const result = await confirmBetResolution({ betId, userId });
+
+    res.json({
+      success: true,
+      claim: {
+        claimId: result.claim.claimId,
+        betId: result.claim.betId,
+        proofId: result.claim.proofId,
+        proposedOutcome: result.claim.proposedOutcome,
+        proposedBy: result.claim.proposedBy,
+        reviewerIds: result.claim.reviewerIds,
+        confirmedBy: result.claim.confirmedBy,
+        disputedBy: result.claim.disputedBy,
+        status: result.claim.status,
+        notes: result.claim.notes,
+        autoConfirmAt: result.claim.autoConfirmAt,
+        finalizedAt: result.claim.finalizedAt,
+        createdAt: result.claim.createdAt,
+        updatedAt: result.claim.updatedAt,
+      },
+      resolution: result.resolution ? {
+        resolutionId: result.resolution.resolutionId,
+        betId: result.resolution.betId,
+        outcome: result.resolution.outcome,
+        resolvedBy: result.resolution.resolvedBy,
+        resolvedAt: result.resolution.resolvedAt,
+        notes: result.resolution.notes,
+      } : null,
+      message: result.resolution
+        ? 'All reviewers confirmed. Bet resolved successfully.'
+        : 'Confirmation recorded. Waiting on remaining reviewers.'
+    });
+  } catch (error: any) {
+    console.error('Confirm resolution error:', error);
+
+    if (error.message?.includes('No pending resolution claim found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('not allowed to confirm')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('already confirmed')
+      || error.message?.includes('already disputed')
+      || error.message?.includes('no longer pending')
+    ) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to confirm resolution claim',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/dispute-resolution
+ * @desc    Dispute pending resolution claim and reopen bet
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/dispute-resolution', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+    const { notes } = req.body;
+
+    const claim = await disputeBetResolution({ betId, userId, notes });
+
+    res.json({
+      success: true,
+      claim: {
+        claimId: claim.claimId,
+        betId: claim.betId,
+        proofId: claim.proofId,
+        proposedOutcome: claim.proposedOutcome,
+        proposedBy: claim.proposedBy,
+        reviewerIds: claim.reviewerIds,
+        confirmedBy: claim.confirmedBy,
+        disputedBy: claim.disputedBy,
+        status: claim.status,
+        notes: claim.notes,
+        autoConfirmAt: claim.autoConfirmAt,
+        finalizedAt: claim.finalizedAt,
+        createdAt: claim.createdAt,
+        updatedAt: claim.updatedAt,
+      },
+      message: 'Resolution claim disputed. Bet has been reopened.'
+    });
+  } catch (error: any) {
+    console.error('Dispute resolution error:', error);
+
+    if (error.message?.includes('No pending resolution claim found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('not allowed to dispute')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('already confirmed')
+      || error.message?.includes('already disputed')
+      || error.message?.includes('no longer pending')
+    ) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to dispute resolution claim',
       message: error.message
     });
   }
@@ -790,12 +1175,13 @@ router.get('/:betId/resolution', authMiddleware, async (req: Request, res: Respo
  */
 router.post('/auto-expire', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const expiredCount = await autoExpireBets();
+    const { expiredCount, autoConfirmedCount } = await autoExpireBets();
 
     res.json({
       success: true,
       expiredCount,
-      message: `Auto-expired ${expiredCount} bet(s)`
+      autoConfirmedCount,
+      message: `Auto-expired ${expiredCount} bet(s) and auto-confirmed ${autoConfirmedCount} claim(s)`
     });
 
   } catch (error: any) {

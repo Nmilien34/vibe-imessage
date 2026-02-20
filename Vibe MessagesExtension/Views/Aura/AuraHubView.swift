@@ -221,6 +221,11 @@ struct AuraHubView: View {
                 Text(transaction.type.replacingOccurrences(of: "_", with: " ").capitalized)
                     .font(VibeTypography.titleSmall)
                     .foregroundColor(VibeTheme.textPrimary)
+                if let detail = transactionDetailLabel(transaction) {
+                    Text(detail)
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
                 Text(transaction.createdAt, style: .relative)
                     .font(VibeTypography.captionSmall)
                     .foregroundColor(VibeTheme.textTertiary)
@@ -233,6 +238,22 @@ struct AuraHubView: View {
                 .foregroundColor(transaction.amount >= 0 ? .green : .red)
         }
         .padding(VibeSpacing.md)
+    }
+
+    private func transactionDetailLabel(_ transaction: AuraTransaction) -> String? {
+        guard transaction.type == "bet_stake" else {
+            return transaction.description
+        }
+
+        let description = transaction.description?.lowercased() ?? ""
+        let amount = abs(transaction.amount)
+        if description.contains("initial") {
+            return "Initial stake: \(amount) Aura"
+        }
+        if description.contains("added") {
+            return "Upped stake by: \(amount) Aura"
+        }
+        return "Stake: \(amount) Aura"
     }
 
     // MARK: - Leaderboard

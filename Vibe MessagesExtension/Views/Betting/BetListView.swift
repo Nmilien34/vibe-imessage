@@ -14,7 +14,7 @@ struct BetListView: View {
     @State private var isLoading = true
 
     private var filteredBets: [Bet] {
-        allBets.filter { $0.status == selectedFilter }
+        allBets.filter { displayStatus(for: $0) == selectedFilter }
     }
 
     var body: some View {
@@ -84,14 +84,14 @@ struct BetListView: View {
     private var filterTabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: VibeSpacing.xs) {
-                ForEach([BetStatus.active, .completed, .expired, .ducked], id: \.rawValue) { status in
+                ForEach([BetStatus.active, .pendingResolution, .completed, .expired, .ducked], id: \.rawValue) { status in
                     Button {
                         VibeHaptic.selection()
                         withAnimation(VibeAnimation.snappy) {
                             selectedFilter = status
                         }
                     } label: {
-                        Text(status.rawValue.capitalized)
+                        Text(statusLabel(status))
                             .font(VibeTypography.captionLarge)
                             .foregroundColor(selectedFilter == status ? .white : VibeTheme.textSecondary)
                             .padding(.horizontal, VibeSpacing.md)
@@ -108,7 +108,8 @@ struct BetListView: View {
     // MARK: - Bet Row
 
     private func betRow(_ bet: Bet) -> some View {
-        Button {
+        let displayStatus = displayStatus(for: bet)
+        return Button {
             VibeHaptic.light()
             appState.navigateToBetDetail(bet: bet)
         } label: {
@@ -116,12 +117,12 @@ struct BetListView: View {
                 // Icon
                 ZStack {
                     Circle()
-                        .fill(statusColor(bet.status).opacity(0.15))
+                        .fill(statusColor(displayStatus).opacity(0.15))
                         .frame(width: VibeSpacing.iconCircleSmall, height: VibeSpacing.iconCircleSmall)
 
                     Image(systemName: "dice.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(statusColor(bet.status))
+                        .foregroundColor(statusColor(displayStatus))
                 }
 
                 // Info
@@ -164,7 +165,7 @@ struct BetListView: View {
                 .font(.system(size: 40))
                 .foregroundColor(VibeTheme.textTertiary)
 
-            Text("No \(selectedFilter.rawValue) bets")
+            Text("No \(statusLabel(selectedFilter).lowercased()) bets")
                 .font(VibeTypography.titleMedium)
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -179,10 +180,28 @@ struct BetListView: View {
     private func statusColor(_ status: BetStatus) -> Color {
         switch status {
         case .active: return .green
+        case .pendingResolution: return .purple
         case .completed: return .blue
         case .expired: return .orange
         case .ducked: return .gray
         }
+    }
+
+    private func statusLabel(_ status: BetStatus) -> String {
+        switch status {
+        case .active: return "Active"
+        case .pendingResolution: return "Pending"
+        case .completed: return "Completed"
+        case .expired: return "Expired"
+        case .ducked: return "Ducked"
+        }
+    }
+
+    private func displayStatus(for bet: Bet) -> BetStatus {
+        if bet.status == .active && bet.isExpired {
+            return .expired
+        }
+        return bet.status
     }
 
     private func loadAllBets() async {

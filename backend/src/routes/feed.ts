@@ -512,7 +512,7 @@ router.get('/discover', authMiddleware, async (req: Request, res: Response) => {
       userId,
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
-      status: status as 'active' | 'completed' | 'expired' | 'ducked' | undefined,
+      status: status as 'active' | 'pending_resolution' | 'completed' | 'expired' | 'ducked' | undefined,
     });
 
     res.json(result);

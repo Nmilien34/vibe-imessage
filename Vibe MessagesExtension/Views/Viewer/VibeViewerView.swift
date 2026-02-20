@@ -39,6 +39,8 @@ struct VibeViewerView: View {
     @State private var pendingJoinChatId: String?
     @State private var pendingJoinBetId: String?
     @State private var isSubmittingJoinRequest = false
+    @State private var showStakeUpPrompt = false
+    @State private var stakeUpPromptBet: Bet?
 
     var body: some View {
         GeometryReader { geometry in
@@ -200,6 +202,20 @@ struct VibeViewerView: View {
             .disabled(isSubmittingJoinRequest)
         } message: {
             Text("Would you like to request to join? Chat members will see your request and can add you or start a new group chat with you.")
+        }
+        .confirmationDialog("You've initiated this bet", isPresented: $showStakeUpPrompt, titleVisibility: .visible) {
+            Button("Stake Up") {
+                if let bet = stakeUpPromptBet {
+                    showStakeSheet = false
+                    appState.navigateToBetDetail(bet: bet)
+                }
+                stakeUpPromptBet = nil
+            }
+            Button("Cancel", role: .cancel) {
+                stakeUpPromptBet = nil
+            }
+        } message: {
+            Text("Do you want to increase the stake?")
         }
     }
 
@@ -575,6 +591,25 @@ struct VibeViewerView: View {
                             .clipShape(Capsule())
                         }
                         .buttonStyle(.plain)
+                    } else if vibe.parlay?.betId?.isEmpty == false {
+                        Button {
+                            VibeHaptic.medium()
+                            Task {
+                                await appState.openBetFromVibe(vibe)
+                            }
+                        } label: {
+                            HStack(spacing: VibeSpacing.xxs) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text("Open Bet")
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, VibeSpacing.sm)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(VibeTheme.betAccent.opacity(0.85))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     } else if vibe.type == .tea {
                         Button {
                             VibeHaptic.medium()
@@ -745,6 +780,11 @@ struct VibeViewerView: View {
                     presentJoinRequestPrompt(chatId: targetChatId, betId: bet.betId)
                     return
                 }
+                if shouldOfferStakeUpPrompt(for: error, bet: bet) {
+                    stakeUpPromptBet = bet
+                    showStakeUpPrompt = true
+                    return
+                }
                 stakeError = friendlyStakeErrorMessage(for: error, bet: bet)
             }
             return
@@ -764,13 +804,24 @@ struct VibeViewerView: View {
         }
 
         do {
-            _ = try await appState.createBet(
+            let createdBet = try await appState.createBet(
                 betType: .self,
                 description: challengeText,
                 deadline: Date().addingTimeInterval(24 * 60 * 60),
                 initialStake: stakeAmount,
                 initialSide: selectedStakeSide
             )
+
+            do {
+                _ = try await appState.publishChallengeMessage(
+                    bet: createdBet,
+                    title: challengeText,
+                    amount: stakeAmount
+                )
+            } catch {
+                print("VibeViewer Warning: Challenge created but failed to send iMessage bubble: \(error)")
+            }
+
             isSubmittingStake = false
             showStakeSheet = false
             stakeResolutionSession = UUID()
@@ -796,6 +847,14 @@ struct VibeViewerView: View {
             || description.contains("not in this chat")
             || description.contains("do not have access to this bet")
             || description.contains("you are not in this chat")
+    }
+
+    private func shouldOfferStakeUpPrompt(for error: Error, bet: Bet) -> Bool {
+        guard bet.creatorId == appState.userId else { return false }
+        guard bet.status == .active, !bet.isExpired else { return false }
+        let description = error.localizedDescription.lowercased()
+        return description.contains("already staked")
+            || description.contains("only add to your existing")
     }
 
     private func friendlyStakeErrorMessage(for error: Error) -> String {
@@ -920,6 +979,9 @@ struct VibeViewerView: View {
         case .tea:
             return "tea vibe"
         default:
+            if vibe.parlay?.betId?.isEmpty == false {
+                return "bet proof linked"
+            }
             return nil
         }
     }
@@ -964,7 +1026,7 @@ struct StoryStakeSheet: View {
     }
 
     private var canStake: Bool {
-        if let bet {
+        if bet != nil {
             return !isResolvingBet
                 && !isSubmitting
                 && canStakeAtAll

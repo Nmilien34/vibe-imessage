@@ -97,6 +97,12 @@ actor BettingService {
         return try await api.get("/bets/\(betId)/my-stake")
     }
 
+    // MARK: - Get My Stake Transactions
+
+    func getMyStakeTransactions(betId: String, limit: Int = 50) async throws -> StakeTransactionListResponse {
+        return try await api.get("/bets/\(betId)/my-stake-transactions?limit=\(limit)")
+    }
+
     // MARK: - Get Participants
 
     func getParticipants(betId: String) async throws -> ParticipantsResponse {
@@ -154,6 +160,64 @@ actor BettingService {
         return try await api.post(
             "/bets/\(betId)/resolve",
             body: ResolveBetRequest(outcome: outcome.rawValue, notes: notes)
+        )
+    }
+
+    // MARK: - Claim Resolution
+
+    struct ClaimResolutionRequest: Encodable {
+        let outcome: String
+        let mediaType: String
+        let mediaUrl: String
+        let mediaKey: String
+        let thumbnailUrl: String?
+        let thumbnailKey: String?
+        let caption: String?
+        let notes: String?
+    }
+
+    func claimResolution(
+        betId: String,
+        outcome: BetOutcome,
+        mediaType: ProofMediaType,
+        mediaUrl: String,
+        mediaKey: String,
+        thumbnailUrl: String? = nil,
+        thumbnailKey: String? = nil,
+        caption: String? = nil,
+        notes: String? = nil
+    ) async throws -> ClaimResolutionResponse {
+        return try await api.post(
+            "/bets/\(betId)/claim-resolution",
+            body: ClaimResolutionRequest(
+                outcome: outcome.rawValue,
+                mediaType: mediaType.rawValue,
+                mediaUrl: mediaUrl,
+                mediaKey: mediaKey,
+                thumbnailUrl: thumbnailUrl,
+                thumbnailKey: thumbnailKey,
+                caption: caption,
+                notes: notes
+            )
+        )
+    }
+
+    func getResolutionClaim(betId: String) async throws -> ResolutionClaimResponse {
+        return try await api.get("/bets/\(betId)/resolution-claim")
+    }
+
+    func confirmResolutionClaim(betId: String) async throws -> ResolutionClaimActionResponse {
+        return try await api.postEmpty("/bets/\(betId)/confirm-resolution")
+    }
+
+    struct DisputeResolutionRequest: Encodable {
+        let notes: String?
+    }
+
+    func disputeResolutionClaim(betId: String, notes: String? = nil) async throws -> ResolutionClaimActionResponse {
+        return try await api.post(
+            "/bets/\(betId)/dispute-resolution",
+            body: DisputeResolutionRequest(notes: notes)
         )
     }
 

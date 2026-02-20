@@ -25,7 +25,7 @@ const isValidHttpUrl = (value: string): boolean => {
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.userId!).select(
-      'firstName lastName email profilePicture auraBalance vibeScore betsCreated betsCompleted betsFailed'
+      'firstName lastName email profilePicture auraBalance vibeScore betsCreated betsCompleted betsFailed contactDiscoveryEnabled'
     );
 
     if (!user) {
@@ -41,6 +41,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
         profilePicture: user.profilePicture,
         auraBalance: user.auraBalance,
         vibeScore: user.vibeScore,
+        contactDiscoveryEnabled: user.contactDiscoveryEnabled ?? false,
         stats: {
           betsCreated: user.betsCreated ?? 0,
           betsCompleted: user.betsCompleted ?? 0,

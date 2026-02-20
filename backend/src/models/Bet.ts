@@ -2,7 +2,7 @@ import mongoose, { Schema, Model } from 'mongoose';
 import { IBet, BetType, BetStatus } from '../types';
 
 const betTypes: BetType[] = ['self', 'callout', 'dare'];
-const betStatuses: BetStatus[] = ['active', 'completed', 'expired', 'ducked'];
+const betStatuses: BetStatus[] = ['active', 'pending_resolution', 'completed', 'expired', 'ducked'];
 
 const betSchema = new Schema<IBet>(
   {

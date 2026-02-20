@@ -480,15 +480,14 @@ struct MeTabView: View {
                 }
                 .padding(.top, VibeSpacing.lg)
 
-                // Stats Grid (2x2)
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: VibeSpacing.sm),
-                    GridItem(.flexible(), spacing: VibeSpacing.sm)
-                ], spacing: VibeSpacing.sm) {
+                // Stats Grid (3x2)
+                LazyVGrid(columns: statsColumns, spacing: VibeSpacing.xs) {
                     StatCard(title: "Vibe Score", value: "\(appState.vibeScore)", icon: "star.fill", color: .orange)
                     StatCard(title: "Win Rate", value: winRateText, icon: "chart.line.uptrend.xyaxis", color: VibeTheme.stakeYes)
                     StatCard(title: "Duck Rate", value: duckRateText, icon: "figure.run", color: VibeTheme.stakeNo)
                     StatCard(title: "Streak", value: streakText, icon: "flame.fill", color: .orange)
+                    StatCard(title: "Challenges", value: "\(myChallengeCount)", icon: "flag.fill", color: VibeTheme.betAccent)
+                    StatCard(title: "Tea Spills", value: "\(myTeaCount)", icon: "cup.and.saucer.fill", color: VibeTheme.warm)
                 }
                 .padding(.horizontal, VibeSpacing.screenHorizontal)
 
@@ -548,7 +547,14 @@ struct MeTabView: View {
             .padding(.bottom, VibeSpacing.xl)
         }
         .task {
-            await appState.loadCurrentUserProfile()
+            async let profileTask: () = appState.loadCurrentUserProfile()
+            async let auraTask: () = appState.loadAuraStats()
+            _ = await (profileTask, auraTask)
+        }
+        .onAppear {
+            Task {
+                await appState.loadAuraStats()
+            }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
         .onChange(of: selectedPhotoItem) { _, newValue in
@@ -581,6 +587,32 @@ struct MeTabView: View {
     private var streakText: String {
         guard let streak = appState.streak else { return "0" }
         return "\(streak.currentStreak)"
+    }
+
+    private var statsColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: VibeSpacing.xs),
+            GridItem(.flexible(), spacing: VibeSpacing.xs),
+            GridItem(.flexible(), spacing: VibeSpacing.xs)
+        ]
+    }
+
+    private var myChallengeCount: Int {
+        let ids = Set(
+            appState.expandedBets
+                .filter { $0.creatorId == appState.userId }
+                .map(\.betId)
+        )
+        return ids.count
+    }
+
+    private var myTeaCount: Int {
+        let ids = Set(
+            appState.expandedTeaSpills
+                .filter { $0.creatorId == appState.userId }
+                .map(\.teaId)
+        )
+        return ids.count
     }
 
     private var profileAvatar: some View {
@@ -679,32 +711,38 @@ struct StatCard: View {
     let value: String
     let icon: String
     let color: Color
+    var detail: String? = nil
 
     var body: some View {
-        VStack(spacing: VibeSpacing.sm) {
-            HStack {
-                Image(systemName: icon)
-                    .font(.system(size: 14))
-                    .foregroundColor(color)
-                Spacer()
-            }
+        VStack(spacing: VibeSpacing.xxxs) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(color)
 
-            HStack {
-                Text(value)
-                    .font(.system(size: 22, weight: .bold, design: .monospaced))
-                    .foregroundColor(VibeTheme.textPrimary)
-                    .contentTransition(.numericText())
-                Spacer()
-            }
+            Text(value)
+                .font(.system(size: 18, weight: .bold, design: .monospaced))
+                .foregroundColor(VibeTheme.textPrimary)
+                .contentTransition(.numericText())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
-            HStack {
-                Text(title)
-                    .font(VibeTypography.captionSmall)
-                    .foregroundColor(VibeTheme.textSecondary)
-                Spacer()
+            Text(title)
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(VibeTheme.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            if let detail, !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(VibeTheme.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
             }
         }
-        .padding(VibeSpacing.md)
+        .frame(maxWidth: .infinity, minHeight: 92)
+        .padding(.horizontal, VibeSpacing.xs)
+        .padding(.vertical, VibeSpacing.sm)
         .background(VibeTheme.cardBackground)
         .continuousCorner(VibeTheme.radiusMedium)
     }

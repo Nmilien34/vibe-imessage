@@ -138,7 +138,7 @@ class APIService {
         ]
     }
     
-    /// Video upload result
+    /// Media upload result
     struct VideoUploadResult {
         let videoId: String
         let videoUrl: String
@@ -146,8 +146,8 @@ class APIService {
     }
 
     /**
-     * Uploads a video vibe using multipart/form-data.
-     * Returns the videoId, public videoUrl, and S3 key for cleanup tracking.
+     * Uploads media (video or photo) using multipart/form-data.
+     * Returns the public media URL and S3 key for cleanup tracking.
      */
     func uploadMedia(mediaData: Data, userId: String, chatId: String, isLocked: Bool, isVideo: Bool) async throws -> VideoUploadResult {
         if useMockData {

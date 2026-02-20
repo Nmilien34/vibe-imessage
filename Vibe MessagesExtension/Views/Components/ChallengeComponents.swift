@@ -215,6 +215,7 @@ struct BetCard: View {
     var totals: BetTotals? = nil
     var source: String? = nil
     var interactionStyle: BetCardInteractionStyle = .detail
+    @State private var showStakeUpPrompt = false
 
     private var resolvedTotals: BetTotals? {
         totals ?? appState.betTotalsById[bet.betId]
@@ -222,6 +223,35 @@ struct BetCard: View {
 
     private var canQuickStake: Bool {
         appState.betCanStakeById[bet.betId] ?? (bet.status == .active && !bet.isExpired)
+    }
+
+    private var shouldOfferStakeUpPrompt: Bool {
+        guard interactionStyle == .quickStake else { return false }
+        guard bet.status == .active, !bet.isExpired else { return false }
+        guard bet.creatorId == appState.userId else { return false }
+        guard canQuickStake == false else { return false }
+
+        if let resolvedTotals {
+            let participantCount = resolvedTotals.yesCount + resolvedTotals.noCount
+            if participantCount > 1 { return false }
+        }
+
+        return true
+    }
+
+    private var canTapQuickStakeButton: Bool {
+        canQuickStake || shouldOfferStakeUpPrompt
+    }
+
+    private var statusLabel: String {
+        let displayStatus: BetStatus = (bet.status == .active && bet.isExpired) ? .expired : bet.status
+        switch displayStatus {
+        case .active: return "Active"
+        case .pendingResolution: return "Pending"
+        case .completed: return "Completed"
+        case .expired: return "Expired"
+        case .ducked: return "Ducked"
+        }
     }
 
     private var cardContent: some View {
@@ -274,16 +304,17 @@ struct BetCard: View {
 
                 // Row 3: Pot + participation metadata
                 HStack(spacing: VibeSpacing.xs) {
+                    let participantCount = (resolvedTotals?.yesCount ?? 0) + (resolvedTotals?.noCount ?? 0)
                     AuraBadge(amount: resolvedTotals?.totalPot ?? bet.creationCost ?? 0, size: .small)
                     Text("pot")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textTertiary)
 
-                    if let t = resolvedTotals, (t.totalYes + t.totalNo) > 0 {
+                    if resolvedTotals != nil {
                         Text("•")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
-                        Text("\(t.totalYes + t.totalNo) stakes")
+                        Text("\(participantCount) staked so far")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textSecondary)
                     }
@@ -291,7 +322,7 @@ struct BetCard: View {
                     Spacer()
 
                     if bet.status != .active || bet.isExpired {
-                        Text(bet.status.rawValue.capitalized)
+                        Text(statusLabel)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(VibeTheme.textTertiary)
                     }
@@ -306,27 +337,35 @@ struct BetCard: View {
                     HStack(spacing: VibeSpacing.sm) {
                         StakeButton(label: interactionStyle == .quickStake ? "Yes" : "Stake Yes", color: VibeTheme.stakeYes, compactStyle: interactionStyle == .quickStake) {
                             if interactionStyle == .quickStake {
-                                guard canQuickStake else { return }
-                                VibeHaptic.medium()
-                                appState.quickStake(betId: bet.betId, side: .yes)
+                                if canQuickStake {
+                                    VibeHaptic.medium()
+                                    appState.quickStake(betId: bet.betId, side: .yes)
+                                } else if shouldOfferStakeUpPrompt {
+                                    VibeHaptic.light()
+                                    showStakeUpPrompt = true
+                                }
                             } else {
                                 VibeHaptic.medium()
                                 appState.navigateToBetDetail(bet: bet)
                             }
                         }
-                        .disabled(interactionStyle == .quickStake && !canQuickStake)
+                        .disabled(interactionStyle == .quickStake && !canTapQuickStakeButton)
 
                         StakeButton(label: interactionStyle == .quickStake ? "No" : "Stake No", color: VibeTheme.stakeNo, compactStyle: interactionStyle == .quickStake) {
                             if interactionStyle == .quickStake {
-                                guard canQuickStake else { return }
-                                VibeHaptic.medium()
-                                appState.quickStake(betId: bet.betId, side: .no)
+                                if canQuickStake {
+                                    VibeHaptic.medium()
+                                    appState.quickStake(betId: bet.betId, side: .no)
+                                } else if shouldOfferStakeUpPrompt {
+                                    VibeHaptic.light()
+                                    showStakeUpPrompt = true
+                                }
                             } else {
                                 VibeHaptic.medium()
                                 appState.navigateToBetDetail(bet: bet)
                             }
                         }
-                        .disabled(interactionStyle == .quickStake && !canQuickStake)
+                        .disabled(interactionStyle == .quickStake && !canTapQuickStakeButton)
                     }
                 }
             }
@@ -349,6 +388,14 @@ struct BetCard: View {
             }
         }
         .buttonStyle(.plain)
+        .alert("You've initiated this bet", isPresented: $showStakeUpPrompt) {
+            Button("Stake Up") {
+                appState.navigateToBetDetail(bet: bet)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Do you want to increase the stake?")
+        }
     }
 }
 

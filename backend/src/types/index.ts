@@ -26,10 +26,11 @@ export type ChatType = 'individual' | 'group';
 
 // Betting System
 export type BetType = 'self' | 'callout' | 'dare';
-export type BetStatus = 'active' | 'completed' | 'expired' | 'ducked';
+export type BetStatus = 'active' | 'pending_resolution' | 'completed' | 'expired' | 'ducked';
 export type BetSide = 'yes' | 'no';
 export type BetOutcome = 'yes' | 'no' | 'expired' | 'ducked';
 export type ProofMediaType = 'photo' | 'video';
+export type ResolutionClaimStatus = 'pending' | 'confirmed' | 'auto_confirmed' | 'disputed';
 
 // Tea Spill
 export type TeaSpillStatus = 'active' | 'revealed' | 'expired';
@@ -292,6 +293,24 @@ export interface IBetResolution {
   resolvedBy: string;
   resolvedAt: Date;
   notes?: string;
+}
+
+export interface IResolutionClaim {
+  _id: Types.ObjectId;
+  claimId: string;
+  betId: string;
+  proofId: string;
+  proposedOutcome: BetOutcome;
+  proposedBy: string;
+  reviewerIds: string[];
+  confirmedBy: string[];
+  disputedBy: string[];
+  status: ResolutionClaimStatus;
+  notes?: string;
+  autoConfirmAt: Date;
+  finalizedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // ============================================================================

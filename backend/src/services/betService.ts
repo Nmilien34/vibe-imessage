@@ -12,15 +12,17 @@ import Bet from '../models/Bet';
 import BetParticipant from '../models/BetParticipant';
 import BetProof from '../models/BetProof';
 import BetResolution from '../models/BetResolution';
+import ResolutionClaim from '../models/ResolutionClaim';
 import AuraTransaction from '../models/AuraTransaction';
 import ChatMember from '../models/ChatMember';
-import { BetType, BetStatus, IBet, IBetParticipant, IBetProof, IBetResolution } from '../types';
+import { BetType, BetStatus, IBet, IBetParticipant, IBetProof, IBetResolution, IResolutionClaim, IAuraTransaction } from '../types';
 import { ensureChatMembershipIfKnown } from './chatMembershipService';
 
 const CREATION_COST = 2;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MIN_DEADLINE_HOURS = 1;
 const MIN_STAKE = 10;
+const RESOLUTION_CLAIM_WINDOW_HOURS = 6;
 
 async function requireChatMembership(chatId: string, userId: string, errorMessage: string): Promise<void> {
   let membership = await ChatMember.findOne({ chatId, userId });
@@ -260,34 +262,52 @@ export async function placeBetStake(params: {
   // ── Validate user is in chat ────────────────────────────────
   await requireChatMembership(bet.chatId, userId, 'You must be in this chat to bet');
 
-  // ── Prevent duplicate stakes ────────────────────────────────
+  // ── Prevent duplicate stakes (except creator top-up before others join) ──
   const existing = await BetParticipant.findOne({ betId, userId });
-  if (existing) {
-    throw new Error('You have already staked on this bet');
-  }
+  let participant: IBetParticipant;
+  let isCreatorTopUp = false;
 
   // ── Validate side ───────────────────────────────────────────
   if (side !== 'yes' && side !== 'no') {
     throw new Error('Side must be "yes" or "no"');
   }
 
-  // ── Execute transaction ─────────────────────────────────────
-  const participantId = `participant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-
-  let participant: IBetParticipant;
-  try {
-    participant = await BetParticipant.create({
-      participantId,
+  if (existing) {
+    const otherParticipantCount = await BetParticipant.countDocuments({
       betId,
-      userId,
-      side,
-      amount,
+      userId: { $ne: userId }
     });
-  } catch (error) {
-    if (isDuplicateKeyError(error)) {
+
+    const canTopUp = userId === bet.creatorId && otherParticipantCount === 0;
+    if (!canTopUp) {
       throw new Error('You have already staked on this bet');
     }
-    throw error;
+
+    if (existing.side !== side) {
+      throw new Error(`You can only add to your existing ${existing.side.toUpperCase()} stake`);
+    }
+
+    existing.amount += amount;
+    participant = await existing.save();
+    isCreatorTopUp = true;
+  } else {
+    // ── Execute transaction ─────────────────────────────────────
+    const participantId = `participant_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    try {
+      participant = await BetParticipant.create({
+        participantId,
+        betId,
+        userId,
+        side,
+        amount,
+      });
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new Error('You have already staked on this bet');
+      }
+      throw error;
+    }
   }
 
   // Deduct Aura (held in escrow)
@@ -304,7 +324,9 @@ export async function placeBetStake(params: {
     balanceAfter: newBalance,
     transactionType: 'bet_stake',
     referenceId: betId,
-    description: `Staked ${amount} Aura on "${side}" for bet: "${bet.description.substring(0, 50)}..."`,
+    description: isCreatorTopUp
+      ? `Added ${amount} Aura to existing "${side}" stake for bet: "${bet.description.substring(0, 50)}..."`
+      : `Staked ${amount} Aura on "${side}" for bet: "${bet.description.substring(0, 50)}..."`,
   });
 
   return participant;
@@ -356,6 +378,27 @@ export async function getUserStake(betId: string, userId: string): Promise<IBetP
   return await BetParticipant.findOne({ betId, userId });
 }
 
+/**
+ * Get current user's stake transactions for a specific bet.
+ * Includes both initial stake and any creator top-ups.
+ */
+export async function getUserBetStakeTransactions(params: {
+  betId: string;
+  userId: string;
+  limit?: number;
+}): Promise<IAuraTransaction[]> {
+  const { betId, userId, limit = 50 } = params;
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+
+  return await AuraTransaction.find({
+    userId,
+    referenceId: betId,
+    transactionType: 'bet_stake',
+  })
+    .sort({ createdAt: 1 })
+    .limit(safeLimit);
+}
+
 // ═══════════════════════════════════════════════════════════
 // PROOF SUBMISSION FUNCTIONS
 // ═══════════════════════════════════════════════════════════
@@ -367,8 +410,8 @@ export async function getUserStake(betId: string, userId: string): Promise<IBetP
  * 1. Bet must exist and be active
  * 2. Only authorized users can submit proof:
  *    - Self bets: Creator only
- *    - Callouts: Target user only
- *    - Dares: Target user only
+ *    - Callouts: Creator or target user
+ *    - Dares: Creator or target user
  * 3. Media URL must be provided (from S3 upload)
  * 4. Deadline must not have passed (1 hour grace period)
  * 5. Can submit multiple proofs for same bet
@@ -432,11 +475,11 @@ export async function submitBetProof(params: {
   }
 
   if (bet.betType === 'callout' || bet.betType === 'dare') {
-    // Callouts/dares: Only target user can submit proof
-    isAuthorized = (userId === bet.targetUserId);
+    // Callouts/dares: Creator or target can submit proof
+    isAuthorized = userId === bet.creatorId || userId === bet.targetUserId;
 
     if (!isAuthorized) {
-      throw new Error('Only the target user can submit proof for callouts/dares');
+      throw new Error('Only the bet creator or target user can submit proof for callouts/dares');
     }
   }
 
@@ -570,9 +613,16 @@ export async function resolveBet(params: {
   resolvedBy: string;
   outcome: 'yes' | 'no' | 'expired' | 'ducked';
   notes?: string;
+  allowedStatuses?: BetStatus[];
 }): Promise<IBetResolution> {
 
-  const { betId, resolvedBy, outcome, notes } = params;
+  const {
+    betId,
+    resolvedBy,
+    outcome,
+    notes,
+    allowedStatuses = ['active']
+  } = params;
 
   const buildPariMutuelPayouts = (
     winningParticipants: IBetParticipant[],
@@ -607,7 +657,7 @@ export async function resolveBet(params: {
     throw new Error('Bet not found');
   }
 
-  if (bet.status !== 'active') {
+  if (!allowedStatuses.includes(bet.status)) {
     throw new Error(`Bet is already ${bet.status}`);
   }
 
@@ -799,12 +849,347 @@ export async function resolveBet(params: {
 }
 
 /**
- * Auto-Expire Bets
+ * Get Resolution for Bet
  *
- * System function to resolve expired bets.
- * Called by cron job or background worker.
+ * Retrieves the resolution record for a bet.
  */
-export async function autoExpireBets(): Promise<number> {
+export async function getBetResolution(betId: string): Promise<IBetResolution | null> {
+  return await BetResolution.findOne({ betId });
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function buildClaimReviewerIds(params: {
+  bet: IBet;
+  proposedBy: string;
+  proposedOutcome: 'yes' | 'no' | 'ducked';
+  participants: IBetParticipant[];
+}): string[] {
+  const { bet, proposedBy, proposedOutcome, participants } = params;
+
+  if (bet.betType === 'self') {
+    if (proposedOutcome !== 'yes' && proposedOutcome !== 'no') {
+      return [];
+    }
+
+    const losingSide = proposedOutcome === 'yes' ? 'no' : 'yes';
+    return uniqueStrings(
+      participants
+        .filter(p => p.side === losingSide)
+        .map(p => p.userId.toString())
+        .filter(userId => userId !== proposedBy)
+    );
+  }
+
+  if ((bet.betType === 'callout' || bet.betType === 'dare') && bet.targetUserId) {
+    return uniqueStrings([bet.targetUserId].filter(userId => userId !== proposedBy));
+  }
+
+  return [];
+}
+
+async function finalizeResolutionClaim(params: {
+  claim: IResolutionClaim;
+  finalStatus: 'confirmed' | 'auto_confirmed';
+  finalNotes?: string;
+}): Promise<{ claim: IResolutionClaim; resolution: IBetResolution }> {
+  const { claim, finalStatus, finalNotes } = params;
+
+  const resolution = await resolveBet({
+    betId: claim.betId,
+    resolvedBy: claim.proposedBy,
+    outcome: claim.proposedOutcome as 'yes' | 'no' | 'ducked',
+    notes: finalNotes ?? claim.notes,
+    allowedStatuses: ['pending_resolution'],
+  });
+
+  const updatedClaim = await ResolutionClaim.findOneAndUpdate(
+    { claimId: claim.claimId, status: 'pending' },
+    {
+      $set: {
+        status: finalStatus,
+        finalizedAt: new Date(),
+      }
+    },
+    { new: true }
+  );
+
+  if (!updatedClaim) {
+    const fallbackClaim = await ResolutionClaim.findOne({ claimId: claim.claimId });
+    if (!fallbackClaim) throw new Error('Resolution claim not found');
+    return { claim: fallbackClaim, resolution };
+  }
+
+  return { claim: updatedClaim, resolution };
+}
+
+export async function getPendingResolutionClaim(betId: string): Promise<IResolutionClaim | null> {
+  return await ResolutionClaim.findOne({
+    betId,
+    status: 'pending',
+  }).sort({ createdAt: -1 });
+}
+
+/**
+ * Claim Resolution With Proof
+ *
+ * Creates a pending resolution claim and transitions the bet to `pending_resolution`.
+ * Payouts only happen once this claim is confirmed (or auto-confirmed).
+ */
+export async function claimBetResolution(params: {
+  betId: string;
+  userId: string;
+  outcome: 'yes' | 'no' | 'ducked';
+  mediaType: 'photo' | 'video';
+  mediaUrl: string;
+  mediaKey: string;
+  thumbnailUrl?: string;
+  thumbnailKey?: string;
+  caption?: string;
+  notes?: string;
+}): Promise<{ claim: IResolutionClaim; proof: IBetProof; resolution?: IBetResolution }> {
+  const {
+    betId,
+    userId,
+    outcome,
+    mediaType,
+    mediaUrl,
+    mediaKey,
+    thumbnailUrl,
+    thumbnailKey,
+    caption,
+    notes,
+  } = params;
+
+  const bet = await Bet.findOne({ betId });
+  if (!bet) {
+    throw new Error('Bet not found');
+  }
+
+  if (bet.status !== 'active') {
+    throw new Error(`Cannot claim resolution for ${bet.status} bet`);
+  }
+
+  if (userId !== bet.creatorId) {
+    throw new Error('Only the bet creator can claim resolution');
+  }
+
+  if (!['yes', 'no', 'ducked'].includes(outcome)) {
+    throw new Error('Invalid outcome. Must be yes, no, or ducked');
+  }
+
+  if (outcome === 'ducked' && bet.betType !== 'callout') {
+    throw new Error('Only callouts can be marked as ducked');
+  }
+
+  const existingPendingClaim = await getPendingResolutionClaim(betId);
+  if (existingPendingClaim) {
+    throw new Error('A pending resolution claim already exists for this bet');
+  }
+
+  const proof = await submitBetProof({
+    betId,
+    userId,
+    mediaType,
+    mediaUrl,
+    mediaKey,
+    thumbnailUrl,
+    thumbnailKey,
+    caption,
+  });
+
+  const participants = await getBetParticipants(betId);
+  const reviewerIds = buildClaimReviewerIds({
+    bet,
+    proposedBy: userId,
+    proposedOutcome: outcome,
+    participants,
+  });
+
+  const autoConfirmAt = new Date(Date.now() + RESOLUTION_CLAIM_WINDOW_HOURS * 60 * 60 * 1000);
+  const claimId = `claim_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+  const claim = await ResolutionClaim.create({
+    claimId,
+    betId,
+    proofId: proof.proofId,
+    proposedOutcome: outcome,
+    proposedBy: userId,
+    reviewerIds,
+    confirmedBy: [],
+    disputedBy: [],
+    status: 'pending',
+    notes: notes?.trim() || undefined,
+    autoConfirmAt,
+  });
+
+  bet.status = 'pending_resolution';
+  await bet.save();
+
+  // If no reviewers are needed, finalize immediately.
+  if (reviewerIds.length === 0) {
+    const finalized = await finalizeResolutionClaim({
+      claim,
+      finalStatus: 'auto_confirmed',
+      finalNotes: notes?.trim() || 'Auto-confirmed (no opposing stakers to review)',
+    });
+    return {
+      claim: finalized.claim,
+      proof,
+      resolution: finalized.resolution,
+    };
+  }
+
+  return {
+    claim,
+    proof,
+  };
+}
+
+/**
+ * Confirm a pending resolution claim.
+ * When all reviewers confirm, payouts are finalized.
+ */
+export async function confirmBetResolution(params: {
+  betId: string;
+  userId: string;
+}): Promise<{ claim: IResolutionClaim; resolution?: IBetResolution }> {
+  const { betId, userId } = params;
+
+  const claim = await getPendingResolutionClaim(betId);
+  if (!claim) {
+    throw new Error('No pending resolution claim found');
+  }
+
+  if (!claim.reviewerIds.includes(userId)) {
+    throw new Error('You are not allowed to confirm this claim');
+  }
+
+  if (claim.disputedBy.includes(userId)) {
+    throw new Error('You already disputed this claim');
+  }
+
+  if (claim.confirmedBy.includes(userId)) {
+    throw new Error('You already confirmed this claim');
+  }
+
+  const updatedClaim = await ResolutionClaim.findOneAndUpdate(
+    { claimId: claim.claimId, status: 'pending' },
+    { $addToSet: { confirmedBy: userId } },
+    { new: true }
+  );
+
+  if (!updatedClaim) {
+    throw new Error('Resolution claim is no longer pending');
+  }
+
+  const allConfirmed = updatedClaim.reviewerIds.every(reviewerId =>
+    updatedClaim.confirmedBy.includes(reviewerId)
+  );
+
+  if (!allConfirmed) {
+    return { claim: updatedClaim };
+  }
+
+  const finalized = await finalizeResolutionClaim({
+    claim: updatedClaim,
+    finalStatus: 'confirmed',
+    finalNotes: updatedClaim.notes?.trim() || 'Resolution confirmed by reviewers',
+  });
+
+  return {
+    claim: finalized.claim,
+    resolution: finalized.resolution,
+  };
+}
+
+/**
+ * Dispute a pending resolution claim.
+ * Reopens the bet by moving status back to active.
+ */
+export async function disputeBetResolution(params: {
+  betId: string;
+  userId: string;
+  notes?: string;
+}): Promise<IResolutionClaim> {
+  const { betId, userId, notes } = params;
+
+  const claim = await getPendingResolutionClaim(betId);
+  if (!claim) {
+    throw new Error('No pending resolution claim found');
+  }
+
+  if (!claim.reviewerIds.includes(userId)) {
+    throw new Error('You are not allowed to dispute this claim');
+  }
+
+  if (claim.confirmedBy.includes(userId)) {
+    throw new Error('You already confirmed this claim');
+  }
+
+  if (claim.disputedBy.includes(userId)) {
+    throw new Error('You already disputed this claim');
+  }
+
+  const updatedClaim = await ResolutionClaim.findOneAndUpdate(
+    { claimId: claim.claimId, status: 'pending' },
+    {
+      $addToSet: { disputedBy: userId },
+      $set: {
+        status: 'disputed',
+        finalizedAt: new Date(),
+        notes: notes?.trim() || claim.notes,
+      }
+    },
+    { new: true }
+  );
+
+  if (!updatedClaim) {
+    throw new Error('Resolution claim is no longer pending');
+  }
+
+  await Bet.updateOne(
+    { betId, status: 'pending_resolution' },
+    { $set: { status: 'active' } }
+  );
+
+  return updatedClaim;
+}
+
+export async function autoConfirmPendingResolutionClaims(): Promise<number> {
+  const now = new Date();
+  const pendingClaims = await ResolutionClaim.find({
+    status: 'pending',
+    autoConfirmAt: { $lt: now }
+  }).sort({ autoConfirmAt: 1 });
+
+  let autoConfirmedCount = 0;
+
+  for (const claim of pendingClaims) {
+    try {
+      await finalizeResolutionClaim({
+        claim,
+        finalStatus: 'auto_confirmed',
+        finalNotes: claim.notes?.trim() || 'Auto-confirmed by system (claim window passed)',
+      });
+      autoConfirmedCount++;
+    } catch (error) {
+      console.error(`Failed to auto-confirm claim ${claim.claimId}:`, error);
+    }
+  }
+
+  return autoConfirmedCount;
+}
+
+/**
+ * Auto-Expire Bets + Auto-Confirm Claims
+ *
+ * System function to resolve expired bets and auto-confirm pending claims
+ * whose review windows have elapsed.
+ */
+export async function autoExpireBets(): Promise<{ expiredCount: number; autoConfirmedCount: number }> {
   const now = new Date();
 
   const expiredBets = await Bet.find({
@@ -828,14 +1213,7 @@ export async function autoExpireBets(): Promise<number> {
     }
   }
 
-  return expiredCount;
-}
+  const autoConfirmedCount = await autoConfirmPendingResolutionClaims();
 
-/**
- * Get Resolution for Bet
- *
- * Retrieves the resolution record for a bet.
- */
-export async function getBetResolution(betId: string): Promise<IBetResolution | null> {
-  return await BetResolution.findOne({ betId });
+  return { expiredCount, autoConfirmedCount };
 }

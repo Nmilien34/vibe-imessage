@@ -8,6 +8,7 @@ export { default as Bet } from './Bet';
 export { default as BetParticipant } from './BetParticipant';
 export { default as BetProof } from './BetProof';
 export { default as BetResolution } from './BetResolution';
+export { default as ResolutionClaim } from './ResolutionClaim';
 export { default as AuraTransaction } from './AuraTransaction';
 export { default as TeaSpill } from './TeaSpill';
 export { default as TeaGuess } from './TeaGuess';

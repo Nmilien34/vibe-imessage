@@ -883,6 +883,7 @@ struct CreateChallengeSheet: View {
         isSubmitting = true
         errorMessage = nil
 
+        let trimmedDescription = descriptionText.trimmingCharacters(in: .whitespacesAndNewlines)
         let deadline = Date().addingTimeInterval(deadlineHours * 3600)
 
         Task {
@@ -890,20 +891,32 @@ struct CreateChallengeSheet: View {
                 if selectedKind == .tea {
                     let validOptions = teaOptions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                     _ = try await appState.createTeaSpill(
-                        mysteryText: descriptionText,
+                        mysteryText: trimmedDescription,
                         answer: teaAnswer,
                         options: validOptions,
                         deadline: deadline
                     )
                 } else if let betType = selectedKind.betType {
-                    _ = try await appState.createBet(
+                    let createdBet = try await appState.createBet(
                         betType: betType,
-                        description: descriptionText,
+                        description: trimmedDescription,
                         deadline: deadline,
                         initialStake: stakeAmount,
                         initialSide: .yes,
                         targetUserId: selectedKind.needsTarget ? targetUserId : nil
                     )
+
+                    // Keep challenge creation resilient: challenge should still succeed even if bubble send fails.
+                    do {
+                        _ = try await appState.publishChallengeMessage(
+                            bet: createdBet,
+                            title: trimmedDescription,
+                            amount: stakeAmount,
+                            targetUserId: selectedKind.needsTarget ? targetUserId : nil
+                        )
+                    } catch {
+                        print("CreateChallengeSheet Warning: Challenge created but failed to send iMessage bubble: \(error)")
+                    }
                 }
                 VibeHaptic.success()
                 dismiss()

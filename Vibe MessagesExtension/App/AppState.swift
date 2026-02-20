@@ -10,6 +10,7 @@ import Messages
 import SwiftUI
 import Combine
 import Contacts
+import CryptoKit
 
 enum PresentationMode {
     case compact
@@ -35,7 +36,7 @@ enum DashboardTab: Int, CaseIterable {
 }
 
 enum BetStatusFilter: String, CaseIterable {
-    case all, active, completed, expired, ducked
+    case all, active, pending, completed, expired, ducked
 }
 
 /// Parameters for a locked message that was tapped
@@ -111,11 +112,19 @@ class AppState: ObservableObject {
         let source = expandedBets
         switch betFilter {
         case .all: return source
-        case .active: return source.filter { $0.status == .active }
-        case .completed: return source.filter { $0.status == .completed }
-        case .expired: return source.filter { $0.status == .expired }
-        case .ducked: return source.filter { $0.status == .ducked }
+        case .active: return source.filter { displayStatus(for: $0) == .active }
+        case .pending: return source.filter { displayStatus(for: $0) == .pendingResolution }
+        case .completed: return source.filter { displayStatus(for: $0) == .completed }
+        case .expired: return source.filter { displayStatus(for: $0) == .expired }
+        case .ducked: return source.filter { displayStatus(for: $0) == .ducked }
         }
+    }
+
+    private func displayStatus(for bet: Bet) -> BetStatus {
+        if bet.status == .active && bet.isExpired {
+            return .expired
+        }
+        return bet.status
     }
 
     // MARK: - Detail View State
@@ -817,6 +826,7 @@ class AppState: ObservableObject {
             let profilePicture: String?
             let auraBalance: Int?
             let vibeScore: Int?
+            let contactDiscoveryEnabled: Bool?
         }
 
         do {
@@ -836,6 +846,7 @@ class AppState: ObservableObject {
             if let vibeScore = response.user.vibeScore {
                 self.vibeScore = vibeScore
             }
+            self.contactDiscoveryEnabled = response.user.contactDiscoveryEnabled ?? false
         } catch {
             print("AppState Error: Loading profile failed: \(error)")
         }
@@ -970,9 +981,19 @@ class AppState: ObservableObject {
         defer { isLoadingBets = false }
 
         do {
-            let response = try await BettingService.shared.getBetsForChat(chatId: chatId, status: .active)
-            self.activeBets = response.bets
-            await hydrateCompactBetMetrics(response.bets)
+            async let active = BettingService.shared.getBetsForChat(chatId: chatId, status: .active)
+            async let pending = BettingService.shared.getBetsForChat(chatId: chatId, status: .pendingResolution)
+
+            let activeResponse = try await active
+            let pendingResponse = try await pending
+
+            let compactBets = deduplicateBets(
+                (activeResponse.bets + pendingResponse.bets)
+                    .sorted { $0.createdAt > $1.createdAt }
+            )
+
+            self.activeBets = compactBets
+            await hydrateCompactBetMetrics(compactBets)
         } catch {
             print("AppState Error: Loading bets failed: \(error)")
         }
@@ -985,16 +1006,18 @@ class AppState: ObservableObject {
 
         do {
             async let active = BettingService.shared.getDiscoverBets(status: .active)
+            async let pending = BettingService.shared.getDiscoverBets(status: .pendingResolution)
             async let completed = BettingService.shared.getDiscoverBets(status: .completed)
             async let expired = BettingService.shared.getDiscoverBets(status: .expired)
             async let ducked = BettingService.shared.getDiscoverBets(status: .ducked)
 
             let activeResponse = try await active
+            let pendingResponse = try await pending
             let completedResponse = try await completed
             let expiredResponse = try await expired
             let duckedResponse = try await ducked
-            let combinedItems = activeResponse.bets + completedResponse.bets
-                + expiredResponse.bets + duckedResponse.bets
+            let combinedItems = activeResponse.bets + pendingResponse.bets
+                + completedResponse.bets + expiredResponse.bets + duckedResponse.bets
 
             cacheDiscoverBetItems(combinedItems)
 
@@ -1046,6 +1069,46 @@ class AppState: ObservableObject {
         return bet
     }
 
+    @discardableResult
+    func publishChallengeMessage(
+        bet: Bet,
+        title: String,
+        amount: Int,
+        targetUserId: String? = nil
+    ) async throws -> Vibe {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let displayAmount = "\(amount) Aura"
+        let targetName = targetUserId.map { nameForUser($0) }
+
+        let parlayRequest = CreateParlayRequest(
+            title: trimmedTitle,
+            question: nil,
+            options: nil,
+            betId: bet.betId,
+            amount: displayAmount,
+            wager: nil,
+            opponentId: targetUserId,
+            opponentName: targetName
+        )
+
+        let challengeVibe = try await createVibe(
+            type: .parlay,
+            parlay: parlayRequest,
+            textStatus: trimmedTitle,
+            isLocked: false
+        )
+
+        let contextText = "\(trimmedTitle)|\(displayAmount)|\(targetName ?? "Anyone")"
+        sendVibeMessage(
+            vibeId: challengeVibe.id,
+            isLocked: false,
+            vibeType: .parlay,
+            contextText: contextText
+        )
+
+        return challengeVibe
+    }
+
     func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
         let participant = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
         betCanStakeById[betId] = false
@@ -1064,6 +1127,124 @@ class AppState: ObservableObject {
         betCanStakeById[betId] = false
         // Refresh aura after resolution
         await loadAuraStats()
+    }
+
+    @discardableResult
+    func claimBetResolution(
+        bet: Bet,
+        outcome: BetOutcome,
+        mediaType: ProofMediaType,
+        mediaUrl: String,
+        mediaKey: String,
+        thumbnailUrl: String? = nil,
+        thumbnailKey: String? = nil,
+        caption: String? = nil,
+        notes: String? = nil
+    ) async throws -> ClaimResolutionResponse {
+        let response = try await BettingService.shared.claimResolution(
+            betId: bet.betId,
+            outcome: outcome,
+            mediaType: mediaType,
+            mediaUrl: mediaUrl,
+            mediaKey: mediaKey,
+            thumbnailUrl: thumbnailUrl,
+            thumbnailKey: thumbnailKey,
+            caption: caption,
+            notes: notes
+        )
+
+        do {
+            _ = try await createBetResolutionStory(
+                bet: bet,
+                mediaType: mediaType,
+                mediaUrl: mediaUrl,
+                mediaKey: mediaKey,
+                thumbnailUrl: thumbnailUrl,
+                thumbnailKey: thumbnailKey,
+                caption: caption
+            )
+        } catch {
+            // Claim has already succeeded at this point; keep the betting state consistent.
+            print("AppState Warning: Resolution claim succeeded but story creation failed: \(error)")
+        }
+
+        await refreshBetResolutionCaches()
+        betCanStakeById[bet.betId] = false
+
+        if response.resolution != nil {
+            await loadAuraStats()
+        }
+
+        return response
+    }
+
+    @discardableResult
+    func createBetResolutionStory(
+        bet: Bet,
+        mediaType: ProofMediaType,
+        mediaUrl: String,
+        mediaKey: String,
+        thumbnailUrl: String? = nil,
+        thumbnailKey: String? = nil,
+        caption: String? = nil
+    ) async throws -> Vibe {
+        let vibeType: VibeType = mediaType == .video ? .video : .photo
+
+        var request = CreateVibeRequest(
+            userId: userId,
+            chatId: bet.chatId,
+            conversationId: conversationId,
+            type: vibeType
+        )
+
+        request.mediaUrl = mediaUrl
+        request.mediaKey = mediaKey
+        request.thumbnailUrl = thumbnailUrl
+        request.thumbnailKey = thumbnailKey
+        request.textStatus = caption
+        request.parlay = CreateParlayRequest(
+            title: nil,
+            question: nil,
+            options: nil,
+            betId: bet.betId,
+            amount: nil,
+            wager: nil,
+            opponentId: nil,
+            opponentName: nil
+        )
+
+        let vibe = try await APIService.shared.createVibe(request)
+        vibes.removeAll { $0.id == vibe.id }
+        vibes.insert(vibe, at: 0)
+        return vibe
+    }
+
+    func getPendingResolutionClaim(betId: String) async -> ResolutionClaim? {
+        do {
+            let response = try await BettingService.shared.getResolutionClaim(betId: betId)
+            return response.claim
+        } catch {
+            print("AppState Error: Loading pending resolution claim failed: \(error)")
+            return nil
+        }
+    }
+
+    @discardableResult
+    func confirmBetResolutionClaim(betId: String) async throws -> ResolutionClaimActionResponse {
+        let response = try await BettingService.shared.confirmResolutionClaim(betId: betId)
+        await refreshBetResolutionCaches()
+        betCanStakeById[betId] = false
+        if response.resolution != nil {
+            await loadAuraStats()
+        }
+        return response
+    }
+
+    @discardableResult
+    func disputeBetResolutionClaim(betId: String, notes: String? = nil) async throws -> ResolutionClaimActionResponse {
+        let response = try await BettingService.shared.disputeResolutionClaim(betId: betId, notes: notes)
+        await refreshBetResolutionCaches()
+        return response
     }
 
     func quickStake(betId: String, side: BetSide, amount: Int = 25) {
@@ -1444,7 +1625,18 @@ class AppState: ObservableObject {
 
     /// Sends an iMessage bubble for any vibe type
     func sendVibeMessage(vibeId: String, mediaUrl: String = "", isLocked: Bool, thumbnail: UIImage? = nil, vibeType: VibeType, contextText: String? = nil) {
-        sendStory?(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
+        guard let sendStory else {
+            print("AppState Warning: sendStory callback is not set. Skipping iMessage send for vibe \(vibeId).")
+            return
+        }
+
+        if Thread.isMainThread {
+            sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
+        } else {
+            Task { @MainActor in
+                sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
+            }
+        }
     }
 
     func addReaction(to vibe: Vibe, emoji: String) async {
@@ -1685,7 +1877,7 @@ class AppState: ObservableObject {
             betCanStakeById[bet.betId] = detail.userStake == nil && bet.status == .active && !bet.isExpired
 
             expandedBets = deduplicateBets([bet] + expandedBets)
-            if bet.status == .active {
+            if bet.status == .active || bet.status == .pendingResolution {
                 activeBets = deduplicateBets([bet] + activeBets)
             }
 
@@ -1730,6 +1922,43 @@ class AppState: ObservableObject {
             navigateToBetDetail(bet: bet)
         } else {
             navigateToBetList()
+        }
+    }
+
+    func openBetById(_ betId: String) async {
+        let trimmed = betId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            navigateToBetList()
+            return
+        }
+
+        if let cachedBet = (activeBets + expandedBets).first(where: { $0.betId == trimmed }) {
+            navigateToBetDetail(bet: cachedBet)
+            return
+        }
+
+        do {
+            let detail = try await BettingService.shared.getBet(betId: trimmed)
+            let bet = detail.bet
+
+            betTotalsById[bet.betId] = detail.totals
+            betCanStakeById[bet.betId] = detail.userStake == nil && bet.status == .active && !bet.isExpired
+
+            expandedBets = deduplicateBets([bet] + expandedBets)
+            if bet.status == .active || bet.status == .pendingResolution {
+                activeBets = deduplicateBets([bet] + activeBets)
+            }
+
+            navigateToBetDetail(bet: bet)
+        } catch {
+            print("AppState Error: Failed to open shared bet \(trimmed): \(error)")
+            await refreshBetResolutionCaches()
+
+            if let refreshed = (activeBets + expandedBets).first(where: { $0.betId == trimmed }) {
+                navigateToBetDetail(bet: refreshed)
+            } else {
+                navigateToBetList()
+            }
         }
     }
 
@@ -2098,8 +2327,42 @@ class AppState: ObservableObject {
 
     func syncContactsIfNeeded() async {
         guard isAuthenticated, contactDiscoveryEnabled else { return }
-        // Re-run contact hash sync in background using existing syncContactHashes
-        // This is a no-op if discovery is disabled
-        await syncContactHashes([], replace: false, enableDiscovery: true)
+
+        let store = CNContactStore()
+        let keys: [CNKeyDescriptor] = [
+            CNContactEmailAddressesKey as CNKeyDescriptor,
+            CNContactPhoneNumbersKey as CNKeyDescriptor,
+        ]
+        let request = CNContactFetchRequest(keysToFetch: keys)
+        var hashes = Set<String>()
+
+        do {
+            try store.enumerateContacts(with: request) { contact, stop in
+                for emailValue in contact.emailAddresses {
+                    let normalized = (emailValue.value as String)
+                        .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    if !normalized.isEmpty {
+                        let digest = SHA256.hash(data: Data("email:\(normalized)".utf8))
+                        hashes.insert("e:" + digest.map { String(format: "%02x", $0) }.joined())
+                    }
+                }
+                for phoneValue in contact.phoneNumbers {
+                    let trimmed = phoneValue.value.stringValue
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let digits = trimmed.replacingOccurrences(of: "[^0-9]", with: "", options: .regularExpression)
+                    if !digits.isEmpty {
+                        let normalized = trimmed.hasPrefix("+") ? "+\(digits)" : digits
+                        let digest = SHA256.hash(data: Data("phone:\(normalized)".utf8))
+                        hashes.insert("p:" + digest.map { String(format: "%02x", $0) }.joined())
+                    }
+                }
+                if hashes.count >= 5000 { stop.pointee = true }
+            }
+
+            guard !hashes.isEmpty else { return }
+            await syncContactHashes(Array(hashes), replace: false, enableDiscovery: true)
+        } catch {
+            print("AppState Error: Background contact re-sync failed: \(error)")
+        }
     }
 }

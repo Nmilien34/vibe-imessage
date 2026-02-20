@@ -9,26 +9,35 @@ import SwiftUI
 
 struct BetDetailView: View {
     @EnvironmentObject var appState: AppState
-    let bet: Bet
+    @State private var currentBet: Bet
 
     @State private var participants: [BetParticipant] = []
     @State private var totals: BetTotals?
     @State private var userStake: UserStake?
+    @State private var stakeTransactions: [BetStakeTransaction] = []
     @State private var proofs: [BetProof] = []
-    @State private var isLoading = true
 
     @State private var selectedSide: BetSide = .yes
     @State private var stakeAmount: Int = 10
     @State private var isStaking = false
-    @State private var showStakeSheet = false
     @State private var stakeError: String?
 
     @State private var isResolving = false
+    @State private var showOutcomePicker = false
+    @State private var selectedResolutionOutcome: BetOutcome = .yes
+    @State private var showResolutionComposer = false
+    @State private var pendingClaim: ResolutionClaim?
+    @State private var pendingClaimViewer: ResolutionClaimViewer?
+    @State private var resolutionError: String?
+
+    init(bet: Bet) {
+        _currentBet = State(initialValue: bet)
+    }
 
     private var stakeSliderRange: ClosedRange<Double> {
-        let lower = 5.0
+        let lower = 10.0
         // Slider with step=5 needs at least 5 points of span.
-        let upper = max(lower + 5.0, Double(min(100, max(5, appState.auraBalance))))
+        let upper = max(lower + 5.0, Double(min(100, max(10, appState.auraBalance))))
         return lower...upper
     }
 
@@ -59,7 +68,7 @@ struct BetDetailView: View {
                     }
 
                     // Action Section
-                    if bet.status == .active {
+                    if currentBet.status == .active {
                         actionSection
                     }
 
@@ -72,8 +81,12 @@ struct BetDetailView: View {
                     }
 
                     // Resolution (for creator)
-                    if bet.status == .active && bet.creatorId == appState.userId {
+                    if currentBet.status == .active && currentBet.creatorId == appState.userId {
                         resolutionSection
+                    }
+
+                    if currentBet.status == .pendingResolution {
+                        pendingResolutionSection
                     }
                 }
                 .padding(.horizontal, VibeSpacing.screenHorizontal)
@@ -95,8 +108,58 @@ struct BetDetailView: View {
             .padding(.leading, VibeSpacing.screenHorizontal)
             .padding(.top, VibeSpacing.sm)
         }
+        .overlay(alignment: .topTrailing) {
+            if let shareURL = betShareURL {
+                ShareLink(
+                    item: shareURL,
+                    message: Text(shareMessageText)
+                ) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(VibeTheme.textPrimary)
+                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Circle())
+                }
+                .padding(.trailing, VibeSpacing.screenHorizontal)
+                .padding(.top, VibeSpacing.sm)
+            }
+        }
         .task {
             await loadBetDetails()
+        }
+        .confirmationDialog("Choose Resolution Outcome", isPresented: $showOutcomePicker, titleVisibility: .visible) {
+            Button("YES Side Wins") {
+                selectedResolutionOutcome = .yes
+                showResolutionComposer = true
+            }
+            Button("NO Side Wins") {
+                selectedResolutionOutcome = .no
+                showResolutionComposer = true
+            }
+            if currentBet.betType == .callout {
+                Button("Mark as Ducked", role: .destructive) {
+                    selectedResolutionOutcome = .ducked
+                    showResolutionComposer = true
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $showResolutionComposer) {
+            BetResolutionComposerView(
+                bet: currentBet,
+                outcome: selectedResolutionOutcome,
+                onComplete: {
+                    showResolutionComposer = false
+                    Task {
+                        await loadBetDetails()
+                    }
+                },
+                onCancel: {
+                    showResolutionComposer = false
+                }
+            )
+            .environmentObject(appState)
         }
     }
 
@@ -110,14 +173,14 @@ struct BetDetailView: View {
                     .fill(statusColor.opacity(0.15))
                     .frame(width: VibeSpacing.iconCircleLarge, height: VibeSpacing.iconCircleLarge)
 
-                Image(systemName: bet.status == .active ? "dice.fill" : statusIcon)
+                Image(systemName: currentBet.status == .active ? "dice.fill" : statusIcon)
                     .font(.system(size: 36))
                     .foregroundColor(statusColor)
             }
             .padding(.top, VibeSpacing.xxxl)
 
             // Description
-            Text(bet.description)
+            Text(currentBet.description)
                 .font(VibeTypography.titleLarge)
                 .foregroundColor(VibeTheme.textPrimary)
                 .multilineTextAlignment(.center)
@@ -125,7 +188,7 @@ struct BetDetailView: View {
             // Meta
             HStack(spacing: VibeSpacing.lg) {
                 // Status
-                Text(bet.status.rawValue.uppercased())
+                Text(statusLabel.uppercased())
                     .font(VibeTypography.overline)
                     .foregroundColor(.white)
                     .padding(.horizontal, VibeSpacing.sm)
@@ -134,7 +197,7 @@ struct BetDetailView: View {
                     .continuousCorner(6)
 
                 // Type
-                Text(bet.betType.rawValue.uppercased())
+                Text(currentBet.betType.rawValue.uppercased())
                     .font(VibeTypography.overline)
                     .foregroundColor(VibeTheme.textSecondary)
                     .padding(.horizontal, VibeSpacing.sm)
@@ -147,18 +210,18 @@ struct BetDetailView: View {
             HStack(spacing: VibeSpacing.xs) {
                 Image(systemName: "clock")
                     .font(.system(size: 12))
-                if bet.isExpired {
+                if currentBet.isExpired {
                     Text("Expired")
                         .font(VibeTypography.captionSmall)
                 } else {
-                    Text("Ends \(bet.deadline, style: .relative)")
+                    Text("Ends \(currentBet.deadline, style: .relative)")
                         .font(VibeTypography.captionSmall)
                 }
             }
-            .foregroundColor(bet.isExpired ? .red : VibeTheme.textTertiary)
+            .foregroundColor(currentBet.isExpired ? .red : VibeTheme.textTertiary)
 
             // Creator
-            Text("Created by \(appState.nameForUser(bet.creatorId))")
+            Text("Created by \(appState.nameForUser(currentBet.creatorId))")
                 .font(VibeTypography.bodySmall)
                 .foregroundColor(VibeTheme.textSecondary)
         }
@@ -232,16 +295,66 @@ struct BetDetailView: View {
         VStack(spacing: VibeSpacing.md) {
             if let userStake {
                 // Already staked
-                HStack(spacing: VibeSpacing.sm) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                    Text("You staked \(userStake.amount) Aura on \(userStake.side.rawValue.uppercased())")
-                        .font(VibeTypography.titleSmall)
-                        .foregroundColor(VibeTheme.textPrimary)
+                VStack(spacing: VibeSpacing.md) {
+                    HStack(spacing: VibeSpacing.sm) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("You staked \(userStake.amount) Aura on \(userStake.side.rawValue.uppercased())")
+                            .font(VibeTypography.titleSmall)
+                            .foregroundColor(VibeTheme.textPrimary)
+                    }
+                    .padding(VibeSpacing.md)
+                    .frame(maxWidth: .infinity)
+                    .vibeCard(radius: VibeTheme.radiusMedium)
+
+                    if !stakeTransactions.isEmpty {
+                        stakeActivitySection
+                    }
+
+                    if canCurrentUserRestake {
+                        VStack(spacing: VibeSpacing.md) {
+                            Text("ADD TO YOUR \(userStake.side.rawValue.uppercased()) STAKE")
+                                .vibeSectionHeader()
+
+                            VStack(spacing: VibeSpacing.xs) {
+                                Text("\(stakeAmount) Aura")
+                                    .font(VibeTypography.numericMedium)
+                                    .foregroundColor(VibeTheme.textPrimary)
+                                    .contentTransition(.numericText())
+
+                                Slider(value: stakeSliderBinding, in: stakeSliderRange, step: 5)
+                                    .tint(userStake.side == .yes ? .green : .red)
+
+                                Text("Balance: \(appState.auraBalance)")
+                                    .font(VibeTypography.captionSmall)
+                                    .foregroundColor(VibeTheme.textTertiary)
+                            }
+
+                            Button {
+                                VibeHaptic.medium()
+                                Task { await placeStake(side: userStake.side) }
+                            } label: {
+                                HStack {
+                                    if isStaking {
+                                        ProgressView().tint(.white)
+                                    }
+                                    Text(isStaking ? "Adding..." : "Add \(stakeAmount) Aura")
+                                }
+                                .vibeButton(.primary)
+                            }
+                            .buttonStyle(VibePressStyle())
+                            .disabled(isStaking || appState.auraBalance < stakeAmount)
+
+                            if let stakeError {
+                                Text(stakeError)
+                                    .font(VibeTypography.captionSmall)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                        .padding(VibeSpacing.lg)
+                        .vibeCard(radius: VibeTheme.radiusMedium)
+                    }
                 }
-                .padding(VibeSpacing.md)
-                .frame(maxWidth: .infinity)
-                .vibeCard(radius: VibeTheme.radiusMedium)
             } else {
                 // Stake UI
                 VStack(spacing: VibeSpacing.md) {
@@ -272,7 +385,7 @@ struct BetDetailView: View {
                     // Stake button
                     Button {
                         VibeHaptic.medium()
-                        Task { await placeStake() }
+                        Task { await placeStake(side: selectedSide) }
                     } label: {
                         HStack {
                             if isStaking {
@@ -295,6 +408,53 @@ struct BetDetailView: View {
                 .vibeCard(radius: VibeTheme.radiusMedium)
             }
         }
+    }
+
+    private var stakeActivitySection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("YOUR STAKE ACTIVITY")
+                .vibeSectionHeader()
+
+            VStack(spacing: 0) {
+                ForEach(Array(stakeTransactions.enumerated()), id: \.element.id) { index, transaction in
+                    HStack(spacing: VibeSpacing.sm) {
+                        VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
+                            Text(stakeActivityLabel(for: transaction))
+                                .font(VibeTypography.titleSmall)
+                                .foregroundColor(VibeTheme.textPrimary)
+
+                            Text(transaction.createdAt, style: .relative)
+                                .font(VibeTypography.captionSmall)
+                                .foregroundColor(VibeTheme.textTertiary)
+                        }
+
+                        Spacer()
+
+                        Text("\(abs(transaction.amount)) Aura")
+                            .font(VibeTypography.numericMedium)
+                            .foregroundColor(VibeTheme.textPrimary)
+                    }
+                    .padding(.vertical, VibeSpacing.xs)
+
+                    if index != stakeTransactions.count - 1 {
+                        Divider()
+                    }
+                }
+            }
+        }
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
+    }
+
+    private func stakeActivityLabel(for transaction: BetStakeTransaction) -> String {
+        let description = transaction.description?.lowercased() ?? ""
+        if description.contains("initial") {
+            return "Initial stake"
+        }
+        if description.contains("added") {
+            return "Upped stake"
+        }
+        return "Stake"
     }
 
     private func sideButton(_ side: BetSide) -> some View {
@@ -416,46 +576,140 @@ struct BetDetailView: View {
             Text("RESOLVE BET")
                 .vibeSectionHeader()
 
-            HStack(spacing: VibeSpacing.sm) {
-                resolveButton(outcome: .yes, label: "YES Won", color: .green)
-                resolveButton(outcome: .no, label: "NO Won", color: .red)
-            }
+            Text("Capture or upload photo/video proof first, then request payout resolution.")
+                .font(VibeTypography.bodySmall)
+                .foregroundColor(VibeTheme.textSecondary)
 
             Button {
-                VibeHaptic.warning()
-                Task { await resolve(outcome: .ducked) }
+                VibeHaptic.medium()
+                resolutionError = nil
+                showOutcomePicker = true
             } label: {
-                Text("Mark as Ducked")
-                    .vibeButton(.tertiary)
+                Text("Resolve with Proof")
+                    .vibeButton(.primary)
             }
             .buttonStyle(VibePressStyle())
+            .disabled(isResolving)
+
+            if let resolutionError {
+                Text(resolutionError)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(.red)
+            }
         }
         .padding(VibeSpacing.lg)
         .vibeCard(radius: VibeTheme.radiusMedium)
     }
 
-    private func resolveButton(outcome: BetOutcome, label: String, color: Color) -> some View {
-        Button {
-            VibeHaptic.medium()
-            Task { await resolve(outcome: outcome) }
-        } label: {
-            Text(label)
-                .font(VibeTypography.titleSmall)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: VibeSpacing.minTouchTarget)
-                .background(color)
-                .continuousCorner(VibeTheme.radiusMedium)
+    private var pendingResolutionSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("PENDING RESOLUTION")
+                .vibeSectionHeader()
+
+            if let claim = pendingClaim {
+                Text("\(appState.nameForUser(claim.proposedBy)) proposed \(claim.proposedOutcome.rawValue.uppercased()).")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                Text("Auto-confirms \(claim.autoConfirmAt, style: .relative)")
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textTertiary)
+
+                if !claim.reviewerIds.isEmpty {
+                    let reviewerNames = claim.reviewerIds.map(appState.nameForUser).joined(separator: ", ")
+                    Text("Reviewers: \(reviewerNames)")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+
+                if canCurrentUserReviewPendingClaim {
+                    HStack(spacing: VibeSpacing.sm) {
+                        Button {
+                            VibeHaptic.success()
+                            Task { await confirmPendingClaim() }
+                        } label: {
+                            Text("Confirm")
+                                .vibeButton(.primary)
+                        }
+                        .buttonStyle(VibePressStyle())
+                        .disabled(isResolving)
+
+                        Button {
+                            VibeHaptic.warning()
+                            Task { await disputePendingClaim() }
+                        } label: {
+                            Text("Dispute")
+                                .vibeButton(.tertiary)
+                        }
+                        .buttonStyle(VibePressStyle())
+                        .disabled(isResolving)
+                    }
+                } else if hasCurrentUserReviewedClaim {
+                    Text("Your review has been recorded.")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                } else if currentBet.creatorId == appState.userId {
+                    Text("Waiting for reviewers to confirm or dispute.")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+
+                if let resolutionError {
+                    Text(resolutionError)
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(.red)
+                }
+            } else {
+                HStack(spacing: VibeSpacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("Pending claim details are unavailable. Pull to refresh.")
+                        .font(VibeTypography.bodySmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+            }
         }
-        .buttonStyle(VibePressStyle())
-        .disabled(isResolving)
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
     }
 
     // MARK: - Helpers
 
+    private var betShareURL: URL? {
+        var components = URLComponents()
+        components.scheme = "vibe"
+        components.host = "story"
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "bet_id", value: currentBet.betId),
+            URLQueryItem(name: "chat_id", value: currentBet.chatId),
+            URLQueryItem(name: "type", value: "bet"),
+            URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970)))
+        ]
+        if let userFirstName = appState.userFirstName, !userFirstName.isEmpty {
+            queryItems.append(URLQueryItem(name: "sender", value: userFirstName))
+        }
+        components.queryItems = queryItems
+        return components.url
+    }
+
+    private var shareMessageText: String {
+        "Join this bet on Vibe: \"\(currentBet.description)\""
+    }
+
+    private var statusLabel: String {
+        switch currentBet.status {
+        case .active: return "Active"
+        case .pendingResolution: return "Pending"
+        case .completed: return "Completed"
+        case .expired: return "Expired"
+        case .ducked: return "Ducked"
+        }
+    }
+
     private var statusColor: Color {
-        switch bet.status {
+        switch currentBet.status {
         case .active: return .green
+        case .pendingResolution: return .purple
         case .completed: return .blue
         case .expired: return .orange
         case .ducked: return .gray
@@ -463,38 +717,94 @@ struct BetDetailView: View {
     }
 
     private var statusIcon: String {
-        switch bet.status {
+        switch currentBet.status {
         case .active: return "dice.fill"
+        case .pendingResolution: return "hourglass.circle.fill"
         case .completed: return "checkmark.circle.fill"
         case .expired: return "clock.badge.exclamationmark"
         case .ducked: return "figure.walk"
         }
     }
 
+    private var canCurrentUserReviewPendingClaim: Bool {
+        if let viewer = pendingClaimViewer {
+            return viewer.canReview && !viewer.hasActed
+        }
+        guard let claim = pendingClaim else { return false }
+        guard claim.reviewerIds.contains(appState.userId) else { return false }
+        return !claim.confirmedBy.contains(appState.userId) && !claim.disputedBy.contains(appState.userId)
+    }
+
+    private var hasCurrentUserReviewedClaim: Bool {
+        if let viewer = pendingClaimViewer {
+            return viewer.hasActed
+        }
+        guard let claim = pendingClaim else { return false }
+        return claim.confirmedBy.contains(appState.userId) || claim.disputedBy.contains(appState.userId)
+    }
+
+    private var canCurrentUserRestake: Bool {
+        guard currentBet.status == .active, !currentBet.isExpired else { return false }
+        guard currentBet.creatorId == appState.userId else { return false }
+        guard userStake != nil else { return false }
+
+        let participantIds = Set(participants.map { $0.userId })
+        return participantIds.count == 1 && participantIds.contains(appState.userId)
+    }
+
     // MARK: - Data Loading
 
     private func loadBetDetails() async {
         do {
-            let detail = try await BettingService.shared.getBet(betId: bet.betId)
+            let detail = try await BettingService.shared.getBet(betId: currentBet.betId)
+            self.currentBet = detail.bet
             self.participants = detail.participants
             self.totals = detail.totals
             self.userStake = detail.userStake
 
-            let proofResponse = try await BettingService.shared.getProofs(betId: bet.betId)
+            if detail.userStake != nil {
+                if let stakeTransactionsResponse = try? await BettingService.shared.getMyStakeTransactions(betId: currentBet.betId, limit: 100) {
+                    self.stakeTransactions = stakeTransactionsResponse.transactions
+                } else {
+                    self.stakeTransactions = []
+                }
+            } else {
+                self.stakeTransactions = []
+            }
+
+            let proofResponse = try await BettingService.shared.getProofs(betId: currentBet.betId)
             self.proofs = proofResponse.proofs
+
+            let claimResponse = try await BettingService.shared.getResolutionClaim(betId: currentBet.betId)
+            self.pendingClaim = claimResponse.claim
+            self.pendingClaimViewer = claimResponse.viewer
+
+            let participantUserIds = participants.map { $0.userId }
+            let proofUserIds = proofs.map { $0.userId }
+            var combinedUserIds = participantUserIds + proofUserIds
+            combinedUserIds.append(currentBet.creatorId)
+
+            if let targetUserId = currentBet.targetUserId {
+                combinedUserIds.append(targetUserId)
+            }
+
+            if let claim = pendingClaim {
+                combinedUserIds.append(claim.proposedBy)
+                combinedUserIds.append(contentsOf: claim.reviewerIds)
+            }
+
+            let userIds = Set(combinedUserIds)
+            await appState.loadBatchUsers(ids: Array(userIds))
         } catch {
             print("BetDetailView Error: \(error)")
         }
-        isLoading = false
     }
 
-    private func placeStake() async {
+    private func placeStake(side: BetSide) async {
         isStaking = true
         stakeError = nil
         do {
-            let participant = try await appState.placeBetStake(betId: bet.betId, side: selectedSide, amount: stakeAmount)
-            participants.append(participant)
-            userStake = UserStake(participantId: participant.participantId, side: participant.side, amount: participant.amount, createdAt: participant.createdAt)
+            _ = try await appState.placeBetStake(betId: currentBet.betId, side: side, amount: stakeAmount)
             await loadBetDetails()
         } catch {
             stakeError = error.localizedDescription
@@ -502,13 +812,29 @@ struct BetDetailView: View {
         isStaking = false
     }
 
-    private func resolve(outcome: BetOutcome) async {
+    private func confirmPendingClaim() async {
         isResolving = true
+        resolutionError = nil
         do {
-            try await appState.resolveBet(betId: bet.betId, outcome: outcome)
+            _ = try await appState.confirmBetResolutionClaim(betId: currentBet.betId)
             VibeHaptic.success()
-            appState.navigateToFeed()
+            await loadBetDetails()
         } catch {
+            resolutionError = error.localizedDescription
+            VibeHaptic.error()
+        }
+        isResolving = false
+    }
+
+    private func disputePendingClaim() async {
+        isResolving = true
+        resolutionError = nil
+        do {
+            _ = try await appState.disputeBetResolutionClaim(betId: currentBet.betId)
+            VibeHaptic.success()
+            await loadBetDetails()
+        } catch {
+            resolutionError = error.localizedDescription
             VibeHaptic.error()
         }
         isResolving = false

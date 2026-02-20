@@ -31,7 +31,9 @@ class MessagesViewController: MSMessagesAppViewController {
         
         // Callback for sending a story
         appState.sendStory = { [weak self] (vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) in
-            self?.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
+            Task { @MainActor in
+                self?.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
+            }
         }
 
         // Callback when unlock flow completes
@@ -107,11 +109,20 @@ class MessagesViewController: MSMessagesAppViewController {
         }
 
         let vibeId = parsed.vibeId ?? params["videoId"] ?? params["vibeId"] ?? params["id"] ?? ""
+        let betId = params["bet_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let chatId = parsed.chatId ?? params["chat_id"]
         let isLocked = parsed.isLocked || params["locked"] == "true"
         let senderId = params["userId"] ?? ""
         let senderName = parsed.sender ?? params["sender"] ?? "Friend"
         let videoUrl = params["url"]
+
+        if let betId, !betId.isEmpty {
+            requestPresentationStyle(.expanded)
+            Task {
+                await handleSharedBetTap(betId: betId, chatId: chatId)
+            }
+            return
+        }
 
         // CRITICAL: Join the chat if we have a chat_id
         // This is how users get added to chats when receiving messages
@@ -133,7 +144,7 @@ class MessagesViewController: MSMessagesAppViewController {
                         appState.currentChatId = chatId
                     }
                 }
-                
+
                 // Refresh vibes for the new chat
                 await appState.loadVibes()
             }
@@ -158,6 +169,74 @@ class MessagesViewController: MSMessagesAppViewController {
         }
     }
 
+    @MainActor
+    private func handleSharedBetTap(betId: String, chatId: String?) async {
+        let trimmedBetId = betId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedBetId.isEmpty else {
+            appState.navigateToBetList()
+            return
+        }
+
+        let trimmedChatId = chatId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let trimmedChatId, trimmedChatId.hasPrefix("chat_") {
+            let hasAccess = await appState.hasAccessToChat(trimmedChatId)
+            if hasAccess == false {
+                presentBetAccessPrompt(chatId: trimmedChatId, betId: trimmedBetId)
+                return
+            }
+            appState.currentChatId = trimmedChatId
+        }
+
+        await appState.openBetById(trimmedBetId)
+    }
+
+    @MainActor
+    private func presentBetAccessPrompt(chatId: String, betId: String) {
+        let alert = UIAlertController(
+            title: "You're not in this challenge chat",
+            message: "Do you want to request access to join this bet?",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Request Access", style: .default, handler: { [weak self] _ in
+            guard let self else { return }
+            Task {
+                await self.submitBetAccessRequest(chatId: chatId, betId: betId)
+            }
+        }))
+
+        present(alert, animated: true)
+    }
+
+    @MainActor
+    private func submitBetAccessRequest(chatId: String, betId: String) async {
+        let requester = appState.userFirstName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let requesterName = (requester?.isEmpty == false ? requester! : "A user")
+        let reason = "\(requesterName) wants to join this challenge from a shared bet link."
+
+        do {
+            let message = try await appState.requestJoinChallengeChat(
+                chatId: chatId,
+                betId: betId,
+                reason: reason
+            )
+            presentSimpleAlert(title: "Request Sent", message: message)
+        } catch {
+            presentSimpleAlert(
+                title: "Request Failed",
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    @MainActor
+    private func presentSimpleAlert(title: String, message: String) {
+        let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
     override func didStartSending(_ message: MSMessage, conversation: MSConversation) {
         // User sent a message
     }
@@ -178,7 +257,10 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Sending Stories
 
     func sendStory(vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) {
-        guard let conversation = activeConversation else { return }
+        guard let conversation = activeConversation ?? appState.currentConversation else {
+            print("MessagesViewController Warning: No active conversation available. Failed to send vibe \(vibeId).")
+            return
+        }
 
         let senderName = appState.userFirstName ?? "Someone"
         let isMediaType = vibeType == .photo || vibeType == .video
@@ -243,6 +325,8 @@ class MessagesViewController: MSMessagesAppViewController {
         conversation.insert(message) { error in
             if let error = error {
                 print("Error inserting message: \(error)")
+            } else {
+                print("MessagesViewController: Inserted vibe message \(vibeId)")
             }
         }
     }

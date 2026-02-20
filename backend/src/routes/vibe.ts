@@ -35,7 +35,7 @@ interface ChatParams {
 
 /**
  * @route   POST /api/vibe/upload
- * @desc    Upload a video vibe (Multipart)
+ * @desc    Upload vibe media (Multipart)
  */
 router.post('/upload', authMiddleware, upload.single('video'), async (req: Request<{}, {}, UploadRequestBody>, res: Response) => {
   try {
@@ -45,7 +45,7 @@ router.post('/upload', authMiddleware, upload.single('video'), async (req: Reque
     const file = req.file;
 
     if (!file) {
-      return res.status(400).json({ error: 'No video file provided' });
+      return res.status(400).json({ error: 'No media file provided' });
     }
 
     if (requestedUserId && requestedUserId !== authenticatedUserId) {

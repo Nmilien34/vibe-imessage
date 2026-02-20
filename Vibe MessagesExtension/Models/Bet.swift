@@ -17,6 +17,7 @@ enum BetType: String, Codable {
 
 enum BetStatus: String, Codable {
     case active
+    case pendingResolution = "pending_resolution"
     case completed
     case expired
     case ducked
@@ -156,6 +157,35 @@ struct UserStake: Codable {
     let createdAt: Date
 }
 
+// MARK: - BetStakeTransaction (from /api/bets/:betId/my-stake-transactions)
+
+struct BetStakeTransaction: Codable, Identifiable {
+    let id: String
+    let transactionId: String
+    let amount: Int
+    let balanceAfter: Int
+    let description: String?
+    let referenceId: String?
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id = "_id"
+        case transactionId, amount, balanceAfter
+        case description, referenceId, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.transactionId = try container.decode(String.self, forKey: .transactionId)
+        self.id = (try? container.decode(String.self, forKey: .id)) ?? transactionId
+        self.amount = try container.decode(Int.self, forKey: .amount)
+        self.balanceAfter = try container.decode(Int.self, forKey: .balanceAfter)
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+        self.referenceId = try container.decodeIfPresent(String.self, forKey: .referenceId)
+        self.createdAt = try container.decode(Date.self, forKey: .createdAt)
+    }
+}
+
 // MARK: - BetProof
 
 struct BetProof: Codable, Identifiable, Equatable {
@@ -202,6 +232,35 @@ struct BetResolution: Codable {
     let resolvedBy: String
     let resolvedAt: Date
     let notes: String?
+}
+
+enum ResolutionClaimStatus: String, Codable {
+    case pending
+    case confirmed
+    case autoConfirmed = "auto_confirmed"
+    case disputed
+}
+
+struct ResolutionClaim: Codable {
+    let claimId: String
+    let betId: String
+    let proofId: String
+    let proposedOutcome: BetOutcome
+    let proposedBy: String
+    let reviewerIds: [String]
+    let confirmedBy: [String]
+    let disputedBy: [String]
+    let status: ResolutionClaimStatus
+    let notes: String?
+    let autoConfirmAt: Date
+    let finalizedAt: Date?
+    let createdAt: Date
+    let updatedAt: Date
+}
+
+struct ResolutionClaimViewer: Codable {
+    let canReview: Bool
+    let hasActed: Bool
 }
 
 // MARK: - API Response Types
@@ -279,6 +338,12 @@ struct UserStakeResponse: Codable {
     let stake: UserStake?
 }
 
+struct StakeTransactionListResponse: Codable {
+    let transactions: [BetStakeTransaction]
+    let totalStaked: Int
+    let count: Int
+}
+
 struct ResolveResponse: Codable {
     let success: Bool
     let resolution: BetResolution
@@ -292,6 +357,26 @@ struct BetStatusSummary: Codable {
 }
 
 struct ResolutionResponse: Codable {
+    let resolution: BetResolution?
+    let message: String?
+}
+
+struct ResolutionClaimResponse: Codable {
+    let claim: ResolutionClaim?
+    let viewer: ResolutionClaimViewer?
+}
+
+struct ClaimResolutionResponse: Codable {
+    let success: Bool
+    let claim: ResolutionClaim
+    let proof: BetProof
+    let resolution: BetResolution?
+    let message: String?
+}
+
+struct ResolutionClaimActionResponse: Codable {
+    let success: Bool
+    let claim: ResolutionClaim
     let resolution: BetResolution?
     let message: String?
 }

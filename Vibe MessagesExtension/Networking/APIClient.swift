@@ -103,6 +103,9 @@ actor APIClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 30  // 30 seconds - accommodates Render cold starts
         config.timeoutIntervalForResource = 60
+        // Private, auth-scoped data should always be fetched fresh (Aura balance, profile, bets).
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
         self.session = URLSession(configuration: config)
 
         self.decoder = JSONDecoder()
@@ -474,7 +477,10 @@ actor APIClient {
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
         applyAuth(to: &request)
 
         return try await performRequest(request)

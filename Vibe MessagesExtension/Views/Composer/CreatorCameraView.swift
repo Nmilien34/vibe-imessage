@@ -58,13 +58,22 @@ struct CreatorCameraView: View {
 
     // Pass song selection back to parent
     var onSongSelected: ((SongData?) -> Void)?
+    var onClose: (() -> Void)?
 
-    init(initialLocked: Bool = false, selectedItem: Binding<PhotosPickerItem?>, mediaData: Binding<Data?>, thumbnail: Binding<UIImage?>, mediaType: Binding<VibeType>) {
+    init(
+        initialLocked: Bool = false,
+        selectedItem: Binding<PhotosPickerItem?>,
+        mediaData: Binding<Data?>,
+        thumbnail: Binding<UIImage?>,
+        mediaType: Binding<VibeType>,
+        onClose: (() -> Void)? = nil
+    ) {
         _selectedMode = State(initialValue: initialLocked ? .locked : .normal)
         _selectedItem = selectedItem
         _mediaData = mediaData
         _thumbnail = thumbnail
         _mediaType = mediaType
+        self.onClose = onClose
     }
 
     var body: some View {
@@ -238,7 +247,11 @@ struct CreatorCameraView: View {
             // Close
             Button {
                 VibeHaptic.light()
-                appState.dismissComposer()
+                if let onClose {
+                    onClose()
+                } else {
+                    appState.dismissComposer()
+                }
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .semibold))
