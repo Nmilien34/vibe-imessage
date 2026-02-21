@@ -335,8 +335,21 @@ class AppState: ObservableObject {
         // Load onboarding state
         self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
         self.isBirthdayCollected = UserDefaults.standard.bool(forKey: "vibeBirthdayCollected")
-        let storedFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
-        self.userFirstName = resolvedFirstName(firstName: storedFirstName, email: nil)
+        let storedFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedStoredFirstName = storedFirstName?.lowercased()
+        if let storedFirstName,
+           !storedFirstName.isEmpty,
+           normalizedStoredFirstName != "user",
+           normalizedStoredFirstName != "vibe user",
+           normalizedStoredFirstName != "unknown",
+           normalizedStoredFirstName != "unknown user",
+           normalizedStoredFirstName != "anonymous",
+           normalizedStoredFirstName != "anon" {
+            self.userFirstName = storedFirstName
+        } else {
+            self.userFirstName = nil
+        }
         self.userProfilePictureURL = UserDefaults.standard.string(forKey: "vibeUserProfilePicture")
         self.auraBalance = max(0, UserDefaults.standard.integer(forKey: auraBalanceStorageKey))
         self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
