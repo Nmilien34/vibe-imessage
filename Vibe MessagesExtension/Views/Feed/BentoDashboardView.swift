@@ -354,7 +354,7 @@ struct BoardTabView: View {
                 }
                 .padding(.top, VibeSpacing.xs)
 
-                if appState.leaderboard.isEmpty {
+                if appState.isLoadingLeaderboard && appState.leaderboard.isEmpty {
                     VStack(spacing: VibeSpacing.md) {
                         Image(systemName: "trophy.fill")
                             .font(.system(size: 40))
@@ -362,6 +362,29 @@ struct BoardTabView: View {
                         Text("Leaderboard loading...")
                             .font(VibeTypography.bodyMedium)
                             .foregroundColor(VibeTheme.textSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, VibeSpacing.xxxl)
+                } else if appState.leaderboard.isEmpty {
+                    VStack(spacing: VibeSpacing.md) {
+                        Image(systemName: "trophy")
+                            .font(.system(size: 40))
+                            .foregroundColor(VibeTheme.textTertiary)
+                        Text("Couldn't load leaderboard")
+                            .font(VibeTypography.titleSmall)
+                            .foregroundColor(VibeTheme.textSecondary)
+                        Text(appState.leaderboardErrorMessage ?? "Pull to refresh or tap retry.")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(VibeTheme.textTertiary)
+                            .multilineTextAlignment(.center)
+                        Button {
+                            VibeHaptic.medium()
+                            Task { await appState.loadLeaderboard() }
+                        } label: {
+                            Text("Retry")
+                                .vibeButton(.secondary)
+                        }
+                        .buttonStyle(VibePressStyle())
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, VibeSpacing.xxxl)
@@ -376,6 +399,11 @@ struct BoardTabView: View {
         }
         .refreshable {
             await appState.loadLeaderboard()
+        }
+        .task {
+            if appState.leaderboard.isEmpty && !appState.isLoadingLeaderboard {
+                await appState.loadLeaderboard()
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }

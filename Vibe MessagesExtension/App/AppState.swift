@@ -83,6 +83,8 @@ class AppState: ObservableObject {
     @Published var auraStats: AuraStats?
     @Published var auraTransactions: [AuraTransaction] = []
     @Published var leaderboard: [LeaderboardEntry] = []
+    @Published var isLoadingLeaderboard = false
+    @Published var leaderboardErrorMessage: String?
 
     // MARK: - Betting
     @Published var activeBets: [Bet] = [] // current-chat (compact)
@@ -1016,9 +1018,15 @@ class AppState: ObservableObject {
     }
 
     func loadLeaderboard(sortBy: String = "auraBalance") async {
+        guard isAuthenticated else { return }
+        isLoadingLeaderboard = true
+        leaderboardErrorMessage = nil
+        defer { isLoadingLeaderboard = false }
+
         do {
             self.leaderboard = try await AuraService.shared.getLeaderboard(sortBy: sortBy)
         } catch {
+            self.leaderboardErrorMessage = error.localizedDescription
             print("AppState Error: Loading leaderboard failed: \(error)")
         }
     }

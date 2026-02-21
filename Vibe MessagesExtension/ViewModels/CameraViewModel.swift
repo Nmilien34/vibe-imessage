@@ -18,6 +18,7 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var recordingTime: TimeInterval = 0
     @Published var recordedVideo: VideoRecording?
     @Published var capturedPhoto: UIImage?
+    @Published var isMuted = false
     @Published var isUploading = false
     @Published var uploadError: String?
     
@@ -59,9 +60,14 @@ class CameraViewModel: NSObject, ObservableObject {
     private var videoOutput = AVCaptureMovieFileOutput()
     private var photoOutput = AVCapturePhotoOutput()
     private var videoInput: AVCaptureDeviceInput?
+    private var audioInput: AVCaptureDeviceInput?
     private var timer: Timer?
     private var startTime: Date?
-    
+
+    // Race condition flags: tracks recording lifecycle between startRecording() and delegate callbacks
+    private var isStartingRecording = false
+    private var pendingStopRecording = false
+
     private let maxDuration: TimeInterval = 15.0
     
     var isSimulator: Bool {
@@ -149,7 +155,11 @@ class CameraViewModel: NSObject, ObservableObject {
 
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
-            
+
+            // Create fresh outputs so they're not attached to a stale session
+            self.videoOutput = AVCaptureMovieFileOutput()
+            self.photoOutput = AVCapturePhotoOutput()
+
             let session = AVCaptureSession()
             session.beginConfiguration()
             session.sessionPreset = .high
@@ -190,13 +200,14 @@ class CameraViewModel: NSObject, ObservableObject {
                 session.addOutput(self.photoOutput)
             }
             
-            // Audio Input - only add if we have permission
+            // Audio Input - only add if we have permission and not muted
             let audioStatus = AVCaptureDevice.authorizationStatus(for: .audio)
             if audioStatus == .authorized {
                 if let audioDevice = AVCaptureDevice.default(for: .audio),
                    let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
                    session.canAddInput(audioInput) {
                     session.addInput(audioInput)
+                    self.audioInput = audioInput
                 }
             } else {
                 print("CameraViewModel: Skipping audio input - permission not granted (status: \(audioStatus.rawValue))")
@@ -215,15 +226,24 @@ class CameraViewModel: NSObject, ObservableObject {
         self.recordedVideo = nil
         self.capturedPhoto = nil
         self.isRecording = false
+        self.isStartingRecording = false
+        self.pendingStopRecording = false
         self.recordingTime = 0
     }
 
     func stopSession() {
         if isSimulator { return }
         sessionQueue.async { [weak self] in
-            self?.session?.stopRunning()
+            guard let self = self else { return }
+            if self.videoOutput.isRecording {
+                self.videoOutput.stopRecording()
+            }
+            self.session?.stopRunning()
             DispatchQueue.main.async {
-                self?.session = nil
+                self.session = nil
+                self.isRecording = false
+                self.isStartingRecording = false
+                self.pendingStopRecording = false
             }
         }
     }
@@ -231,7 +251,7 @@ class CameraViewModel: NSObject, ObservableObject {
     // MARK: - Recording Logic
     
     func startRecording() {
-        guard !isRecording else { return }
+        guard !isRecording, !isStartingRecording else { return }
 
         if isSimulator {
             isRecording = true
@@ -245,30 +265,47 @@ class CameraViewModel: NSObject, ObservableObject {
             }
             return
         }
-        
-        let outputUrl = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
-        
-        videoOutput.startRecording(to: outputUrl, recordingDelegate: self)
+
+        isStartingRecording = true
+        pendingStopRecording = false
+
+        let outputUrl = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("mov")
+
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.videoOutput.startRecording(to: outputUrl, recordingDelegate: self)
+        }
     }
     
     func stopRecording() {
+        // If recording was requested but delegate hasn't fired yet, defer the stop
+        if isStartingRecording && !isRecording {
+            pendingStopRecording = true
+            return
+        }
+
         guard isRecording else { return }
-        
+
         if isSimulator {
             isRecording = false
+            let duration = self.recordingTime
             stopTimer()
-            
-            // Generate dummy video
+
             Task { @MainActor in
-                let outputUrl = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
-                // Write dummy data to ensure file exists
+                let outputUrl = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString)
+                    .appendingPathExtension("mov")
                 try? "DUMMY VIDEO DATA".data(using: .utf8)?.write(to: outputUrl)
-                self.recordedVideo = VideoRecording(url: outputUrl, duration: self.recordingTime)
+                self.recordedVideo = VideoRecording(url: outputUrl, duration: duration)
             }
             return
         }
 
-        videoOutput.stopRecording()
+        sessionQueue.async { [weak self] in
+            self?.videoOutput.stopRecording()
+        }
     }
     
     func takePhoto() {
@@ -337,6 +374,32 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
 
+    func toggleMute(_ muted: Bool) {
+        isMuted = muted
+        if isSimulator { return }
+        sessionQueue.async { [weak self] in
+            guard let self = self, let session = self.session else { return }
+            session.beginConfiguration()
+            if muted {
+                // Remove audio input
+                if let audioInput = self.audioInput {
+                    session.removeInput(audioInput)
+                }
+            } else {
+                // Re-add audio input if permission granted
+                if let audioInput = self.audioInput, session.canAddInput(audioInput) {
+                    session.addInput(audioInput)
+                } else if let audioDevice = AVCaptureDevice.default(for: .audio),
+                          let newAudioInput = try? AVCaptureDeviceInput(device: audioDevice),
+                          session.canAddInput(newAudioInput) {
+                    session.addInput(newAudioInput)
+                    self.audioInput = newAudioInput
+                }
+            }
+            session.commitConfiguration()
+        }
+    }
+
     private func startTimer() {
         startTime = Date()
         recordingTime = 0
@@ -367,25 +430,41 @@ class CameraViewModel: NSObject, ObservableObject {
 extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL, from connections: [AVCaptureConnection]) {
         DispatchQueue.main.async {
+            self.isStartingRecording = false
             self.isRecording = true
             self.startTimer()
+
+            // If user already tapped stop before recording started, stop now
+            if self.pendingStopRecording {
+                self.pendingStopRecording = false
+                self.stopRecording()
+            }
         }
     }
-    
+
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         DispatchQueue.main.async {
             self.isRecording = false
+            self.isStartingRecording = false
+
+            // Capture duration BEFORE stopTimer resets it to 0
+            let finalDuration = self.recordingTime
             self.stopTimer()
-            
+
             if let error = error {
                 print("Recording error: \(error.localizedDescription)")
-                // Handle specific success cases even with errors (like max duration reached)
-                let success = (error as NSError).code == AVError.maximumDurationReached.rawValue || (error as NSError).code == AVError.diskFull.rawValue || (error as NSError).code == AVError.sessionWasInterrupted.rawValue
-                   
-                if !success { return }
+                let nsError = error as NSError
+                let isAcceptable = nsError.code == AVError.maximumDurationReached.rawValue
+                    || nsError.code == AVError.diskFull.rawValue
+                if !isAcceptable { return }
             }
-            
-            self.recordedVideo = VideoRecording(url: outputFileURL, duration: self.recordingTime)
+
+            // Use actual file duration as a reliable fallback
+            let asset = AVURLAsset(url: outputFileURL)
+            let assetDuration = CMTimeGetSeconds(asset.duration)
+            let duration = assetDuration > 0 ? assetDuration : finalDuration
+
+            self.recordedVideo = VideoRecording(url: outputFileURL, duration: duration)
         }
     }
 }

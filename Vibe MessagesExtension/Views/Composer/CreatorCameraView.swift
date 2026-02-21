@@ -328,6 +328,16 @@ struct CreatorCameraView: View {
                 showMusicPicker = true
             }
 
+            // Sound
+            CameraToolButton(
+                icon: viewModel.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                label: viewModel.isMuted ? "Muted" : "Sound",
+                isActive: !viewModel.isMuted
+            ) {
+                viewModel.toggleMute(!viewModel.isMuted)
+                VibeHaptic.light()
+            }
+
             // Flash
             CameraToolButton(
                 icon: isFlashOn ? "bolt.fill" : "bolt.slash.fill",
@@ -440,18 +450,13 @@ struct CreatorCameraView: View {
                             }
                         }
                     }
-                    .onLongPressGesture(minimumDuration: 0.1, pressing: { pressing in
-                        if pressing {
-                            beginRecording()
-                        } else {
-                            viewModel.stopRecording()
-                        }
-                    }) {
-                        // Empty action block
-                    }
                     .onTapGesture {
                         VibeHaptic.medium()
-                        viewModel.takePhoto()
+                        if viewModel.isRecording {
+                            viewModel.stopRecording()
+                        } else {
+                            beginRecording()
+                        }
                     }
 
                 if viewModel.isRecording {
