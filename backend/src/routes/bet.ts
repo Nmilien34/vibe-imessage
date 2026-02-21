@@ -21,6 +21,7 @@ import {
   getBetResolution,
   autoExpireBets
 } from '../services/betService';
+import { createConnection } from '../services/feedService';
 
 const router: Router = express.Router();
 
@@ -84,6 +85,19 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       initialSide,
       targetUserId,
     });
+
+    if (targetUserId && typeof targetUserId === 'string' && targetUserId !== userId) {
+      try {
+        await createConnection({
+          userId1: userId,
+          userId2: targetUserId,
+          sourceChatId: chatId,
+        });
+      } catch (connectionError) {
+        // Connection hydration should not block bet creation.
+        console.error('Bet creation network connection warning:', connectionError);
+      }
+    }
 
     res.status(201).json({
       success: true,

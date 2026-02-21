@@ -30,7 +30,7 @@ class MessagesViewController: MSMessagesAppViewController {
         }
         
         // Callback for sending a story
-        appState.sendStory = { [weak self] (vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) in
+        appState.sendStory = { [weak self] (vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?, linkedBetId: String?) in
             Task { @MainActor in
                 guard let self else { return }
                 // Ensure chat_id is resolved before sending (prevents missing chat_id in URL)
@@ -46,7 +46,15 @@ class MessagesViewController: MSMessagesAppViewController {
                         }
                     }
                 }
-                self.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
+                self.sendStory(
+                    vibeId: vibeId,
+                    mediaUrl: mediaUrl,
+                    isLocked: isLocked,
+                    rawThumbnail: rawThumbnail,
+                    vibeType: vibeType,
+                    contextText: contextText,
+                    linkedBetId: linkedBetId
+                )
             }
         }
 
@@ -146,7 +154,8 @@ class MessagesViewController: MSMessagesAppViewController {
                 vibeId: vibeId.isEmpty ? nil : vibeId,
                 chatId: chatId,
                 isLocked: isLocked,
-                senderName: senderName
+                senderName: senderName,
+                senderId: senderId
             )
             requestPresentationStyle(.expanded)
             return
@@ -155,7 +164,12 @@ class MessagesViewController: MSMessagesAppViewController {
         if let betId, !betId.isEmpty {
             requestPresentationStyle(.expanded)
             Task {
-                await handleSharedBetTap(betId: betId, chatId: chatId)
+                await handleSharedBetTap(
+                    betId: betId,
+                    chatId: chatId,
+                    senderId: senderId,
+                    conversation: conversation
+                )
             }
             return
         }
@@ -166,7 +180,11 @@ class MessagesViewController: MSMessagesAppViewController {
         if isLocked && !isOwnMessage {
             // Show unlock prompt for locked content from other users
             Task { @MainActor in
-                await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                let resolvedChatId = await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                let normalizedSenderId = senderId.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let resolvedChatId, !normalizedSenderId.isEmpty, normalizedSenderId != appState.userId {
+                    await appState.ensureNetworkConnection(targetUserId: normalizedSenderId, sourceChatId: resolvedChatId)
+                }
                 await appState.loadVibes()
             }
             let lockedParams = LockedMessageParams(
@@ -184,7 +202,11 @@ class MessagesViewController: MSMessagesAppViewController {
             }
             requestPresentationStyle(.expanded)
             Task { @MainActor in
-                await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                let resolvedChatId = await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                let normalizedSenderId = senderId.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let resolvedChatId, !normalizedSenderId.isEmpty, normalizedSenderId != appState.userId {
+                    await appState.ensureNetworkConnection(targetUserId: normalizedSenderId, sourceChatId: resolvedChatId)
+                }
                 await appState.loadVibes()
                 appState.navigateToViewer(opening: vibeId)
             }
@@ -192,7 +214,7 @@ class MessagesViewController: MSMessagesAppViewController {
     }
 
     @MainActor
-    private func handleSharedBetTap(betId: String, chatId: String?) async {
+    private func handleSharedBetTap(betId: String, chatId: String?, senderId: String, conversation: MSConversation) async {
         print("handleSharedBetTap: betId=\(betId) chatId=\(chatId ?? "nil") auth=\(appState.isAuthenticated)")
         let trimmedBetId = betId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedBetId.isEmpty else {
@@ -200,34 +222,53 @@ class MessagesViewController: MSMessagesAppViewController {
             return
         }
 
+        var resolvedChatIdForConnection: String?
         let trimmedChatId = chatId?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let trimmedChatId, trimmedChatId.hasPrefix("chat_") {
-            let hasAccess = await appState.hasAccessToChat(trimmedChatId)
+            let resolvedChatId = await resolveSharedChatIfNeeded(chatId: trimmedChatId, conversation: conversation) ?? trimmedChatId
+            resolvedChatIdForConnection = resolvedChatId
+
+            let hasAccess = await appState.hasAccessToChat(resolvedChatId)
             if hasAccess == false {
-                presentBetAccessPrompt(chatId: trimmedChatId, betId: trimmedBetId)
+                presentBetAccessPrompt(chatId: resolvedChatId, betId: trimmedBetId)
                 return
             }
-            appState.currentChatId = trimmedChatId
+            appState.currentChatId = resolvedChatId
+        }
+
+        let normalizedSenderId = senderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let resolvedChatIdForConnection,
+           !normalizedSenderId.isEmpty,
+           normalizedSenderId != appState.userId {
+            await appState.ensureNetworkConnection(
+                targetUserId: normalizedSenderId,
+                sourceChatId: resolvedChatIdForConnection
+            )
         }
 
         await appState.openBetById(trimmedBetId)
     }
 
     @MainActor
-    private func resolveSharedChatIfNeeded(chatId: String?, conversation: MSConversation) async {
+    private func resolveSharedChatIfNeeded(chatId: String?, conversation: MSConversation) async -> String? {
         guard let chatId = chatId?.trimmingCharacters(in: .whitespacesAndNewlines),
               chatId.hasPrefix("chat_")
         else {
-            return
+            if let existingChatId = appState.currentChatId, existingChatId.hasPrefix("chat_") {
+                return existingChatId
+            }
+            return nil
         }
 
         let resolvedChatId = await ConversationManager.shared.resolveChatID(
             conversation: conversation,
             userId: appState.userId
         )
-        appState.currentChatId = resolvedChatId.hasPrefix("chat_")
+        let finalChatId = resolvedChatId.hasPrefix("chat_")
             ? resolvedChatId
             : chatId
+        appState.currentChatId = finalChatId
+        return finalChatId
     }
 
     @MainActor
@@ -296,7 +337,15 @@ class MessagesViewController: MSMessagesAppViewController {
     
     // MARK: - Sending Stories
 
-    func sendStory(vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) {
+    func sendStory(
+        vibeId: String,
+        mediaUrl: String,
+        isLocked: Bool,
+        rawThumbnail: UIImage?,
+        vibeType: VibeType,
+        contextText: String?,
+        linkedBetId: String? = nil
+    ) {
         guard let conversation = activeConversation ?? appState.currentConversation else {
             print("MessagesViewController Warning: No active conversation available. Failed to send vibe \(vibeId).")
             return
@@ -357,6 +406,12 @@ class MessagesViewController: MSMessagesAppViewController {
 
         if let chatId = appState.currentChatId, !chatId.hasPrefix("fallback_") {
             queryItems.append(URLQueryItem(name: "chat_id", value: chatId))
+        } else if let suggestedChatId = ConversationManager.shared.suggestedChatId(for: conversation) {
+            queryItems.append(URLQueryItem(name: "chat_id", value: suggestedChatId))
+            print("MVC sendStory: using suggested chat_id \(suggestedChatId) while resolution is pending")
+        }
+        if let linkedBetId = linkedBetId?.trimmingCharacters(in: .whitespacesAndNewlines), !linkedBetId.isEmpty {
+            queryItems.append(URLQueryItem(name: "bet_id", value: linkedBetId))
         }
 
         components.queryItems = queryItems

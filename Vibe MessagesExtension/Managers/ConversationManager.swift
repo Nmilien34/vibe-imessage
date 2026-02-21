@@ -118,6 +118,12 @@ class ConversationManager: ObservableObject {
         return fallbackId
     }
 
+    /// Provides a deterministic participant-scoped chat id that can be embedded in outgoing messages
+    /// even before backend chat resolution finishes.
+    func suggestedChatId(for conversation: MSConversation) -> String? {
+        deterministicChatId(for: conversation)
+    }
+
     // MARK: - Function B: Pack Message
 
     /**

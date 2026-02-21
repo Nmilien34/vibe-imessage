@@ -260,10 +260,11 @@ class AppState: ObservableObject {
     @Published var pendingDeepLinkChatId: String?
     @Published var pendingDeepLinkIsLocked: Bool = false
     @Published var pendingDeepLinkSenderName: String?
+    @Published var pendingDeepLinkSenderId: String?
 
     // MARK: - Callbacks
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
-    var sendStory: ((_ vibeId: String, _ mediaUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?, _ vibeType: VibeType, _ contextText: String?) -> Void)?
+    var sendStory: ((_ vibeId: String, _ mediaUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?, _ vibeType: VibeType, _ contextText: String?, _ linkedBetId: String?) -> Void)?
     var onUnlockComplete: (() -> Void)?
     
     // MARK: - Usage Analytics (for Dynamic Dashboard)
@@ -1142,8 +1143,15 @@ class AppState: ObservableObject {
             vibeId: challengeVibe.id,
             isLocked: false,
             vibeType: .parlay,
-            contextText: contextText
+            contextText: contextText,
+            linkedBetId: bet.betId
         )
+
+        if let targetUserId,
+           targetUserId != userId,
+           !targetUserId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            await ensureNetworkConnection(targetUserId: targetUserId, sourceChatId: bet.chatId)
+        }
 
         return challengeVibe
     }
@@ -1708,17 +1716,25 @@ class AppState: ObservableObject {
     }
 
     /// Sends an iMessage bubble for any vibe type
-    func sendVibeMessage(vibeId: String, mediaUrl: String = "", isLocked: Bool, thumbnail: UIImage? = nil, vibeType: VibeType, contextText: String? = nil) {
+    func sendVibeMessage(
+        vibeId: String,
+        mediaUrl: String = "",
+        isLocked: Bool,
+        thumbnail: UIImage? = nil,
+        vibeType: VibeType,
+        contextText: String? = nil,
+        linkedBetId: String? = nil
+    ) {
         guard let sendStory else {
             print("AppState Warning: sendStory callback is not set. Skipping iMessage send for vibe \(vibeId).")
             return
         }
 
         if Thread.isMainThread {
-            sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
+            sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText, linkedBetId)
         } else {
             Task { @MainActor in
-                sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
+                sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText, linkedBetId)
             }
         }
     }
@@ -1729,7 +1745,8 @@ class AppState: ObservableObject {
             vibeId: bet.betId,
             isLocked: false,
             vibeType: .parlay,
-            contextText: "\(bet.description)|\(bet.creationCost ?? 0)|Anyone"
+            contextText: "\(bet.description)|\(bet.creationCost ?? 0)|Anyone",
+            linkedBetId: bet.betId
         )
     }
 
@@ -2059,12 +2076,20 @@ class AppState: ObservableObject {
     // MARK: - Pending Deep Link Processing
 
     /// Saves deep link parameters when a bubble is tapped before auth is complete.
-    func savePendingDeepLink(betId: String?, vibeId: String?, chatId: String?, isLocked: Bool, senderName: String?) {
+    func savePendingDeepLink(
+        betId: String?,
+        vibeId: String?,
+        chatId: String?,
+        isLocked: Bool,
+        senderName: String?,
+        senderId: String?
+    ) {
         pendingDeepLinkBetId = betId
         pendingDeepLinkVibeId = vibeId
         pendingDeepLinkChatId = chatId
         pendingDeepLinkIsLocked = isLocked
         pendingDeepLinkSenderName = senderName
+        pendingDeepLinkSenderId = senderId
         print("AppState: Saved pending deep link — bet=\(betId ?? "nil"), vibe=\(vibeId ?? "nil"), chat=\(chatId ?? "nil")")
     }
 
@@ -2073,6 +2098,7 @@ class AppState: ObservableObject {
         // Handle pending bet deep link
         if let betId = pendingDeepLinkBetId, !betId.isEmpty {
             let chatId = pendingDeepLinkChatId
+            let senderId = pendingDeepLinkSenderId
             clearPendingDeepLink()
 
             // Resolve chat membership first
@@ -2081,7 +2107,11 @@ class AppState: ObservableObject {
                     conversation: conversation,
                     userId: userId
                 )
-                currentChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+                let finalChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+                currentChatId = finalChatId
+                if let senderId = senderId, !senderId.isEmpty, senderId != userId {
+                    await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                }
             }
 
             await openBetById(betId)
@@ -2093,6 +2123,7 @@ class AppState: ObservableObject {
             let isLocked = pendingDeepLinkIsLocked
             let senderName = pendingDeepLinkSenderName
             let chatId = pendingDeepLinkChatId
+            let senderId = pendingDeepLinkSenderId
             clearPendingDeepLink()
 
             if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
@@ -2100,7 +2131,11 @@ class AppState: ObservableObject {
                     conversation: conversation,
                     userId: userId
                 )
-                currentChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+                let finalChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+                currentChatId = finalChatId
+                if let senderId = senderId, !senderId.isEmpty, senderId != userId {
+                    await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                }
             }
 
             if isLocked {
@@ -2127,6 +2162,7 @@ class AppState: ObservableObject {
         pendingDeepLinkChatId = nil
         pendingDeepLinkIsLocked = false
         pendingDeepLinkSenderName = nil
+        pendingDeepLinkSenderId = nil
     }
 
     private func bestJoinableBet() -> Bet? {
@@ -2448,6 +2484,46 @@ class AppState: ObservableObject {
             self.networkUsers = result
         } catch {
             print("AppState Error: Loading audience graph failed: \(error)")
+        }
+    }
+
+    func ensureNetworkConnection(targetUserId: String, sourceChatId: String, refreshAudience: Bool = true) async {
+        guard isAuthenticated else { return }
+
+        let trimmedTargetUserId = targetUserId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSourceChatId = sourceChatId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !trimmedTargetUserId.isEmpty,
+            trimmedTargetUserId != userId,
+            trimmedSourceChatId.hasPrefix("chat_")
+        else {
+            return
+        }
+
+        if audienceGraph?.groupUserIds.contains(trimmedTargetUserId) == true {
+            return
+        }
+
+        struct ConnectionRequest: Encodable {
+            let targetUserId: String
+            let sourceChatId: String
+        }
+
+        struct ConnectionResponse: Decodable {
+            let success: Bool?
+        }
+
+        do {
+            let _: ConnectionResponse = try await APIClient.shared.post(
+                "/feed/connection",
+                body: ConnectionRequest(targetUserId: trimmedTargetUserId, sourceChatId: trimmedSourceChatId)
+            )
+
+            if refreshAudience {
+                await loadAudienceGraph()
+            }
+        } catch {
+            print("AppState Error: Ensuring network connection failed: \(error)")
         }
     }
 
