@@ -83,13 +83,13 @@ router.get('/transactions', authMiddleware, async (req: Request, res: Response) 
 
 /**
  * @route   POST /api/aura/claim-daily
- * @desc    Claim daily bonus (also happens on login)
+ * @desc    Claim daily bonus
  * @access  Private (JWT required)
  */
 router.post('/claim-daily', authMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = req.userId!;
-    const result = await processLoginUpdates(userId);
+    const result = await processLoginUpdates(userId, { awardDailyBonus: true });
 
     if (result.dailyBonusClaimed) {
       res.json({

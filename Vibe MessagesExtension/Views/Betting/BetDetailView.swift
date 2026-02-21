@@ -109,21 +109,20 @@ struct BetDetailView: View {
             .padding(.top, VibeSpacing.sm)
         }
         .overlay(alignment: .topTrailing) {
-            if let shareURL = betShareURL {
-                ShareLink(
-                    item: shareURL,
-                    message: Text(shareMessageText)
-                ) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(VibeTheme.textPrimary)
-                        .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                }
-                .padding(.trailing, VibeSpacing.screenHorizontal)
-                .padding(.top, VibeSpacing.sm)
+            Button {
+                VibeHaptic.medium()
+                appState.sendBetMessage(bet: currentBet)
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(VibeTheme.textPrimary)
+                    .frame(width: VibeSpacing.minTouchTarget, height: VibeSpacing.minTouchTarget)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
             }
+            .buttonStyle(VibePressStyle())
+            .padding(.trailing, VibeSpacing.screenHorizontal)
+            .padding(.top, VibeSpacing.sm)
         }
         .task {
             await loadBetDetails()
@@ -677,8 +676,9 @@ struct BetDetailView: View {
 
     private var betShareURL: URL? {
         var components = URLComponents()
-        components.scheme = "vibe"
-        components.host = "story"
+        components.scheme = "https"
+        components.host = "getvibe.app"
+        components.path = "/open"
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "bet_id", value: currentBet.betId),
             URLQueryItem(name: "chat_id", value: currentBet.chatId),

@@ -32,7 +32,21 @@ class MessagesViewController: MSMessagesAppViewController {
         // Callback for sending a story
         appState.sendStory = { [weak self] (vibeId: String, mediaUrl: String, isLocked: Bool, rawThumbnail: UIImage?, vibeType: VibeType, contextText: String?) in
             Task { @MainActor in
-                self?.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
+                guard let self else { return }
+                // Ensure chat_id is resolved before sending (prevents missing chat_id in URL)
+                if let chatId = self.appState.currentChatId, chatId.hasPrefix("fallback_") {
+                    if let conversation = self.activeConversation ?? self.appState.currentConversation,
+                       self.appState.isAuthenticated {
+                        let resolved = await ConversationManager.shared.resolveChatID(
+                            conversation: conversation,
+                            userId: self.appState.userId
+                        )
+                        if resolved.hasPrefix("chat_") {
+                            self.appState.currentChatId = resolved
+                        }
+                    }
+                }
+                self.sendStory(vibeId: vibeId, mediaUrl: mediaUrl, isLocked: isLocked, rawThumbnail: rawThumbnail, vibeType: vibeType, contextText: contextText)
             }
         }
 
@@ -72,6 +86,7 @@ class MessagesViewController: MSMessagesAppViewController {
     // MARK: - Conversation Handling
 
     override func willBecomeActive(with conversation: MSConversation) {
+        print("MVC: willBecomeActive — auth=\(appState.isAuthenticated) userId=\(appState.userId) style=\(presentationStyle.rawValue)")
         // Configure app state with the current conversation
         // setConversation will resolve the chat_id via ConversationManager
         // and automatically load vibes from the unified feed
@@ -92,14 +107,20 @@ class MessagesViewController: MSMessagesAppViewController {
 
     override func didSelect(_ message: MSMessage, conversation: MSConversation) {
         // Called when user taps on a message bubble
-        guard let url = message.url else { return }
+        guard let url = message.url else {
+            print("didSelect: No URL in message, ignoring tap")
+            return
+        }
 
         // Parse the message URL using ConversationManager
         let parsed = ConversationManager.shared.parseVibeURL(url)
 
         // Also extract legacy params for backwards compatibility
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let queryItems = components.queryItems else { return }
+              let queryItems = components.queryItems else {
+            print("didSelect: Failed to parse URL components from \(url)")
+            return
+        }
 
         var params: [String: String] = [:]
         for item in queryItems {
@@ -116,6 +137,21 @@ class MessagesViewController: MSMessagesAppViewController {
         let senderName = parsed.sender ?? params["sender"] ?? "Friend"
         let videoUrl = params["url"]
 
+        print("didSelect: betId=\(betId ?? "nil") vibeId=\(vibeId) chatId=\(chatId ?? "nil") isLocked=\(isLocked) auth=\(appState.isAuthenticated)")
+
+        // If user isn't authenticated, save the deep link for after auth completes
+        if !appState.isAuthenticated {
+            appState.savePendingDeepLink(
+                betId: betId,
+                vibeId: vibeId.isEmpty ? nil : vibeId,
+                chatId: chatId,
+                isLocked: isLocked,
+                senderName: senderName
+            )
+            requestPresentationStyle(.expanded)
+            return
+        }
+
         if let betId, !betId.isEmpty {
             requestPresentationStyle(.expanded)
             Task {
@@ -128,21 +164,15 @@ class MessagesViewController: MSMessagesAppViewController {
         // This is how users get added to chats when receiving messages
         if let chatId = chatId, chatId.hasPrefix("chat_") {
             Task {
-                if appState.isAuthenticated {
-                    let resolvedChatId = await ConversationManager.shared.resolveChatID(
-                        conversation: conversation,
-                        userId: appState.userId
-                    )
-                    // Use backend-resolved id when available; fall back to parsed id.
-                    await MainActor.run {
-                        appState.currentChatId = resolvedChatId.hasPrefix("chat_")
-                            ? resolvedChatId
-                            : chatId
-                    }
-                } else {
-                    await MainActor.run {
-                        appState.currentChatId = chatId
-                    }
+                let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                    conversation: conversation,
+                    userId: appState.userId
+                )
+                // Use backend-resolved id when available; fall back to parsed id.
+                await MainActor.run {
+                    appState.currentChatId = resolvedChatId.hasPrefix("chat_")
+                        ? resolvedChatId
+                        : chatId
                 }
 
                 // Refresh vibes for the new chat
@@ -171,6 +201,7 @@ class MessagesViewController: MSMessagesAppViewController {
 
     @MainActor
     private func handleSharedBetTap(betId: String, chatId: String?) async {
+        print("handleSharedBetTap: betId=\(betId) chatId=\(chatId ?? "nil") auth=\(appState.isAuthenticated)")
         let trimmedBetId = betId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedBetId.isEmpty else {
             appState.navigateToBetList()
@@ -300,8 +331,9 @@ class MessagesViewController: MSMessagesAppViewController {
 
         // 4. Encode data with chat_id for distributed ID system
         var components = URLComponents()
-        components.scheme = "vibe"
-        components.host = "story"
+        components.scheme = "https"
+        components.host = "getvibe.app"
+        components.path = "/open"
 
         var queryItems = [
             URLQueryItem(name: "vibe_id", value: vibeId),
@@ -320,6 +352,8 @@ class MessagesViewController: MSMessagesAppViewController {
 
         components.queryItems = queryItems
         message.url = components.url
+
+        print("MVC sendStory: url=\(message.url?.absoluteString ?? "nil") chatId=\(appState.currentChatId ?? "nil")")
 
         // 5. Insert into Conversation
         conversation.insert(message) { error in

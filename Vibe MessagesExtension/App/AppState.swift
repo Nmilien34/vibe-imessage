@@ -254,6 +254,13 @@ class AppState: ObservableObject {
     @Published var lockedMessageParams: LockedMessageParams?
     @Published var pendingUnlockVibeId: String?
 
+    // MARK: - Pending Deep Link (saved when tapping a bubble before auth)
+    @Published var pendingDeepLinkBetId: String?
+    @Published var pendingDeepLinkVibeId: String?
+    @Published var pendingDeepLinkChatId: String?
+    @Published var pendingDeepLinkIsLocked: Bool = false
+    @Published var pendingDeepLinkSenderName: String?
+
     // MARK: - Callbacks
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
     var sendStory: ((_ vibeId: String, _ mediaUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?, _ vibeType: VibeType, _ contextText: String?) -> Void)?
@@ -351,6 +358,38 @@ class AppState: ObservableObject {
         let safe = max(0, value)
         auraBalance = safe
         UserDefaults.standard.set(safe, forKey: auraBalanceStorageKey)
+    }
+
+    private func normalizedNonEmpty(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private func resolvedFirstName(firstName: String?, email: String?) -> String? {
+        if let firstName = normalizedNonEmpty(firstName) {
+            let normalized = firstName.lowercased()
+            if normalized != "user" && normalized != "vibe user" {
+                return firstName
+            }
+        }
+
+        guard
+            let email = normalizedNonEmpty(email),
+            let localPart = email.split(separator: "@").first
+        else {
+            return nil
+        }
+
+        let cleaned = localPart
+            .replacingOccurrences(of: ".", with: " ")
+            .replacingOccurrences(of: "_", with: " ")
+            .replacingOccurrences(of: "-", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !cleaned.isEmpty else { return nil }
+        return cleaned.capitalized
     }
 
     // MARK: - Conversation Handling
@@ -823,6 +862,7 @@ class AppState: ObservableObject {
         struct UserData: Decodable {
             let id: String
             let firstName: String?
+            let email: String?
             let profilePicture: String?
             let auraBalance: Int?
             let vibeScore: Int?
@@ -832,10 +872,9 @@ class AppState: ObservableObject {
         do {
             let response: UserProfileResponse = try await APIClient.shared.get("/user/me")
 
-            if let firstName = response.user.firstName, !firstName.isEmpty {
-                self.userFirstName = firstName
-                UserDefaults.standard.set(firstName, forKey: "vibeUserFirstName")
-            }
+            let firstName = resolvedFirstName(firstName: response.user.firstName, email: response.user.email)
+            self.userFirstName = firstName
+            UserDefaults.standard.set(firstName, forKey: "vibeUserFirstName")
 
             self.userProfilePictureURL = response.user.profilePicture
             UserDefaults.standard.set(response.user.profilePicture, forKey: "vibeUserProfilePicture")
@@ -1361,6 +1400,9 @@ class AppState: ObservableObject {
             let firstName: String?
             let lastName: String?
             let email: String?
+            let profilePicture: String?
+            let auraBalance: Int?
+            let vibeScore: Int?
         }
 
         do {
@@ -1397,13 +1439,28 @@ class AppState: ObservableObject {
             }
 
             self.userId = response.user.id
-            self.userFirstName = response.user.firstName
+            let resolvedName = resolvedFirstName(
+                firstName: response.user.firstName ?? firstName,
+                email: response.user.email ?? email
+            )
+            self.userFirstName = resolvedName
             self.isAuthenticated = true
+
+            if let profilePicture = response.user.profilePicture {
+                self.userProfilePictureURL = profilePicture
+            }
+            if let auraBalance = response.user.auraBalance {
+                updateAuraBalance(auraBalance)
+            }
+            if let vibeScore = response.user.vibeScore {
+                self.vibeScore = vibeScore
+            }
             
             // Save to UserDefaults for persistence
             UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
             UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
-            UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
+            UserDefaults.standard.set(resolvedName, forKey: "vibeUserFirstName")
+            UserDefaults.standard.set(self.userProfilePictureURL, forKey: "vibeUserProfilePicture")
             
             print("Auth Debug: Successfully authenticated with Apple. UserID: \(self.userId)")
 
@@ -1415,7 +1472,13 @@ class AppState: ObservableObject {
             async let auraTask: () = loadAuraStats()
             async let profileTask: () = loadCurrentUserProfile()
             _ = await (auraTask, profileTask)
-            _ = await claimDailyBonus()
+
+            // For returning users who already passed all gates, process deep link now
+            if hasRequiredPermissions && isBirthdayCollected {
+                if pendingDeepLinkBetId != nil || pendingDeepLinkVibeId != nil {
+                    await processPendingDeepLink()
+                }
+            }
 
         } catch {
             self.error = "Sign in failed: \(error.localizedDescription)"
@@ -1493,6 +1556,13 @@ class AppState: ObservableObject {
     func setPermissionsGranted() {
         hasRequiredPermissions = true
         UserDefaults.standard.set(true, forKey: "vibePermissionsGranted")
+
+        // Process any pending deep link now that all auth gates are complete
+        if pendingDeepLinkBetId != nil || pendingDeepLinkVibeId != nil {
+            Task {
+                await processPendingDeepLink()
+            }
+        }
     }
 
     /// Development-only login that authenticates with the backend using a test user.
@@ -1526,6 +1596,9 @@ class AppState: ObservableObject {
             let firstName: String?
             let lastName: String?
             let email: String?
+            let profilePicture: String?
+            let auraBalance: Int?
+            let vibeScore: Int?
         }
 
         do {
@@ -1535,13 +1608,25 @@ class AppState: ObservableObject {
             )
 
             self.userId = response.user.id
-            self.userFirstName = response.user.firstName
+            let resolvedName = resolvedFirstName(firstName: response.user.firstName, email: response.user.email)
+            self.userFirstName = resolvedName
             self.isAuthenticated = true
+
+            if let profilePicture = response.user.profilePicture {
+                self.userProfilePictureURL = profilePicture
+            }
+            if let auraBalance = response.user.auraBalance {
+                updateAuraBalance(auraBalance)
+            }
+            if let vibeScore = response.user.vibeScore {
+                self.vibeScore = vibeScore
+            }
 
             // Save to UserDefaults for persistence
             UserDefaults.standard.set(self.userId, forKey: "vibeUserId")
             UserDefaults.standard.set(response.token, forKey: "vibeAuthToken")
-            UserDefaults.standard.set(self.userFirstName, forKey: "vibeUserFirstName")
+            UserDefaults.standard.set(resolvedName, forKey: "vibeUserFirstName")
+            UserDefaults.standard.set(self.userProfilePictureURL, forKey: "vibeUserProfilePicture")
 
             print("Auth Debug: Dev login successful. UserID: \(self.userId)")
 
@@ -1553,7 +1638,6 @@ class AppState: ObservableObject {
             async let auraTask: () = loadAuraStats()
             async let profileTask: () = loadCurrentUserProfile()
             _ = await (auraTask, profileTask)
-            _ = await claimDailyBonus()
 
         } catch {
             self.error = "Dev login failed: \(error.localizedDescription)"
@@ -1637,6 +1721,16 @@ class AppState: ObservableObject {
                 sendStory(vibeId, mediaUrl, isLocked, thumbnail, vibeType, contextText)
             }
         }
+    }
+
+    /// Sends a bet as an interactive MSMessage bubble into the current conversation.
+    func sendBetMessage(bet: Bet) {
+        sendVibeMessage(
+            vibeId: bet.betId,
+            isLocked: false,
+            vibeType: .parlay,
+            contextText: "\(bet.description)|\(bet.creationCost ?? 0)|Anyone"
+        )
     }
 
     func addReaction(to vibe: Vibe, emoji: String) async {
@@ -1960,6 +2054,69 @@ class AppState: ObservableObject {
                 navigateToBetList()
             }
         }
+    }
+
+    // MARK: - Pending Deep Link Processing
+
+    /// Saves deep link parameters when a bubble is tapped before auth is complete.
+    func savePendingDeepLink(betId: String?, vibeId: String?, chatId: String?, isLocked: Bool, senderName: String?) {
+        pendingDeepLinkBetId = betId
+        pendingDeepLinkVibeId = vibeId
+        pendingDeepLinkChatId = chatId
+        pendingDeepLinkIsLocked = isLocked
+        pendingDeepLinkSenderName = senderName
+        print("AppState: Saved pending deep link — bet=\(betId ?? "nil"), vibe=\(vibeId ?? "nil"), chat=\(chatId ?? "nil")")
+    }
+
+    /// Processes a saved deep link after auth + onboarding completes.
+    func processPendingDeepLink() async {
+        // Handle pending bet deep link
+        if let betId = pendingDeepLinkBetId, !betId.isEmpty {
+            let chatId = pendingDeepLinkChatId
+            clearPendingDeepLink()
+
+            // Resolve chat membership first
+            if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
+                let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                    conversation: conversation,
+                    userId: userId
+                )
+                currentChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+            }
+
+            await openBetById(betId)
+            return
+        }
+
+        // Handle pending vibe deep link
+        if let vibeId = pendingDeepLinkVibeId, !vibeId.isEmpty {
+            let isLocked = pendingDeepLinkIsLocked
+            let senderName = pendingDeepLinkSenderName
+            clearPendingDeepLink()
+
+            if isLocked {
+                let lockedParams = LockedMessageParams(
+                    vibeId: vibeId,
+                    senderName: senderName ?? "Friend",
+                    videoUrl: nil,
+                    userId: nil
+                )
+                handleLockedMessageTap(params: lockedParams)
+            } else {
+                navigateToViewer(opening: vibeId)
+            }
+            return
+        }
+
+        clearPendingDeepLink()
+    }
+
+    private func clearPendingDeepLink() {
+        pendingDeepLinkBetId = nil
+        pendingDeepLinkVibeId = nil
+        pendingDeepLinkChatId = nil
+        pendingDeepLinkIsLocked = false
+        pendingDeepLinkSenderName = nil
     }
 
     private func bestJoinableBet() -> Bet? {

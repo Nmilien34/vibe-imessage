@@ -21,7 +21,7 @@ class ConversationManager: ObservableObject {
 
     // MARK: - Constants
     private let chatIdPrefix = "chat_"
-    private let urlScheme = "vibez"
+    private let urlScheme = "https"
     private let userDefaultsPrefix = "vibe_chatid_"
 
     // MARK: - Published State
@@ -115,7 +115,8 @@ class ConversationManager: ObservableObject {
         // Create the URL with embedded IDs
         var components = URLComponents()
         components.scheme = urlScheme
-        components.host = "open"
+        components.host = "getvibe.app"
+        components.path = "/open"
         components.queryItems = [
             URLQueryItem(name: "vibe_id", value: vibeId),
             URLQueryItem(name: "chat_id", value: chatId),
@@ -155,7 +156,8 @@ class ConversationManager: ObservableObject {
         // Create the URL with embedded IDs
         var components = URLComponents()
         components.scheme = urlScheme
-        components.host = "open"
+        components.host = "getvibe.app"
+        components.path = "/open"
         components.queryItems = [
             URLQueryItem(name: "vibe_id", value: vibeId),
             URLQueryItem(name: "chat_id", value: chatId),

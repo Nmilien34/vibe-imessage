@@ -113,8 +113,9 @@ final class MessageService: Sendable {
     /// Creates a URL with query parameters for video messages
     private func createMessageURL(videoId: String, isLocked: Bool, userId: String) -> URL? {
         var components = URLComponents()
-        components.scheme = "vibe"
-        components.host = "story"
+        components.scheme = "https"
+        components.host = "getvibe.app"
+        components.path = "/open"
         components.queryItems = [
             URLQueryItem(name: "videoId", value: videoId),
             URLQueryItem(name: "locked", value: String(isLocked)),
@@ -127,8 +128,9 @@ final class MessageService: Sendable {
     /// Creates a URL with query parameters for vibe messages
     private func createVibeURL(vibeId: String, isLocked: Bool) -> URL? {
         var components = URLComponents()
-        components.scheme = "vibe"
-        components.host = "view"
+        components.scheme = "https"
+        components.host = "getvibe.app"
+        components.path = "/open"
         components.queryItems = [
             URLQueryItem(name: "vibeId", value: vibeId),
             URLQueryItem(name: "locked", value: String(isLocked))

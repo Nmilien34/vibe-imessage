@@ -58,6 +58,44 @@ function parseAllowedAppleAudiences(): string[] {
   return Array.from(new Set([...fromEnv, ...DEFAULT_APPLE_AUDIENCES]));
 }
 
+function normalizeOptionalString(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isPlaceholderFirstName(value?: string): boolean {
+  if (!value) return true;
+  const normalized = value.trim().toLowerCase();
+  return normalized.length === 0 || normalized === 'user' || normalized === 'vibe user';
+}
+
+function deriveFirstName(
+  providedFirstName: string | undefined,
+  emailCandidates: Array<string | undefined>
+): string | undefined {
+  if (!isPlaceholderFirstName(providedFirstName)) return providedFirstName;
+
+  for (const email of emailCandidates) {
+    if (!email) continue;
+    const localPart = email.split('@')[0];
+    if (!localPart) continue;
+
+    const cleaned = localPart
+      .replace(/[._-]+/g, ' ')
+      .trim();
+    if (!cleaned) continue;
+
+    return cleaned
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  }
+
+  return undefined;
+}
+
 function decodeAppleTokenPayload(identityToken: string): AppleTokenPayload | null {
   const parts = identityToken.split('.');
   if (parts.length < 2) return null;
@@ -176,6 +214,9 @@ async function verifyAppleIdentityToken(
  */
 router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Response) => {
   const { identityToken, userIdentifier, firstName, lastName, email } = req.body;
+  const normalizedFirstName = normalizeOptionalString(firstName);
+  const normalizedLastName = normalizeOptionalString(lastName);
+  const normalizedEmail = normalizeOptionalString(email)?.toLowerCase();
 
   if (!identityToken || typeof identityToken !== 'string' || !identityToken.trim()) {
     return res.status(400).json({ error: 'Identity token is required' });
@@ -206,6 +247,7 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
   }
 
   const { sub: appleId, email: appleEmail } = verification.verified as { sub?: string; email?: string };
+  const normalizedAppleEmail = normalizeOptionalString(appleEmail)?.toLowerCase();
   if (!appleId) {
     return res.status(401).json({
       error: 'Missing Apple subject claim',
@@ -228,12 +270,13 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
     let isNewUser = false;
 
     if (!user) {
+      const derivedFirstName = deriveFirstName(normalizedFirstName, [normalizedEmail, normalizedAppleEmail]);
       user = new User({
         _id: appleId,
         appleId,
-        email: email || appleEmail,
-        firstName,
-        lastName,
+        email: normalizedEmail || normalizedAppleEmail,
+        firstName: derivedFirstName,
+        lastName: normalizedLastName,
       });
       await user.save();
       isNewUser = true;
@@ -245,16 +288,17 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
         user.appleId = appleId;
         shouldSave = true;
       }
-      if (!user.email && (email || appleEmail)) {
-        user.email = email || appleEmail;
+      if (!user.email && (normalizedEmail || normalizedAppleEmail)) {
+        user.email = normalizedEmail || normalizedAppleEmail;
         shouldSave = true;
       }
-      if (!user.firstName && firstName) {
-        user.firstName = firstName;
+      const derivedFirstName = deriveFirstName(normalizedFirstName, [user.email, normalizedEmail, normalizedAppleEmail]);
+      if (isPlaceholderFirstName(user.firstName) && derivedFirstName) {
+        user.firstName = derivedFirstName;
         shouldSave = true;
       }
-      if (!user.lastName && lastName) {
-        user.lastName = lastName;
+      if (!user.lastName && normalizedLastName) {
+        user.lastName = normalizedLastName;
         shouldSave = true;
       }
 
@@ -267,14 +311,16 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
       try {
         await registerVerifiedEmailIdentifier({
           userId: user._id,
-          email: user.email || appleEmail || email,
+          email: user.email || normalizedAppleEmail || normalizedEmail,
         });
       } catch (identifierError) {
         console.error('Auth identifier registration warning:', identifierError);
       }
     }
 
-    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);
+    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id, {
+      awardDailyBonus: false,
+    });
     if (dailyBonusClaimed) {
       console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
     }
@@ -285,13 +331,15 @@ router.post('/apple', async (req: Request<{}, {}, AppleAuthRequest>, res: Respon
       { expiresIn: '7d' }
     );
 
+    const responseFirstName = deriveFirstName(user.firstName, [user.email, normalizedAppleEmail, normalizedEmail]);
+
     res.json({
       token,
       isNewUser,
       dailyBonusClaimed,
       user: {
         id: user._id,
-        firstName: user.firstName,
+        firstName: responseFirstName,
         lastName: user.lastName,
         email: user.email,
         profilePicture: user.profilePicture,
@@ -352,7 +400,9 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
       }
     }
 
-    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id);
+    const { auraBalance, vibeScore, dailyBonusClaimed } = await processLoginUpdates(user._id, {
+      awardDailyBonus: false,
+    });
     if (dailyBonusClaimed) {
       console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
     }

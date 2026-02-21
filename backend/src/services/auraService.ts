@@ -20,13 +20,16 @@ function calculateVibeScore(stats: {
 }
 
 /**
- * Runs on every login. Two jobs:
- *   1. Awards +50 Aura if 24h has passed since lastDailyBonus (or never claimed)
+ * Recomputes user economy snapshot for auth and claim flows.
+ *   1. Optionally awards +50 Aura when explicitly requested and eligible
  *   2. Recalculates vibeScore from current bet/callout stats
  *
  * Returns the final values to put directly into the login response.
  */
-export async function processLoginUpdates(userId: string): Promise<{
+export async function processLoginUpdates(
+  userId: string,
+  options: { awardDailyBonus?: boolean } = {}
+): Promise<{
   auraBalance: number;
   vibeScore: number;
   dailyBonusClaimed: boolean;
@@ -36,12 +39,13 @@ export async function processLoginUpdates(userId: string): Promise<{
     return { auraBalance: 100, vibeScore: 100, dailyBonusClaimed: false };
   }
 
+  const shouldAwardDailyBonus = options.awardDailyBonus === true;
   let dailyBonusClaimed = false;
   const now = new Date();
   const lastBonus = user.lastDailyBonus ? new Date(user.lastDailyBonus) : null;
 
-  // Award daily bonus if cooldown has passed (or never claimed)
-  if (!lastBonus || (now.getTime() - lastBonus.getTime()) >= BONUS_COOLDOWN_MS) {
+  // Award daily bonus only when explicitly requested (e.g. claim endpoint).
+  if (shouldAwardDailyBonus && (!lastBonus || (now.getTime() - lastBonus.getTime()) >= BONUS_COOLDOWN_MS)) {
     const newBalance = (user.auraBalance ?? 100) + DAILY_BONUS_AMOUNT;
     user.auraBalance = newBalance;
     user.lifetimeAuraEarned = (user.lifetimeAuraEarned ?? 0) + DAILY_BONUS_AMOUNT;
@@ -54,7 +58,7 @@ export async function processLoginUpdates(userId: string): Promise<{
       amount: DAILY_BONUS_AMOUNT,
       balanceAfter: newBalance,
       transactionType: 'daily_bonus',
-      description: 'Daily login bonus',
+      description: 'Daily bonus claim',
     });
   }
 

@@ -17,6 +17,28 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
+const deriveFirstName = (firstName?: string | null, email?: string | null): string | null => {
+  const trimmed = firstName?.trim();
+  if (trimmed) {
+    const normalized = trimmed.toLowerCase();
+    if (normalized !== 'user' && normalized !== 'vibe user') {
+      return trimmed;
+    }
+  }
+
+  const localPart = email?.split('@')[0]?.trim();
+  if (!localPart) return null;
+
+  const cleaned = localPart.replace(/[._-]+/g, ' ').trim();
+  if (!cleaned) return null;
+
+  return cleaned
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 /**
  * @route   GET /api/user/me
  * @desc    Current user's profile + economy snapshot
@@ -35,7 +57,7 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
     res.json({
       user: {
         id: user._id,
-        firstName: user.firstName,
+        firstName: deriveFirstName(user.firstName, user.email),
         lastName: user.lastName,
         email: user.email,
         profilePicture: user.profilePicture,
