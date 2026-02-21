@@ -160,31 +160,15 @@ class MessagesViewController: MSMessagesAppViewController {
             return
         }
 
-        // CRITICAL: Join the chat if we have a chat_id
-        // This is how users get added to chats when receiving messages
-        if let chatId = chatId, chatId.hasPrefix("chat_") {
-            Task {
-                let resolvedChatId = await ConversationManager.shared.resolveChatID(
-                    conversation: conversation,
-                    userId: appState.userId
-                )
-                // Use backend-resolved id when available; fall back to parsed id.
-                await MainActor.run {
-                    appState.currentChatId = resolvedChatId.hasPrefix("chat_")
-                        ? resolvedChatId
-                        : chatId
-                }
-
-                // Refresh vibes for the new chat
-                await appState.loadVibes()
-            }
-        }
-
         // Check if this message is from the current user
         let isOwnMessage = senderId == appState.userId
 
         if isLocked && !isOwnMessage {
             // Show unlock prompt for locked content from other users
+            Task { @MainActor in
+                await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                await appState.loadVibes()
+            }
             let lockedParams = LockedMessageParams(
                 vibeId: vibeId,
                 senderName: senderName,
@@ -194,8 +178,16 @@ class MessagesViewController: MSMessagesAppViewController {
             appState.handleLockedMessageTap(params: lockedParams)
         } else {
             // Not locked or own message - show the content
+            guard !vibeId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                print("didSelect: Missing vibeId for unlocked message; skipping viewer navigation.")
+                return
+            }
             requestPresentationStyle(.expanded)
-            appState.navigateToViewer(opening: vibeId)
+            Task { @MainActor in
+                await resolveSharedChatIfNeeded(chatId: chatId, conversation: conversation)
+                await appState.loadVibes()
+                appState.navigateToViewer(opening: vibeId)
+            }
         }
     }
 
@@ -219,6 +211,23 @@ class MessagesViewController: MSMessagesAppViewController {
         }
 
         await appState.openBetById(trimmedBetId)
+    }
+
+    @MainActor
+    private func resolveSharedChatIfNeeded(chatId: String?, conversation: MSConversation) async {
+        guard let chatId = chatId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              chatId.hasPrefix("chat_")
+        else {
+            return
+        }
+
+        let resolvedChatId = await ConversationManager.shared.resolveChatID(
+            conversation: conversation,
+            userId: appState.userId
+        )
+        appState.currentChatId = resolvedChatId.hasPrefix("chat_")
+            ? resolvedChatId
+            : chatId
     }
 
     @MainActor

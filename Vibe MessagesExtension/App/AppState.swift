@@ -2092,7 +2092,16 @@ class AppState: ObservableObject {
         if let vibeId = pendingDeepLinkVibeId, !vibeId.isEmpty {
             let isLocked = pendingDeepLinkIsLocked
             let senderName = pendingDeepLinkSenderName
+            let chatId = pendingDeepLinkChatId
             clearPendingDeepLink()
+
+            if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
+                let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                    conversation: conversation,
+                    userId: userId
+                )
+                currentChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
+            }
 
             if isLocked {
                 let lockedParams = LockedMessageParams(
@@ -2103,6 +2112,7 @@ class AppState: ObservableObject {
                 )
                 handleLockedMessageTap(params: lockedParams)
             } else {
+                await loadVibes()
                 navigateToViewer(opening: vibeId)
             }
             return

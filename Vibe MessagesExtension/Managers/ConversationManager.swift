@@ -14,6 +14,7 @@
 import Foundation
 import Combine
 import Messages
+import CryptoKit
 
 @MainActor
 class ConversationManager: ObservableObject {
@@ -38,7 +39,8 @@ class ConversationManager: ObservableObject {
      * Logic:
      * 1. Check if there's a selected message with embedded chat_id
      * 2. Check UserDefaults for previously mapped conversation
-     * 3. If neither, create a new chat and save the mapping
+     * 3. If neither, try deterministic participant-based chat_id
+     * 4. If all else fails, create a new chat and save the mapping
      */
     func resolveChatID(
         conversation: MSConversation,
@@ -47,6 +49,8 @@ class ConversationManager: ObservableObject {
         isResolvingChat = true
         defer { isResolvingChat = false }
         let mappingKey = conversationMappingKey(for: conversation)
+        let lookupKeys = [mappingKey] + legacyConversationMappingKeys(for: conversation)
+        let deterministicChatId = deterministicChatId(for: conversation)
 
         // Step 1: Check if there's a selected message with chat_id
         if let selectedMessage = conversation.selectedMessage,
@@ -55,6 +59,9 @@ class ConversationManager: ObservableObject {
             if isValidBackendChatId(embeddedChatId),
                let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: embeddedChatId) {
                 saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+                for key in lookupKeys where key != mappingKey {
+                    saveChatIdMapping(mappingKey: key, chatId: resolved)
+                }
                 currentChatId = resolved
                 print("ConversationManager: Resolved chat_id from selected message: \(resolved)")
                 return resolved
@@ -62,26 +69,43 @@ class ConversationManager: ObservableObject {
             print("ConversationManager: Ignoring invalid/unresolvable selected chat_id: \(embeddedChatId)")
         }
 
-        // Step 2: Check UserDefaults for existing mapping
-        let legacyLocalId = conversation.localParticipantIdentifier.uuidString
-        let savedChatId = getChatIdMapping(for: mappingKey) ?? getChatIdMapping(for: legacyLocalId)
-        if let savedChatId {
+        // Step 2: Resolve a deterministic participant-scoped chat first.
+        if let deterministicChatId,
+           let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: deterministicChatId) {
+            saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+            for key in lookupKeys where key != mappingKey {
+                saveChatIdMapping(mappingKey: key, chatId: resolved)
+            }
+            currentChatId = resolved
+            print("ConversationManager: Resolved deterministic chat_id: \(resolved)")
+            return resolved
+        }
+
+        // Step 3: Check UserDefaults for existing mapping.
+        if let savedChatId = lookupKeys.compactMap({ getChatIdMapping(for: $0) }).first {
             if isValidBackendChatId(savedChatId),
                let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: savedChatId) {
                 saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+                for key in lookupKeys where key != mappingKey {
+                    saveChatIdMapping(mappingKey: key, chatId: resolved)
+                }
                 currentChatId = resolved
                 print("ConversationManager: Found saved chat_id: \(resolved)")
                 return resolved
             }
 
             // Stale mapping (old fallback/invalid id): clear and recreate.
-            removeChatIdMapping(for: mappingKey)
-            removeChatIdMapping(for: legacyLocalId)
+            for key in lookupKeys {
+                removeChatIdMapping(for: key)
+            }
         }
 
-        // Step 3: Resolve/create a backend chat.
+        // Step 4: Resolve/create a backend chat.
         if let newChatId = await resolveChatOnBackend(userId: userId, preferredChatId: nil) {
             saveChatIdMapping(mappingKey: mappingKey, chatId: newChatId)
+            for key in lookupKeys where key != mappingKey {
+                saveChatIdMapping(mappingKey: key, chatId: newChatId)
+            }
             currentChatId = newChatId
             print("ConversationManager: Created new chat_id: \(newChatId)")
             return newChatId
@@ -235,13 +259,50 @@ class ConversationManager: ObservableObject {
     // MARK: - UserDefaults Mapping
 
     private func conversationMappingKey(for conversation: MSConversation) -> String {
+        let signature = participantSignature(for: conversation)
+        if !signature.isEmpty {
+            return signature
+        }
+        return conversation.localParticipantIdentifier.uuidString
+    }
+
+    private func legacyConversationMappingKeys(for conversation: MSConversation) -> [String] {
         let local = conversation.localParticipantIdentifier.uuidString
         let remotes = conversation.remoteParticipantIdentifiers
             .map(\.uuidString)
             .sorted()
             .joined(separator: "|")
 
-        return remotes.isEmpty ? local : "\(local)|\(remotes)"
+        var keys: [String] = []
+        if !local.isEmpty {
+            keys.append(local)
+        }
+        if !local.isEmpty && !remotes.isEmpty {
+            keys.append("\(local)|\(remotes)")
+        }
+        return Array(Set(keys))
+    }
+
+    private func participantSignature(for conversation: MSConversation) -> String {
+        let zeroUUID = "00000000-0000-0000-0000-000000000000"
+        let participantIds = ([conversation.localParticipantIdentifier] + conversation.remoteParticipantIdentifiers)
+            .map(\.uuidString)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty && $0 != zeroUUID }
+
+        return Array(Set(participantIds))
+            .sorted()
+            .joined(separator: "|")
+    }
+
+    private func deterministicChatId(for conversation: MSConversation) -> String? {
+        let signature = participantSignature(for: conversation)
+        guard !signature.isEmpty else { return nil }
+
+        let digest = SHA256.hash(data: Data(signature.utf8))
+        let hex = digest.map { String(format: "%02x", $0) }.joined()
+        let prefix = String(hex.prefix(24))
+        return "chat_\(prefix)"
     }
 
     private func saveChatIdMapping(mappingKey: String, chatId: String) {
