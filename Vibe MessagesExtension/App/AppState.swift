@@ -683,6 +683,8 @@ class AppState: ObservableObject {
      * and group chats in one feed, sorted by most recent.
      */
     func loadVibes() async {
+        guard isAuthenticated else { return }
+
         error = nil
         networkError = nil
         showNetworkErrorBanner = false
@@ -728,15 +730,52 @@ class AppState: ObservableObject {
             self.error = error.localizedDescription
             print("AppState Error: Loading vibes failed: \(error)")
 
-            // Set network error for banner display with retry capability
-            self.networkError = .networkFailure(underlying: error)
-            self.showNetworkErrorBanner = true
+            // Show the red retry banner only for genuine connectivity/server-availability issues.
+            if shouldShowFeedNetworkBanner(for: error) {
+                self.networkError = .networkFailure(underlying: error)
+                self.showNetworkErrorBanner = true
+            } else {
+                self.networkError = nil
+                self.showNetworkErrorBanner = false
+            }
 
             // Fallback to tutorial pack if we have no real user content loaded.
             if vibes.isEmpty || vibes.allSatisfy({ $0.userId == "vibe_team" }) {
                 vibes = teamTutorialVibes
             }
         }
+    }
+
+    private func shouldShowFeedNetworkBanner(for error: Error) -> Bool {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .networkError:
+                return true
+            case .httpError(let statusCode, _):
+                return statusCode >= 500 || statusCode == 408 || statusCode == 429
+            case .invalidURL, .invalidResponse, .decodingError, .uploadFailed:
+                return false
+            }
+        }
+
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet,
+                 .networkConnectionLost,
+                 .timedOut,
+                 .cannotConnectToHost,
+                 .cannotFindHost,
+                 .dnsLookupFailed,
+                 .dataNotAllowed,
+                 .internationalRoamingOff,
+                 .secureConnectionFailed:
+                return true
+            default:
+                return false
+            }
+        }
+
+        return false
     }
 
     /**

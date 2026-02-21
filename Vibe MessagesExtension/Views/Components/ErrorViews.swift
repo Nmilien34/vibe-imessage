@@ -45,8 +45,36 @@ enum VibeError: Error, LocalizedError {
             return "Vibe needs camera access to record videos. Please enable it in Settings."
         case .microphonePermissionDenied:
             return "Vibe needs microphone access for audio. Please enable it in Settings."
-        case .networkFailure:
-            return "Please check your internet connection and try again."
+        case .networkFailure(let underlying):
+            if let apiError = underlying as? APIError {
+                switch apiError {
+                case .networkError(let nested):
+                    if let urlError = nested as? URLError {
+                        switch urlError.code {
+                        case .notConnectedToInternet, .networkConnectionLost:
+                            return "No internet connection. Reconnect and tap Retry."
+                        case .timedOut:
+                            return "The server is slow to respond. Tap Retry."
+                        default:
+                            return "Couldn't reach the server. Tap Retry."
+                        }
+                    }
+                    return "Couldn't reach the server. Tap Retry."
+                case .httpError(let statusCode, let message):
+                    if let message, !message.isEmpty {
+                        return message
+                    }
+                    if statusCode >= 500 {
+                        return "The server is having trouble right now. Tap Retry."
+                    }
+                    return "Couldn't refresh right now. Tap Retry."
+                case .invalidResponse, .decodingError:
+                    return "Couldn't refresh right now. Tap Retry."
+                case .invalidURL, .uploadFailed:
+                    return "Please try again."
+                }
+            }
+            return "Couldn't refresh right now. Tap Retry."
         case .uploadFailed:
             return "Something went wrong while uploading. Tap to retry."
         case .videoPlaybackFailed:

@@ -34,6 +34,19 @@ class APIService {
         }
     }
 
+    private func parseServerErrorMessage(from data: Data) -> String? {
+        if let object = try? JSONSerialization.jsonObject(with: data, options: []),
+           let dictionary = object as? [String: Any] {
+            if let message = dictionary["error"] as? String, !message.isEmpty {
+                return message
+            }
+            if let message = dictionary["message"] as? String, !message.isEmpty {
+                return message
+            }
+        }
+        return nil
+    }
+
     // MARK: - Mock Data
     private var mockVibes: [Vibe] = APIService.generateMockVibes()
 
@@ -328,13 +341,26 @@ class APIService {
         request.httpMethod = "GET"
         applyAuth(to: &request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            throw APIError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw APIError.invalidResponse
+            }
+
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw APIError.httpError(
+                    statusCode: httpResponse.statusCode,
+                    message: parseServerErrorMessage(from: data)
+                )
+            }
+
+            return try decoder.decode(UnifiedFeedResponse.self, from: data)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.networkError(error)
         }
-
-        return try decoder.decode(UnifiedFeedResponse.self, from: data)
     }
 
     /**
