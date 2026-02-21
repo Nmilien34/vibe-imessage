@@ -2294,7 +2294,7 @@ class AppState: ObservableObject {
         // For now, to fix the compiler error, I'll use placeholders.
         // The real upload happens in VideoComposerView.swift.
         // If we are here, we might need a separate upload step.
-        sendStory?("temp_id", video.url.absoluteString, false, nil, .video, nil)
+        sendStory?("temp_id", video.url.absoluteString, false, nil, .video, nil, nil)
 
         // Mark the pending vibe as unlocked locally
         if let vibeId = pendingUnlockVibeId,
