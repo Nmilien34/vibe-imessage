@@ -24,11 +24,13 @@ struct BentoDashboardView: View {
                     MeTabView()
                         .tag(DashboardTab.me)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .tabViewStyle(.page(indexDisplayMode: .never))
 
                 // TAB BAR
                 dashboardTabBar
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .task {
             async let auraTask: () = appState.loadAuraStats()
@@ -47,6 +49,14 @@ struct BentoDashboardView: View {
         .sheet(isPresented: $appState.showCreateSheet) {
             CreateChallengeSheet()
                 .environmentObject(appState)
+        }
+        .onChange(of: appState.activeTab) { _, newTab in
+            guard newTab == .me else { return }
+            Task {
+                async let auraTask: () = appState.loadAuraStats()
+                async let profileTask: () = appState.loadCurrentUserProfile()
+                _ = await (auraTask, profileTask)
+            }
         }
     }
 
@@ -207,6 +217,7 @@ struct FeedTabView: View {
             await appState.loadExpandedBets()
             await appState.loadVibes()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Story Row
@@ -321,6 +332,7 @@ struct TeaTabView: View {
         .refreshable {
             await appState.loadExpandedTeaSpills()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -365,6 +377,7 @@ struct BoardTabView: View {
         .refreshable {
             await appState.loadLeaderboard()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
@@ -477,12 +490,16 @@ struct MeTabView: View {
                         .foregroundColor(VibeTheme.textPrimary)
 
                     AuraBadge(amount: appState.auraBalance, size: .large)
+
+                    Text("Aura Balance")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
                 }
                 .padding(.top, VibeSpacing.lg)
 
                 // Stats Grid (3x2)
                 LazyVGrid(columns: statsColumns, spacing: VibeSpacing.xs) {
-                    StatCard(title: "Vibe Score", value: "\(appState.vibeScore)", icon: "star.fill", color: .orange)
+                    StatCard(title: "Vibe Score (Rep)", value: "\(appState.vibeScore)", icon: "star.fill", color: .orange)
                     StatCard(title: "Win Rate", value: winRateText, icon: "chart.line.uptrend.xyaxis", color: VibeTheme.stakeYes)
                     StatCard(title: "Duck Rate", value: duckRateText, icon: "figure.run", color: VibeTheme.stakeNo)
                     StatCard(title: "Streak", value: streakText, icon: "flame.fill", color: .orange)
@@ -544,7 +561,7 @@ struct MeTabView: View {
                 .background(VibeTheme.cardBackground)
                 .continuousCorner(VibeTheme.radiusMedium)
             }
-            .padding(.bottom, VibeSpacing.xl)
+            .padding(.bottom, VibeSpacing.xxl)
         }
         .task {
             async let profileTask: () = appState.loadCurrentUserProfile()
@@ -568,6 +585,7 @@ struct MeTabView: View {
         } message: {
             Text(uploadErrorMessage)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
     private var winRateText: String {

@@ -8,9 +8,27 @@ struct CachedUser: Codable, Identifiable, Equatable {
     let lastName: String?
     let profilePicture: String?
 
+    private func cleanedNamePart(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+
+        let normalized = trimmed.lowercased()
+        if normalized == "user"
+            || normalized == "vibe user"
+            || normalized == "unknown"
+            || normalized == "unknown user"
+            || normalized == "anonymous"
+            || normalized == "anon" {
+            return nil
+        }
+
+        return trimmed
+    }
+
     var displayName: String {
-        let parts = [firstName, lastName].compactMap { $0?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-        return parts.isEmpty ? "Unknown" : parts.joined(separator: " ")
+        let parts = [cleanedNamePart(firstName), cleanedNamePart(lastName)].compactMap { $0 }
+        return parts.isEmpty ? "Vibe User" : parts.joined(separator: " ")
     }
 }
 

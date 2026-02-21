@@ -67,7 +67,15 @@ function normalizeOptionalString(value?: string): string | undefined {
 function isPlaceholderFirstName(value?: string): boolean {
   if (!value) return true;
   const normalized = value.trim().toLowerCase();
-  return normalized.length === 0 || normalized === 'user' || normalized === 'vibe user';
+  return (
+    normalized.length === 0 ||
+    normalized === 'user' ||
+    normalized === 'vibe user' ||
+    normalized === 'unknown' ||
+    normalized === 'unknown user' ||
+    normalized === 'anonymous' ||
+    normalized === 'anon'
+  );
 }
 
 function deriveFirstName(

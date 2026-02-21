@@ -17,13 +17,22 @@ const isValidHttpUrl = (value: string): boolean => {
   }
 };
 
+const isPlaceholderFirstName = (value?: string | null): boolean => {
+  const normalized = value?.trim().toLowerCase();
+  return (
+    !normalized ||
+    normalized === 'user' ||
+    normalized === 'vibe user' ||
+    normalized === 'unknown' ||
+    normalized === 'unknown user' ||
+    normalized === 'anonymous' ||
+    normalized === 'anon'
+  );
+};
+
 const deriveFirstName = (firstName?: string | null, email?: string | null): string | null => {
-  const trimmed = firstName?.trim();
-  if (trimmed) {
-    const normalized = trimmed.toLowerCase();
-    if (normalized !== 'user' && normalized !== 'vibe user') {
-      return trimmed;
-    }
+  if (!isPlaceholderFirstName(firstName)) {
+    return firstName!.trim();
   }
 
   const localPart = email?.split('@')[0]?.trim();
@@ -144,12 +153,12 @@ router.post('/batch', authMiddleware, async (req: Request<{}, {}, { userIds: str
     }
 
     const users = await User.find({ _id: { $in: userIds } })
-      .select('_id firstName lastName profilePicture');
+      .select('_id firstName lastName email profilePicture');
 
     res.json({
       users: users.map(u => ({
         id: u._id,
-        firstName: u.firstName || null,
+        firstName: deriveFirstName(u.firstName, u.email),
         lastName: u.lastName || null,
         profilePicture: u.profilePicture || null,
       })),

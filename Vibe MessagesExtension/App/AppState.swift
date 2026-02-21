@@ -335,7 +335,8 @@ class AppState: ObservableObject {
         // Load onboarding state
         self.isOnboardingCompleted = UserDefaults.standard.bool(forKey: "vibeOnboardingCompleted")
         self.isBirthdayCollected = UserDefaults.standard.bool(forKey: "vibeBirthdayCollected")
-        self.userFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
+        let storedFirstName = UserDefaults.standard.string(forKey: "vibeUserFirstName")
+        self.userFirstName = resolvedFirstName(firstName: storedFirstName, email: nil)
         self.userProfilePictureURL = UserDefaults.standard.string(forKey: "vibeUserProfilePicture")
         self.auraBalance = max(0, UserDefaults.standard.integer(forKey: auraBalanceStorageKey))
         self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
@@ -368,12 +369,19 @@ class AppState: ObservableObject {
         return trimmed
     }
 
+    private func isPlaceholderFirstName(_ value: String?) -> Bool {
+        guard let normalized = normalizedNonEmpty(value)?.lowercased() else { return true }
+        return normalized == "user"
+            || normalized == "vibe user"
+            || normalized == "unknown"
+            || normalized == "unknown user"
+            || normalized == "anonymous"
+            || normalized == "anon"
+    }
+
     private func resolvedFirstName(firstName: String?, email: String?) -> String? {
-        if let firstName = normalizedNonEmpty(firstName) {
-            let normalized = firstName.lowercased()
-            if normalized != "user" && normalized != "vibe user" {
-                return firstName
-            }
+        if let firstName = normalizedNonEmpty(firstName), !isPlaceholderFirstName(firstName) {
+            return firstName
         }
 
         guard
@@ -1158,11 +1166,14 @@ class AppState: ObservableObject {
 
     func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
         let participant = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
+        // Reflect stake deduction immediately in UI, then reconcile from backend.
+        updateAuraBalance(auraBalance - amount)
         betCanStakeById[betId] = false
-        await loadBets()
-        await loadExpandedBets()
-        // Refresh aura after staking
-        await loadAuraStats()
+        async let compactBetsTask: () = loadBets()
+        async let expandedBetsTask: () = loadExpandedBets()
+        async let auraTask: () = loadAuraStats()
+        async let profileTask: () = loadCurrentUserProfile()
+        _ = await (compactBetsTask, expandedBetsTask, auraTask, profileTask)
         return participant
     }
 
@@ -2420,7 +2431,10 @@ class AppState: ObservableObject {
 
         // Check user cache for real names from backend
         if let cached = userCache[id] {
-            return cached.displayName
+            let cachedName = cached.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !isPlaceholderFirstName(cachedName) {
+                return cachedName
+            }
         }
 
         // Consistent Friend Mappings for simulator/mock
