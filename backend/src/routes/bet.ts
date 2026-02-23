@@ -19,7 +19,8 @@ import {
   disputeBetResolution,
   resolveBet,
   getBetResolution,
-  autoExpireBets
+  autoExpireBets,
+  getEligibleBetTargets
 } from '../services/betService';
 import { createConnection } from '../services/feedService';
 
@@ -86,7 +87,10 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       targetUserId,
     });
 
-    if (targetUserId && typeof targetUserId === 'string' && targetUserId !== userId) {
+    if ((betType === 'callout' || betType === 'dare')
+      && targetUserId
+      && typeof targetUserId === 'string'
+      && targetUserId !== userId) {
       try {
         await createConnection({
           userId1: userId,
@@ -124,6 +128,7 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       'must be a member',
       'Target user not found',
       'Target user must be in this chat',
+      'Vibe network',
       'Cannot target yourself',
       'requires a target user',
       'Initial stake',
@@ -140,6 +145,41 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
 
     res.status(500).json({
       error: 'Failed to create bet',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   GET /api/bets/chat/:chatId/eligible-targets
+ * @desc    Get target users eligible for callout/dare (network ∩ current chat)
+ * @access  Private (JWT required)
+ */
+router.get('/chat/:chatId/eligible-targets', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { chatId } = req.params;
+
+    const targets = await getEligibleBetTargets({ chatId, userId });
+
+    res.json({
+      chatId,
+      targets: targets.map(target => ({
+        id: target.id,
+        firstName: target.firstName ?? null,
+        lastName: target.lastName ?? null,
+        profilePicture: target.profilePicture ?? null,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Eligible target fetch error:', error);
+
+    if (error.message?.includes('must be a member')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to fetch eligible targets',
       message: error.message
     });
   }

@@ -13,16 +13,34 @@ struct ParlayComposerView: View {
 
     let isLocked: Bool
 
+    private struct TargetOption: Identifiable, Hashable {
+        let id: String
+        let userId: String?
+        let name: String
+    }
+
     @State private var betTitle = ""
     @State private var selectedAmountIndex = 2
     @State private var showCustomAmountSheet = false
     @State private var customAmount = ""
-    @State private var selectedFriend: String? = nil
+    @State private var selectedTargetUserId: String? = nil
     @State private var selectedQuickBet: String? = nil
     @State private var isSending = false
+    @State private var eligibleTargets: [(id: String, name: String)] = []
+    @State private var hasAttemptedTargetLoad = false
 
     let amounts = ["$5", "$10", "$20", "$30", "$50", "$100", "Other..."]
     let quickBets = ["Sports Game", "Weather tmrw", "Finish pizza", "FIFA match", "Who pays dinner"]
+
+    private var targetOptions: [TargetOption] {
+        [TargetOption(id: "anyone", userId: nil, name: "Anyone")]
+            + eligibleTargets.map { TargetOption(id: $0.id, userId: $0.id, name: $0.name) }
+    }
+
+    private var selectedTargetName: String {
+        guard let selectedTargetUserId else { return "Anyone" }
+        return targetOptions.first(where: { $0.userId == selectedTargetUserId })?.name ?? "Anyone"
+    }
 
     var finalDisplayAmount: String {
         if amounts[selectedAmountIndex] == "Other..." {
@@ -160,14 +178,11 @@ struct ParlayComposerView: View {
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: VibeSpacing.md) {
-                                    let groupedVibes = appState.vibesGroupedByUser(nil, includeMe: false, includeTeam: true)
-                                    let friendNames = groupedVibes.compactMap { $0.first }.map { appState.nameForUser($0.userId) }
-                                    let displayNames = friendNames.isEmpty ? ["Anyone"] : friendNames
-
-                                    ForEach(displayNames, id: \.self) { friend in
+                                    ForEach(targetOptions) { option in
+                                        let isSelected = selectedTargetUserId == option.userId
                                         VStack(spacing: VibeSpacing.xs) {
                                             ZStack {
-                                                if selectedFriend == friend {
+                                                if isSelected {
                                                     Circle()
                                                         .fill(VibeTheme.brandGradient)
                                                         .frame(width: 60, height: 60)
@@ -177,18 +192,18 @@ struct ParlayComposerView: View {
                                                         .frame(width: 60, height: 60)
                                                 }
 
-                                                Text(String(friend.prefix(1)))
+                                                Text(String(option.name.prefix(1)))
                                                     .font(.system(size: 24, weight: .bold, design: .rounded))
-                                                    .foregroundColor(selectedFriend == friend ? .white : VibeTheme.textSecondary)
+                                                    .foregroundColor(isSelected ? .white : VibeTheme.textSecondary)
                                             }
-                                            Text(friend)
+                                            Text(option.name)
                                                 .font(VibeTypography.captionSmall)
-                                                .foregroundColor(selectedFriend == friend ? VibeTheme.accent : VibeTheme.textPrimary)
+                                                .foregroundColor(isSelected ? VibeTheme.accent : VibeTheme.textPrimary)
                                         }
                                         .onTapGesture {
                                             VibeHaptic.selection()
                                             withAnimation(VibeAnimation.bouncy) {
-                                                selectedFriend = friend
+                                                selectedTargetUserId = option.userId
                                             }
                                         }
                                     }
@@ -237,6 +252,9 @@ struct ParlayComposerView: View {
         }
         .onAppear {
             appState.requestExpand()
+            Task {
+                await loadEligibleTargetsIfNeeded()
+            }
         }
     }
 
@@ -247,14 +265,16 @@ struct ParlayComposerView: View {
 
         do {
             // Create a real challenge record first so this parlay vibe deep-links to a specific bet.
-            let initialStake = max(5, Int(finalDisplayAmount.filter(\.isNumber)) ?? 25)
+            let initialStake = max(10, Int(finalDisplayAmount.filter(\.isNumber)) ?? 25)
+            let betType: BetType = selectedTargetUserId == nil ? .self : .dare
+            let opponentName: String? = selectedTargetUserId == nil ? nil : selectedTargetName
             let linkedBet = try await appState.createBet(
-                betType: .dare,
+                betType: betType,
                 description: title,
                 deadline: Date().addingTimeInterval(24 * 60 * 60),
                 initialStake: initialStake,
                 initialSide: .yes,
-                targetUserId: nil
+                targetUserId: selectedTargetUserId
             )
 
             let parlayRequest = CreateParlayRequest(
@@ -264,8 +284,8 @@ struct ParlayComposerView: View {
                 betId: linkedBet.betId,
                 amount: finalDisplayAmount,
                 wager: nil,
-                opponentId: nil,
-                opponentName: selectedFriend
+                opponentId: selectedTargetUserId,
+                opponentName: opponentName
             )
 
             let vibe = try await appState.createVibe(
@@ -274,7 +294,7 @@ struct ParlayComposerView: View {
                 isLocked: isLocked
             )
 
-            let contextText = "\(title)|\(finalDisplayAmount)|\(selectedFriend ?? "Anyone")"
+            let contextText = "\(title)|\(finalDisplayAmount)|\(selectedTargetName)"
             appState.sendVibeMessage(
                 vibeId: vibe.id,
                 isLocked: isLocked,
@@ -288,6 +308,53 @@ struct ParlayComposerView: View {
         }
 
         isSending = false
+    }
+
+    private struct EligibleTargetUser: Decodable {
+        let id: String
+        let firstName: String?
+        let lastName: String?
+        let profilePicture: String?
+
+        var displayName: String {
+            let fullName = "\(firstName ?? "") \(lastName ?? "")".trimmingCharacters(in: .whitespaces)
+            return fullName.isEmpty ? "User" : fullName
+        }
+    }
+
+    private struct EligibleTargetsResponse: Decodable {
+        let targets: [EligibleTargetUser]
+    }
+
+    private func mapAndApplyTargets(_ values: [(id: String, name: String)]) async {
+        let filtered = values
+            .filter { !$0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.id != appState.userId }
+            .sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+
+        await MainActor.run {
+            eligibleTargets = filtered
+            if let selectedTargetUserId,
+               !filtered.contains(where: { $0.id == selectedTargetUserId }) {
+                self.selectedTargetUserId = nil
+            }
+        }
+    }
+
+    private func loadEligibleTargetsIfNeeded() async {
+        guard !hasAttemptedTargetLoad else { return }
+        hasAttemptedTargetLoad = true
+
+        do {
+            let chatId = try await appState.awaitResolvedChatId()
+            let response: EligibleTargetsResponse = try await APIClient.shared.get("/bets/chat/\(chatId)/eligible-targets")
+            let mapped = response.targets.map { (id: $0.id, name: $0.displayName) }
+            await mapAndApplyTargets(mapped)
+        } catch {
+            await MainActor.run {
+                eligibleTargets = []
+                selectedTargetUserId = nil
+            }
+        }
     }
 }
 

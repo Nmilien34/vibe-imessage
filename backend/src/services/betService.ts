@@ -17,6 +17,7 @@ import AuraTransaction from '../models/AuraTransaction';
 import ChatMember from '../models/ChatMember';
 import { BetType, BetStatus, IBet, IBetParticipant, IBetProof, IBetResolution, IResolutionClaim, IAuraTransaction } from '../types';
 import { ensureChatMembershipIfKnown } from './chatMembershipService';
+import { getAudienceGraph } from './contactNetworkService';
 
 const CREATION_COST = 2;
 const MAX_DESCRIPTION_LENGTH = 500;
@@ -56,6 +57,84 @@ interface CreateBetInput {
   initialStake: number;
   initialSide: 'yes' | 'no';
   targetUserId?: string;
+}
+
+export interface EligibleBetTarget {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+  profilePicture?: string;
+}
+
+async function getEligibleTargetUserIdsForChat(chatId: string, userId: string): Promise<string[]> {
+  const [audienceGraph, chatMembers] = await Promise.all([
+    getAudienceGraph({ userId }),
+    ChatMember.find({
+      chatId,
+      userId: { $ne: userId },
+    }).select('userId'),
+  ]);
+
+  const networkSet = new Set(
+    audienceGraph.mergedUserIds
+      .filter(id => id !== userId)
+  );
+
+  const eligible = new Set<string>();
+  for (const member of chatMembers) {
+    if (networkSet.has(member.userId)) {
+      eligible.add(member.userId);
+    }
+  }
+
+  return [...eligible];
+}
+
+export async function getEligibleBetTargets(params: { chatId: string; userId: string }): Promise<EligibleBetTarget[]> {
+  const { chatId, userId } = params;
+
+  await requireChatMembership(
+    chatId,
+    userId,
+    'You must be a member of this chat to view eligible bet targets'
+  );
+
+  const eligibleUserIds = await getEligibleTargetUserIdsForChat(chatId, userId);
+  if (eligibleUserIds.length === 0) {
+    return [];
+  }
+
+  const users = await User.find({
+    _id: { $in: eligibleUserIds },
+  }).select('_id firstName lastName profilePicture');
+
+  const userById = new Map<string, { firstName?: string; lastName?: string; profilePicture?: string }>();
+  for (const user of users) {
+    userById.set(String(user._id), {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profilePicture: user.profilePicture,
+    });
+  }
+
+  const resolvedTargets: EligibleBetTarget[] = [];
+  for (const id of eligibleUserIds) {
+    const user = userById.get(id);
+    if (!user) continue;
+
+    resolvedTargets.push({
+      id,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profilePicture: user.profilePicture,
+    });
+  }
+
+  return resolvedTargets.sort((lhs, rhs) => {
+    const lhsName = `${lhs.firstName ?? ''} ${lhs.lastName ?? ''}`.trim() || lhs.id;
+    const rhsName = `${rhs.firstName ?? ''} ${rhs.lastName ?? ''}`.trim() || rhs.id;
+    return lhsName.localeCompare(rhsName);
+  });
 }
 
 export async function createBet(input: CreateBetInput): Promise<IBet> {
@@ -128,10 +207,19 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     }
 
     await requireChatMembership(chatId, targetUserId, 'Target user must be in this chat');
+
+    const eligibleTargetIds = new Set(await getEligibleTargetUserIdsForChat(chatId, creatorId));
+    if (!eligibleTargetIds.has(targetUserId)) {
+      throw new Error('Target user must be in your Vibe network and this chat');
+    }
   }
 
   // ── Create bet and creator's initial stake ──────────────────
   const betId = `bet_${Date.now()}_${uuidv4().substring(0, 6)}`;
+  const normalizedTargetUserId =
+    betType === 'callout' || betType === 'dare'
+      ? targetUserId
+      : undefined;
 
   // Create bet
   const bet = await Bet.create({
@@ -142,7 +230,7 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     description: trimmed,
     deadline,
     status: 'active' as BetStatus,
-    targetUserId,
+    targetUserId: normalizedTargetUserId,
     creationCost: CREATION_COST,
   });
 

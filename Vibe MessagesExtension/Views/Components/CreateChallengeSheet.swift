@@ -45,6 +45,47 @@ private enum SpiceLevel: String, CaseIterable {
     }
 }
 
+private enum TeaCreationMode: String, CaseIterable {
+    case quick
+    case spill
+
+    var label: String {
+        switch self {
+        case .quick: return "Quick Tea"
+        case .spill: return "Tea Spill"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .quick: return "Fast debate take"
+        case .spill: return "Mystery + reveal"
+        }
+    }
+}
+
+private enum TeaDebateTake: String, CaseIterable {
+    case win
+    case lose
+    case uncertain
+
+    var label: String {
+        switch self {
+        case .win: return "Will Win"
+        case .lose: return "Will Lose"
+        case .uncertain: return "50/50"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .win: return "arrow.up.circle.fill"
+        case .lose: return "arrow.down.circle.fill"
+        case .uncertain: return "questionmark.circle.fill"
+        }
+    }
+}
+
 private enum ChallengeKind: String, CaseIterable {
     case bet, callout, dare, tea
 
@@ -233,14 +274,17 @@ struct CreateChallengeSheet: View {
     @State private var deadlineHours: Double = 24
 
     // Tea-specific fields
+    @State private var teaMode: TeaCreationMode = .quick
+    @State private var teaTake: TeaDebateTake = .win
+    @State private var teaLinkedBetId: String? = nil
     @State private var teaAnswer = ""
     @State private var teaOptions: [String] = ["", ""]
     @State private var newOptionText = ""
 
     @State private var isSubmitting = false
     @State private var errorMessage: String? = nil
-    @State private var chatMembers: [(id: String, name: String)] = []
-    @State private var hasAttemptedMemberLoad = false
+    @State private var eligibleTargets: [(id: String, name: String)] = []
+    @State private var hasAttemptedTargetLoad = false
 
     private let stakeChips = [10, 25, 50, 100, 250]
     private let deadlineChips: [(String, Double)] = [
@@ -248,7 +292,7 @@ struct CreateChallengeSheet: View {
     ]
 
     private var targetUsers: [(id: String, name: String)] {
-        chatMembers.filter { $0.id != appState.userId }
+        eligibleTargets.filter { $0.id != appState.userId }
     }
 
     private var starterChoices: [ChallengeStarter] {
@@ -262,8 +306,37 @@ struct CreateChallengeSheet: View {
     private let betCreationFee = 2
     private let teaCreationFee = 10
 
+    private var isQuickTeaMode: Bool {
+        selectedKind == .tea && teaMode == .quick
+    }
+
+    private var availableTeaBets: [Bet] {
+        let merged = (appState.expandedBets + appState.activeBets)
+            .sorted { $0.createdAt > $1.createdAt }
+        var seen = Set<String>()
+        return merged.filter { bet in
+            guard bet.status == .active, !bet.isExpired else { return false }
+            if seen.contains(bet.betId) { return false }
+            seen.insert(bet.betId)
+            return true
+        }
+    }
+
+    private var linkedTeaBet: Bet? {
+        guard let teaLinkedBetId else { return nil }
+        return availableTeaBets.first(where: { $0.betId == teaLinkedBetId })
+    }
+
+    private var linkedTeaBetTitle: String {
+        guard let linkedTeaBet else { return "No linked challenge" }
+        let normalized = linkedTeaBet.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return "Linked challenge" }
+        return normalized
+    }
+
     private var creationFee: Int {
-        selectedKind == .tea ? teaCreationFee : betCreationFee
+        if isQuickTeaMode { return 0 }
+        return selectedKind == .tea ? teaCreationFee : betCreationFee
     }
     private var totalCost: Int {
         selectedKind.needsStake ? creationFee + stakeAmount : creationFee
@@ -273,6 +346,7 @@ struct CreateChallengeSheet: View {
         guard descriptionText.count > 3, !isSubmitting else { return false }
         if selectedKind.needsTarget && targetUserId == nil { return false }
         if selectedKind == .tea {
+            if isQuickTeaMode { return true }
             let validOptions = teaOptions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
             if teaAnswer.trimmingCharacters(in: .whitespaces).isEmpty { return false }
             if validOptions.count < 2 { return false }
@@ -322,8 +396,10 @@ struct CreateChallengeSheet: View {
 
                     // Context + suggested starters
                     contextCard
-                    spiceSelector
-                    starterPicker
+                    if !isQuickTeaMode {
+                        spiceSelector
+                        starterPicker
+                    }
 
                     // Description
                     descriptionField
@@ -335,7 +411,12 @@ struct CreateChallengeSheet: View {
 
                     // Tea-specific fields
                     if selectedKind == .tea {
-                        teaFields
+                        teaModeSelector
+                        if isQuickTeaMode {
+                            quickTeaFields
+                        } else {
+                            teaFields
+                        }
                     }
 
                     // Stake amount (not for tea)
@@ -343,11 +424,13 @@ struct CreateChallengeSheet: View {
                         stakeSelector
                     }
 
-                    // Deadline (not for tea — tea uses it too actually, backend requires it)
-                    deadlineSelector
+                    if !isQuickTeaMode {
+                        // Deadline
+                        deadlineSelector
 
-                    // Cost summary
-                    costSummary
+                        // Cost summary
+                        costSummary
+                    }
 
                     // Error
                     if let error = errorMessage {
@@ -367,7 +450,7 @@ struct CreateChallengeSheet: View {
             .background(VibeTheme.groupedBackground.ignoresSafeArea())
             .navigationBarHidden(true)
             .task {
-                await loadChatMembersIfNeeded()
+                await loadEligibleTargetsIfNeeded()
             }
         }
     }
@@ -387,6 +470,11 @@ struct CreateChallengeSheet: View {
             selectedStarterId = nil
             if !selectedKind.needsTarget {
                 targetUserId = nil
+            }
+            if selectedKind != .tea {
+                teaLinkedBetId = nil
+            } else {
+                teaMode = .quick
             }
         }
         .onChange(of: selectedSpice) { _, _ in
@@ -411,7 +499,7 @@ struct CreateChallengeSheet: View {
                 VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
                     Text(selectedKind.contextTitle)
                         .font(.system(size: 16, weight: .bold))
-                    Text(selectedKind.contextSubtitle)
+                    Text(contextSubtitleText)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.white.opacity(0.9))
                         .fixedSize(horizontal: false, vertical: true)
@@ -421,12 +509,18 @@ struct CreateChallengeSheet: View {
             }
 
             HStack(spacing: VibeSpacing.xs) {
-                Label(selectedSpice.label, systemImage: selectedSpice.icon)
-                Label("Use a starter", systemImage: "sparkles")
-                if selectedKind.needsStake {
-                    Label("Add stake", systemImage: "bolt.fill")
+                if isQuickTeaMode {
+                    Label("Fast post", systemImage: "bolt.fill")
+                    Label("Pick take", systemImage: "chart.bar.fill")
+                    Label("Link challenge", systemImage: "link")
+                } else {
+                    Label(selectedSpice.label, systemImage: selectedSpice.icon)
+                    Label("Use a starter", systemImage: "sparkles")
+                    if selectedKind.needsStake {
+                        Label("Add stake", systemImage: "bolt.fill")
+                    }
+                    Label("Set deadline", systemImage: "timer")
                 }
-                Label("Set deadline", systemImage: "timer")
             }
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(.white.opacity(0.9))
@@ -568,13 +662,13 @@ struct CreateChallengeSheet: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
-            Text(selectedStarter == nil ? "Write your own or pick a starter above." : "Starter loaded. Edit it to match your vibe.")
+            Text(descriptionHintText)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(VibeTheme.textTertiary)
 
             ZStack(alignment: .topLeading) {
                 if descriptionText.isEmpty {
-                    Text(selectedKind.placeholder)
+                    Text(descriptionPlaceholder)
                         .font(VibeTypography.bodyMedium)
                         .foregroundColor(VibeTheme.textQuaternary)
                         .padding(.horizontal, VibeSpacing.sm)
@@ -622,6 +716,29 @@ struct CreateChallengeSheet: View {
         selectedStarterId = nil
     }
 
+    private var contextSubtitleText: String {
+        if isQuickTeaMode {
+            return "Drop a fast signal on who wins, so the chat can debate and adjust stakes in real time."
+        }
+        return selectedKind.contextSubtitle
+    }
+
+    private var descriptionHintText: String {
+        if isQuickTeaMode {
+            return "One line max. Fast signal that helps friends decide whether to stake up or switch sides."
+        }
+        return selectedStarter == nil
+            ? "Write your own or pick a starter above."
+            : "Starter loaded. Edit it to match your vibe."
+    }
+
+    private var descriptionPlaceholder: String {
+        if isQuickTeaMode {
+            return "Example: Liam looked shaky at warmup. I think he loses this."
+        }
+        return selectedKind.placeholder
+    }
+
     // MARK: - Target Selector
 
     private var targetSelector: some View {
@@ -630,42 +747,160 @@ struct CreateChallengeSheet: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: VibeSpacing.xs) {
-                    ForEach(targetUsers, id: \.id) { user in
-                        Button {
-                            VibeHaptic.selection()
-                            withAnimation(VibeAnimation.snappy) {
-                                targetUserId = user.id
-                            }
-                        } label: {
-                            HStack(spacing: VibeSpacing.xxs) {
-                                Circle()
-                                    .fill(selectedKind.color.opacity(0.15))
-                                    .frame(width: 24, height: 24)
-                                    .overlay(
-                                        Text(String(user.name.prefix(1)))
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(selectedKind.color)
-                                    )
+            if targetUsers.isEmpty {
+                Text("No eligible targets in your network for this chat yet.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(VibeTheme.textTertiary)
+                    .padding(.vertical, VibeSpacing.xs)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: VibeSpacing.xs) {
+                        ForEach(targetUsers, id: \.id) { user in
+                            Button {
+                                VibeHaptic.selection()
+                                withAnimation(VibeAnimation.snappy) {
+                                    targetUserId = user.id
+                                }
+                            } label: {
+                                HStack(spacing: VibeSpacing.xxs) {
+                                    Circle()
+                                        .fill(selectedKind.color.opacity(0.15))
+                                        .frame(width: 24, height: 24)
+                                        .overlay(
+                                            Text(String(user.name.prefix(1)))
+                                                .font(.system(size: 10, weight: .bold))
+                                                .foregroundColor(selectedKind.color)
+                                        )
 
-                                Text("@\(user.name)")
-                                    .font(.system(size: 13, weight: .medium))
+                                    Text("@\(user.name)")
+                                        .font(.system(size: 13, weight: .medium))
+                                }
+                                .foregroundColor(targetUserId == user.id ? .white : VibeTheme.textPrimary)
+                                .padding(.horizontal, VibeSpacing.sm)
+                                .padding(.vertical, VibeSpacing.xs)
+                                .background(targetUserId == user.id ? selectedKind.color : VibeTheme.surfaceOverlay)
+                                .clipShape(Capsule())
                             }
-                            .foregroundColor(targetUserId == user.id ? .white : VibeTheme.textPrimary)
-                            .padding(.horizontal, VibeSpacing.sm)
-                            .padding(.vertical, VibeSpacing.xs)
-                            .background(targetUserId == user.id ? selectedKind.color : VibeTheme.surfaceOverlay)
-                            .clipShape(Capsule())
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
         }
     }
 
-    // MARK: - Tea Fields
+    // MARK: - Tea Mode
+
+    private var teaModeSelector: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+            Text("Tea mode")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(VibeTheme.textSecondary)
+
+            HStack(spacing: VibeSpacing.xs) {
+                ForEach(TeaCreationMode.allCases, id: \.rawValue) { mode in
+                    Button {
+                        VibeHaptic.selection()
+                        withAnimation(VibeAnimation.snappy) {
+                            teaMode = mode
+                        }
+                    } label: {
+                        VStack(spacing: VibeSpacing.xxxs) {
+                            Text(mode.label)
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(mode.subtitle)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(teaMode == mode ? .white.opacity(0.85) : VibeTheme.textSecondary)
+                        }
+                        .foregroundColor(teaMode == mode ? .white : VibeTheme.textPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, VibeSpacing.xs)
+                        .background(teaMode == mode ? VibeTheme.accentCyan : VibeTheme.surfaceOverlay)
+                        .continuousCorner(VibeTheme.radiusMedium)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    // MARK: - Quick Tea Fields
+
+    private var quickTeaFields: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.md) {
+            VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                Text("Your take")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(VibeTheme.textSecondary)
+
+                HStack(spacing: VibeSpacing.xs) {
+                    ForEach(TeaDebateTake.allCases, id: \.rawValue) { take in
+                        Button {
+                            VibeHaptic.selection()
+                            withAnimation(VibeAnimation.snappy) {
+                                teaTake = take
+                            }
+                        } label: {
+                            HStack(spacing: VibeSpacing.xxs) {
+                                Image(systemName: take.icon)
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(take.label)
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(teaTake == take ? .white : VibeTheme.textPrimary)
+                            .padding(.horizontal, VibeSpacing.sm)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(teaTake == take ? VibeTheme.accentCyan : VibeTheme.surfaceOverlay)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                Text("Link to challenge (optional)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(VibeTheme.textSecondary)
+
+                Menu {
+                    Button("No linked challenge") {
+                        teaLinkedBetId = nil
+                    }
+
+                    if !availableTeaBets.isEmpty {
+                        Divider()
+                    }
+
+                    ForEach(availableTeaBets.prefix(10), id: \.betId) { bet in
+                        Button(bet.description) {
+                            teaLinkedBetId = bet.betId
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Text(linkedTeaBetTitle)
+                            .font(VibeTypography.bodySmall)
+                            .foregroundColor(teaLinkedBetId == nil ? VibeTheme.textSecondary : VibeTheme.textPrimary)
+                            .lineLimit(1)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(VibeTheme.textTertiary)
+                    }
+                    .padding(VibeSpacing.sm)
+                    .background(VibeTheme.cardBackground)
+                    .continuousCorner(VibeTheme.radiusMedium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                            .stroke(VibeTheme.divider, lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    // MARK: - Tea Spill Fields
 
     private var teaFields: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.md) {
@@ -862,7 +1097,7 @@ struct CreateChallengeSheet: View {
                 } else {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 14, weight: .semibold))
-                    Text(selectedKind == .tea ? "Post Tea" : "Create Challenge")
+                    Text(submitButtonTitle)
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
@@ -874,6 +1109,13 @@ struct CreateChallengeSheet: View {
         }
         .buttonStyle(VibePressStyle())
         .disabled(!canSubmit)
+    }
+
+    private var submitButtonTitle: String {
+        if isQuickTeaMode {
+            return "Post Tea Take"
+        }
+        return selectedKind == .tea ? "Post Tea" : "Create Challenge"
     }
 
     // MARK: - Submit Logic
@@ -889,13 +1131,47 @@ struct CreateChallengeSheet: View {
         Task {
             do {
                 if selectedKind == .tea {
-                    let validOptions = teaOptions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                    _ = try await appState.createTeaSpill(
-                        mysteryText: trimmedDescription,
-                        answer: teaAnswer,
-                        options: validOptions,
-                        deadline: deadline
-                    )
+                    if isQuickTeaMode {
+                        let contextPrefix: String
+                        switch teaTake {
+                        case .win:
+                            contextPrefix = "☕️ Will Win"
+                        case .lose:
+                            contextPrefix = "☕️ Will Lose"
+                        case .uncertain:
+                            contextPrefix = "☕️ 50/50"
+                        }
+
+                        let linkedSegment: String
+                        if let linkedTeaBet {
+                            linkedSegment = " on \(appState.nameForUser(linkedTeaBet.creatorId))"
+                        } else {
+                            linkedSegment = ""
+                        }
+
+                        let composedTeaText = "\(contextPrefix)\(linkedSegment): \(trimmedDescription)"
+                        let vibe = try await appState.createVibe(
+                            type: .tea,
+                            textStatus: composedTeaText,
+                            styleName: "Quick",
+                            isLocked: false
+                        )
+                        appState.sendVibeMessage(
+                            vibeId: vibe.id,
+                            isLocked: false,
+                            vibeType: .tea,
+                            contextText: composedTeaText,
+                            linkedBetId: teaLinkedBetId
+                        )
+                    } else {
+                        let validOptions = teaOptions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                        _ = try await appState.createTeaSpill(
+                            mysteryText: trimmedDescription,
+                            answer: teaAnswer,
+                            options: validOptions,
+                            deadline: deadline
+                        )
+                    }
                 } else if let betType = selectedKind.betType {
                     let createdBet = try await appState.createBet(
                         betType: betType,
@@ -929,15 +1205,11 @@ struct CreateChallengeSheet: View {
 
     // MARK: - Members
 
-    private struct ChatMemberUser: Decodable {
+    private struct EligibleTargetUser: Decodable {
         let id: String
         let firstName: String?
         let lastName: String?
-
-        enum CodingKeys: String, CodingKey {
-            case id = "_id"
-            case firstName, lastName
-        }
+        let profilePicture: String?
 
         var displayName: String {
             let fullName = "\(firstName ?? "") \(lastName ?? "")".trimmingCharacters(in: .whitespaces)
@@ -945,24 +1217,37 @@ struct CreateChallengeSheet: View {
         }
     }
 
-    private struct ChatMembersResponse: Decodable {
-        let members: [ChatMemberUser]
+    private struct EligibleTargetsResponse: Decodable {
+        let targets: [EligibleTargetUser]
     }
 
-    private func loadChatMembersIfNeeded() async {
-        guard !hasAttemptedMemberLoad else { return }
-        hasAttemptedMemberLoad = true
+    private func mapAndApplyTargets(_ values: [(id: String, name: String)]) async {
+        let filtered = values
+            .filter { !$0.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.id != appState.userId }
+            .sorted(by: { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending })
+
+        await MainActor.run {
+            eligibleTargets = filtered
+            if let selected = targetUserId,
+               !filtered.contains(where: { $0.id == selected }) {
+                targetUserId = nil
+            }
+        }
+    }
+
+    private func loadEligibleTargetsIfNeeded() async {
+        guard !hasAttemptedTargetLoad else { return }
+        hasAttemptedTargetLoad = true
         do {
             let chatId = try await appState.awaitResolvedChatId()
-            let response: ChatMembersResponse = try await APIClient.shared.get("/chat/\(chatId)/members")
-            let mapped = response.members.map { (id: $0.id, name: $0.displayName) }
-            await MainActor.run {
-                chatMembers = mapped.sorted(by: { $0.name < $1.name })
-            }
+            let response: EligibleTargetsResponse = try await APIClient.shared.get("/bets/chat/\(chatId)/eligible-targets")
+            let mapped = response.targets.map { (id: $0.id, name: $0.displayName) }
+            await mapAndApplyTargets(mapped)
         } catch {
-            // Keep sheet usable even if members fail to load.
+            // Keep sheet usable even if target loading fails.
             await MainActor.run {
-                chatMembers = []
+                eligibleTargets = []
+                targetUserId = nil
             }
         }
     }
