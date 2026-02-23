@@ -20,6 +20,11 @@ exports.AURA_CONSTANTS = {
     MIN_STAKE: 10,
     MAX_STAKE: 500,
     CREATION_COST: 0,
+    BET_CREATION_FEE_PER_DAY: 1,
+    MAX_BET_CREATION_FEE: 5,
+    // Requested policy: 0.80 Aura per new stake.
+    // Aura payloads are currently integer-based on clients, so service layer rounds.
+    NEW_STAKE_FEE: 0.8,
     // Resolution windows
     DISPUTE_WINDOW_MS: 60 * 60 * 1000, // 1 hour
     CONSENSUS_VOTE_WINDOW_MS: 2 * 60 * 60 * 1000, // 2 hours

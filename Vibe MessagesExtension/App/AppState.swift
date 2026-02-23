@@ -169,7 +169,7 @@ class AppState: ObservableObject {
             ),
             (
                 id: "team_tutorial_2",
-                text: "Share bets, callouts, dares, or even drop the tea.",
+                text: "Start challenges, callouts, dares, or drop some tea.",
                 image: "https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
                 type: .photo,
                 parlay: nil,
@@ -177,7 +177,7 @@ class AppState: ObservableObject {
             ),
             (
                 id: "team_tutorial_3",
-                text: "First bet is on us: share Vibes with friends for more Aura points.",
+                text: "First challenge is on us: share Vibes with friends for more Aura.",
                 image: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=1080&h=1920&fit=crop",
                 type: .parlay,
                 parlay: Parlay(
@@ -1284,9 +1284,11 @@ class AppState: ObservableObject {
     }
 
     func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
-        let participant = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
+        let stakeResponse = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
+        let participant = stakeResponse.participant
         // Reflect stake deduction immediately in UI, then reconcile from backend.
-        updateAuraBalance(auraBalance - amount)
+        let totalDebited = stakeResponse.totalDebited ?? amount
+        updateAuraBalance(auraBalance - totalDebited)
         betCanStakeById[betId] = false
         async let compactBetsTask: () = loadBets()
         async let expandedBetsTask: () = loadExpandedBets()

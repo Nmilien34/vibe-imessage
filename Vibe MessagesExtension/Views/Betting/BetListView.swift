@@ -36,7 +36,7 @@ struct BetListView: View {
 
                     Spacer()
 
-                    Text("My Bets")
+                    Text("My Challenges")
                         .font(VibeTypography.titleLarge)
                         .foregroundColor(VibeTheme.textPrimary)
 
@@ -174,11 +174,11 @@ struct BetListView: View {
                 .font(.system(size: 40))
                 .foregroundColor(VibeTheme.textTertiary)
 
-            Text("No \(statusLabel(selectedFilter).lowercased()) bets")
+            Text("No \(statusLabel(selectedFilter).lowercased()) challenges")
                 .font(VibeTypography.titleMedium)
                 .foregroundColor(VibeTheme.textSecondary)
 
-            Text("Bets you create or join will appear here")
+            Text("Challenges you start or join will show up here")
                 .font(VibeTypography.bodySmall)
                 .foregroundColor(VibeTheme.textTertiary)
         }
@@ -199,7 +199,7 @@ struct BetListView: View {
     private func statusLabel(_ status: BetStatus) -> String {
         switch status {
         case .active: return "Active"
-        case .pendingResolution: return "Pending / Resolving"
+        case .pendingResolution: return "In Review"
         case .completed: return "Completed"
         case .expired: return "Expired"
         case .ducked: return "Ducked"
@@ -209,9 +209,9 @@ struct BetListView: View {
     private func pendingDetailLabel(for bet: Bet) -> String {
         switch bet.lifecycleStatus {
         case .pending:
-            return "Awaiting quorum"
+            return "Waiting for lock-ins"
         case .resolving:
-            return "Resolving"
+            return "In review"
         default:
             return "Pending"
         }

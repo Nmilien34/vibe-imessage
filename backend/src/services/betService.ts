@@ -33,9 +33,12 @@ import { getAudienceGraph } from './contactNetworkService';
 import { AURA_CONSTANTS } from '../config/auraConstants';
 
 const CREATION_COST = AURA_CONSTANTS.CREATION_COST;
+const BET_CREATION_FEE_PER_DAY = AURA_CONSTANTS.BET_CREATION_FEE_PER_DAY;
+const MAX_BET_CREATION_FEE = AURA_CONSTANTS.MAX_BET_CREATION_FEE;
 const MAX_DESCRIPTION_LENGTH = 500;
 const MIN_DEADLINE_HOURS = 1;
 const MIN_STAKE = AURA_CONSTANTS.MIN_STAKE;
+const NEW_STAKE_FEE = Math.max(0, Math.round(AURA_CONSTANTS.NEW_STAKE_FEE));
 const RESOLUTION_CLAIM_WINDOW_HOURS = 6;
 
 async function requireChatMembership(chatId: string, userId: string, errorMessage: string): Promise<void> {
@@ -95,6 +98,15 @@ function calculateDuckRateValue(ducks: number, calloutsReceived: number): number
   const total = ducks + calloutsReceived;
   if (total <= 0) return 0;
   return Math.round((ducks / total) * 100);
+}
+
+function calculateBetCreationCost(params: { deadline: Date; now: Date }): number {
+  const { deadline, now } = params;
+  const rawHours = (deadline.getTime() - now.getTime()) / (60 * 60 * 1000);
+  const safeHours = Math.max(0, rawHours);
+  const deadlineBasedFee = Math.floor(safeHours / 24) * BET_CREATION_FEE_PER_DAY;
+  const boundedFee = Math.min(MAX_BET_CREATION_FEE, Math.max(0, deadlineBasedFee));
+  return Math.min(MAX_BET_CREATION_FEE, Math.max(0, CREATION_COST + boundedFee));
 }
 
 async function recalculateUserRates(userId: string): Promise<void> {
@@ -261,8 +273,15 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     throw new Error('You are bankrupt! Wait for daily bonus or accept a callout to earn Aura.');
   }
 
-  const totalCost = CREATION_COST + initialStake;
+  const creationCost = calculateBetCreationCost({ deadline, now });
+  const initialStakeFee = NEW_STAKE_FEE;
+  const totalCost = creationCost + initialStake + initialStakeFee;
   if ((creator.auraBalance ?? 0) < totalCost) {
+    if (initialStakeFee > 0 || creationCost > 0) {
+      throw new Error(
+        `Insufficient Aura. Need ${totalCost} (${creationCost} creation + ${initialStake} stake + ${initialStakeFee} fee), have ${creator.auraBalance ?? 0}`
+      );
+    }
     throw new Error(`Insufficient Aura. Need ${totalCost}, have ${creator.auraBalance ?? 0}`);
   }
 
@@ -315,7 +334,7 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     deadline,
     status,
     targetUserId: normalizedTargetUserId,
-    creationCost: CREATION_COST,
+    creationCost,
     participationThreshold,
     resolutionType: resolvedResolutionType,
     thresholdMemberCount,
@@ -355,8 +374,9 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
   }
 
   // Deduct Aura
-  const balanceAfterCreation = (creator.auraBalance ?? 0) - CREATION_COST;
-  const finalBalance = balanceAfterCreation - initialStake;
+  const balanceAfterCreation = (creator.auraBalance ?? 0) - creationCost;
+  const balanceAfterStake = balanceAfterCreation - initialStake;
+  const finalBalance = balanceAfterStake - initialStakeFee;
   creator.auraBalance = finalBalance;
   creator.lifetimeAuraSpent = (creator.lifetimeAuraSpent ?? 0) + totalCost;
   creator.betsCreated = (creator.betsCreated ?? 0) + 1;
@@ -364,11 +384,11 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
   await creator.save();
 
   // Record creation fee transaction only when non-zero.
-  if (CREATION_COST > 0) {
+  if (creationCost > 0) {
     await AuraTransaction.create({
       transactionId: `txn_${uuidv4()}`,
       userId: creatorId,
-      amount: -CREATION_COST,
+      amount: -creationCost,
       balanceAfter: balanceAfterCreation,
       transactionType: 'bet_creation',
       referenceId: betId,
@@ -381,11 +401,23 @@ export async function createBet(input: CreateBetInput): Promise<IBet> {
     transactionId: `txn_${uuidv4()}`,
     userId: creatorId,
     amount: -initialStake,
-    balanceAfter: finalBalance,
+    balanceAfter: initialStakeFee > 0 ? balanceAfterStake : finalBalance,
     transactionType: 'bet_stake',
     referenceId: betId,
     description: `Initial ${initialSide.toUpperCase()} stake on bet: "${trimmed.substring(0, 50)}..."`,
   });
+
+  if (initialStakeFee > 0) {
+    await AuraTransaction.create({
+      transactionId: `txn_${uuidv4()}`,
+      userId: creatorId,
+      amount: -initialStakeFee,
+      balanceAfter: finalBalance,
+      transactionType: 'bet_stake_fee',
+      referenceId: betId,
+      description: `New stake fee (${initialStakeFee} Aura) for bet: "${trimmed.substring(0, 50)}..."`,
+    });
+  }
 
   if (normalizedTargetUserId && (betType === 'callout' || betType === 'dare')) {
     await User.updateOne(
@@ -438,7 +470,12 @@ export async function placeBetStake(params: {
   side: 'yes' | 'no';
   amount: number;
   isAnonymous?: boolean;
-}): Promise<IBetParticipant> {
+}): Promise<{
+  participant: IBetParticipant;
+  chargedFee: number;
+  totalDebited: number;
+  isNewStake: boolean;
+}> {
   const { betId, userId, side, amount, isAnonymous = false } = params;
 
   // ── Validate bet exists and can accept stakes ───────────────
@@ -469,15 +506,22 @@ export async function placeBetStake(params: {
     throw new Error(`Minimum stake is ${MIN_STAKE} Aura`);
   }
 
-  if ((user.auraBalance ?? 0) < amount) {
-    throw new Error(`Insufficient Aura. Need ${amount}, have ${user.auraBalance ?? 0}`);
-  }
-
   // ── Validate user is in chat ────────────────────────────────
   await requireChatMembership(bet.chatId, userId, 'You must be in this chat to bet');
 
   // ── Prevent duplicate stakes (except creator top-up before others join) ──
   const existing = await BetParticipant.findOne({ betId, userId });
+  const isNewStake = !existing;
+  const stakeFee = isNewStake ? NEW_STAKE_FEE : 0;
+  const totalDebit = amount + stakeFee;
+
+  if ((user.auraBalance ?? 0) < totalDebit) {
+    if (stakeFee > 0) {
+      throw new Error(`Insufficient Aura. Need ${totalDebit} (${amount} stake + ${stakeFee} fee), have ${user.auraBalance ?? 0}`);
+    }
+    throw new Error(`Insufficient Aura. Need ${amount}, have ${user.auraBalance ?? 0}`);
+  }
+
   let participant: IBetParticipant;
   let isCreatorTopUp = false;
 
@@ -525,24 +569,38 @@ export async function placeBetStake(params: {
     }
   }
 
-  // Deduct Aura (held in escrow)
-  const newBalance = (user.auraBalance ?? 0) - amount;
+  // Deduct Aura (stake + optional new-stake fee).
+  const previousBalance = user.auraBalance ?? 0;
+  const newBalance = previousBalance - totalDebit;
   user.auraBalance = newBalance;
-  user.lifetimeAuraSpent = (user.lifetimeAuraSpent ?? 0) + amount;
+  user.lifetimeAuraSpent = (user.lifetimeAuraSpent ?? 0) + totalDebit;
   await user.save();
 
-  // Record transaction
+  // Record stake transaction (keeps stake activity history clean).
+  const stakeBalanceAfter = previousBalance - amount;
   await AuraTransaction.create({
     transactionId: `txn_${uuidv4()}`,
     userId,
     amount: -amount,
-    balanceAfter: newBalance,
+    balanceAfter: stakeFee > 0 ? stakeBalanceAfter : newBalance,
     transactionType: 'bet_stake',
     referenceId: betId,
     description: isCreatorTopUp
       ? `Added ${amount} Aura to existing "${side}" stake for bet: "${bet.description.substring(0, 50)}..."`
       : `Staked ${amount} Aura on "${side}" for bet: "${bet.description.substring(0, 50)}..."`,
   });
+
+  if (stakeFee > 0) {
+    await AuraTransaction.create({
+      transactionId: `txn_${uuidv4()}`,
+      userId,
+      amount: -stakeFee,
+      balanceAfter: newBalance,
+      transactionType: 'bet_stake_fee',
+      referenceId: betId,
+      description: `New stake fee (${stakeFee} Aura) for bet: "${bet.description.substring(0, 50)}..."`,
+    });
+  }
 
   if (bet.status === 'pending' && bet.participationThreshold) {
     const currentParticipants = await BetParticipant.countDocuments({ betId });
@@ -566,7 +624,12 @@ export async function placeBetStake(params: {
 
   await recalculateUserRates(userId);
 
-  return participant;
+  return {
+    participant,
+    chargedFee: stakeFee,
+    totalDebited: totalDebit,
+    isNewStake,
+  };
 }
 
 /**

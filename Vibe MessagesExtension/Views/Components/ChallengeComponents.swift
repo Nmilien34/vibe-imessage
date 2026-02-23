@@ -249,7 +249,7 @@ struct BetCard: View {
         }
 
         switch bet.lifecycleStatus {
-        case .pending: return "Awaiting Quorum"
+        case .pending: return "Waiting for Lock-Ins"
         case .active: return "Active"
         case .resolving: return "Resolving"
         case .completed: return "Completed"
@@ -353,7 +353,7 @@ struct BetCard: View {
                 HStack(spacing: VibeSpacing.xs) {
                     let participantCount = (resolvedTotals?.yesCount ?? 0) + (resolvedTotals?.noCount ?? 0)
                     AuraBadge(amount: resolvedTotals?.totalPot ?? bet.creationCost ?? 0, size: .small)
-                    Text("pot")
+                    Text("pool")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textTertiary)
 
@@ -361,7 +361,7 @@ struct BetCard: View {
                         Text("•")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
-                        Text("\(participantCount) staked so far")
+                        Text("\(participantCount) locked in so far")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textSecondary)
                     }
@@ -382,7 +382,7 @@ struct BetCard: View {
                 // Row 4: Stake buttons (only for active bets)
                 if bet.supportsStaking && !bet.isExpired {
                     HStack(spacing: VibeSpacing.sm) {
-                        StakeButton(label: interactionStyle == .quickStake ? "Yes" : "Stake Yes", color: VibeTheme.stakeYes, compactStyle: interactionStyle == .quickStake) {
+                        StakeButton(label: interactionStyle == .quickStake ? "Yes" : "Join YES", color: VibeTheme.stakeYes, compactStyle: interactionStyle == .quickStake) {
                             if interactionStyle == .quickStake {
                                 if canQuickStake {
                                     VibeHaptic.medium()
@@ -398,7 +398,7 @@ struct BetCard: View {
                         }
                         .disabled(interactionStyle == .quickStake && !canTapQuickStakeButton)
 
-                        StakeButton(label: interactionStyle == .quickStake ? "No" : "Stake No", color: VibeTheme.stakeNo, compactStyle: interactionStyle == .quickStake) {
+                        StakeButton(label: interactionStyle == .quickStake ? "No" : "Join NO", color: VibeTheme.stakeNo, compactStyle: interactionStyle == .quickStake) {
                             if interactionStyle == .quickStake {
                                 if canQuickStake {
                                     VibeHaptic.medium()
@@ -435,13 +435,13 @@ struct BetCard: View {
             }
         }
         .buttonStyle(.plain)
-        .alert("You've initiated this bet", isPresented: $showStakeUpPrompt) {
-            Button("Stake Up") {
+        .alert("You're already in this challenge", isPresented: $showStakeUpPrompt) {
+            Button("Boost Stake") {
                 appState.navigateToBetDetail(bet: bet)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Do you want to increase the stake?")
+            Text("Want to add more to your stake?")
         }
     }
 }

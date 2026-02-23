@@ -44,7 +44,12 @@ export declare function placeBetStake(params: {
     side: 'yes' | 'no';
     amount: number;
     isAnonymous?: boolean;
-}): Promise<IBetParticipant>;
+}): Promise<{
+    participant: IBetParticipant;
+    chargedFee: number;
+    totalDebited: number;
+    isNewStake: boolean;
+}>;
 /**
  * Get total Aura staked on each side of a bet.
  */

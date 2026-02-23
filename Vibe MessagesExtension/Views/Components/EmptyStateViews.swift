@@ -70,9 +70,9 @@ extension VibeEmptyState {
     static func noBets(action: (() -> Void)? = nil) -> VibeEmptyState {
         VibeEmptyState(
             icon: "dice",
-            title: "No Bets",
-            subtitle: "Create a bet and challenge your friends",
-            actionTitle: action != nil ? "Create Bet" : nil,
+            title: "No Challenges Yet",
+            subtitle: "Start a challenge and pull your friends in",
+            actionTitle: action != nil ? "Start Challenge" : nil,
             action: action
         )
     }
@@ -110,7 +110,7 @@ extension VibeEmptyState {
     VibeEmptyState.noVibes { }
 }
 
-#Preview("No Bets") {
+#Preview("No Challenges") {
     VibeEmptyState.noBets()
 }
 

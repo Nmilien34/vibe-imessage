@@ -193,18 +193,18 @@ struct VibeViewerView: View {
             }
         }
         .alert("You're not in this challenge chat", isPresented: $showJoinRequestPrompt) {
-            Button("No", role: .cancel) {
+            Button("Not now", role: .cancel) {
                 clearPendingJoinRequest()
             }
-            Button(isSubmittingJoinRequest ? "Requesting..." : "Yes, Request Join") {
+            Button(isSubmittingJoinRequest ? "Requesting..." : "Request Access") {
                 Task { await submitJoinRequest() }
             }
             .disabled(isSubmittingJoinRequest)
         } message: {
-            Text("Would you like to request to join? Chat members will see your request and can add you or start a new group chat with you.")
+            Text("Send a join request? Chat members can add you or spin up a new group chat with you.")
         }
-        .confirmationDialog("You've initiated this bet", isPresented: $showStakeUpPrompt, titleVisibility: .visible) {
-            Button("Stake Up") {
+        .confirmationDialog("You're already in this challenge", isPresented: $showStakeUpPrompt, titleVisibility: .visible) {
+            Button("Boost Stake") {
                 if let bet = stakeUpPromptBet {
                     showStakeSheet = false
                     appState.navigateToBetDetail(bet: bet)
@@ -215,7 +215,7 @@ struct VibeViewerView: View {
                 stakeUpPromptBet = nil
             }
         } message: {
-            Text("Do you want to increase the stake?")
+            Text("Want to add more to your stake?")
         }
     }
 
@@ -714,7 +714,7 @@ struct VibeViewerView: View {
                 isResolvingStakeBet = false
 
                 if resolved == nil && !isTutorial {
-                    stakeError = "No active bet found from this story yet."
+                    stakeError = "No active challenge linked to this story yet."
                 }
             }
         }
@@ -727,7 +727,7 @@ struct VibeViewerView: View {
                 guard showStakeSheet, stakeResolutionSession == session, isResolvingStakeBet else { return }
                 isResolvingStakeBet = false
                 if stakeTargetBet == nil && !isTutorial {
-                    stakeError = "No active bet found from this story yet."
+                    stakeError = "No active challenge linked to this story yet."
                 }
             }
         }
@@ -736,13 +736,15 @@ struct VibeViewerView: View {
     @MainActor
     private func submitStakeFromSheet() async {
         let minimumStake = 10
+        let newStakeFee = 1
         let stakeCap = 100
         let availableBalance = min(max(0, appState.auraBalance), stakeCap)
-        guard availableBalance >= minimumStake else {
-            stakeError = "Need at least \(minimumStake) Aura to join."
+        let spendableBalance = max(0, availableBalance - newStakeFee)
+        guard spendableBalance >= minimumStake else {
+            stakeError = "Need at least \(minimumStake + newStakeFee) Aura to lock in (\(minimumStake) stake + \(newStakeFee) entry fee)."
             return
         }
-        let clampedAmount = min(max(stakeAmount, minimumStake), availableBalance)
+        let clampedAmount = min(max(stakeAmount, minimumStake), spendableBalance)
         stakeAmount = clampedAmount
 
         isSubmittingStake = true
@@ -799,7 +801,7 @@ struct VibeViewerView: View {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !challengeText.isEmpty else {
             isSubmittingStake = false
-            stakeError = "Couldn't start challenge from this story."
+            stakeError = "Couldn't start a challenge from this story."
             return
         }
 
@@ -876,11 +878,11 @@ struct VibeViewerView: View {
         }
 
         if description.contains("already staked") {
-            return "You've already joined this challenge."
+            return "You're already locked into this challenge."
         }
 
         if description.contains("insufficient aura") || description.contains("bankrupt") {
-            return "Not enough Aura to join this challenge."
+            return "Not enough Aura to lock in."
         }
 
         if description.contains("must be a member") || description.contains("must be in this chat") {
@@ -922,7 +924,7 @@ struct VibeViewerView: View {
     @MainActor
     private func submitJoinRequest() async {
         guard let chatId = pendingJoinChatId, !chatId.isEmpty else {
-            stakeError = "Couldn't request access because this challenge has no chat id."
+            stakeError = "Couldn't request access because this challenge has no chat ID."
             clearPendingJoinRequest()
             return
         }
@@ -1040,7 +1042,7 @@ struct StoryStakeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.lg) {
-            Text("Join Challenge")
+            Text("Lock In")
                 .font(VibeTypography.titleMedium)
                 .foregroundColor(VibeTheme.textPrimary)
 
@@ -1067,7 +1069,7 @@ struct StoryStakeSheet: View {
                 }
 
                 VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-                    Text("Stake: \(amount) Aura")
+                    Text("Your stake: \(amount) Aura")
                         .font(VibeTypography.titleSmall)
                         .foregroundColor(VibeTheme.textPrimary)
                         .contentTransition(.numericText())
@@ -1081,11 +1083,11 @@ struct StoryStakeSheet: View {
                         .tint(selectedSide == .yes ? .green : .red)
                         quickStakeChips
                     } else if canStakeAtAll {
-                        Text("Stake fixed at \(minimumStake) Aura")
+                        Text("Stake locked at \(minimumStake) Aura")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     } else {
-                        Text("Need at least \(minimumStake) Aura to join.")
+                        Text("Need at least \(minimumStake) Aura to lock in.")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     }
@@ -1100,7 +1102,7 @@ struct StoryStakeSheet: View {
                     .foregroundColor(VibeTheme.textPrimary)
 
                 VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-                    Text("Stake: \(amount) Aura")
+                    Text("Your stake: \(amount) Aura")
                         .font(VibeTypography.titleSmall)
                         .foregroundColor(VibeTheme.textPrimary)
                         .contentTransition(.numericText())
@@ -1114,11 +1116,11 @@ struct StoryStakeSheet: View {
                         .tint(selectedSide == .yes ? .green : .red)
                         quickStakeChips
                     } else if canStakeAtAll {
-                        Text("Stake fixed at \(minimumStake) Aura")
+                        Text("Stake locked at \(minimumStake) Aura")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     } else {
-                        Text("Need at least \(minimumStake) Aura to join.")
+                        Text("Need at least \(minimumStake) Aura to lock in.")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     }
@@ -1144,7 +1146,7 @@ struct StoryStakeSheet: View {
                     if isSubmitting {
                         ProgressView().tint(.white)
                     }
-                    Text(isSubmitting ? "Joining..." : (bet == nil && allowStarterMode ? "Start & Stake" : "Join & Stake"))
+                    Text(isSubmitting ? "Locking in..." : (bet == nil && allowStarterMode ? "Start & Lock In" : "Join & Lock In"))
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, VibeSpacing.sm)
@@ -1157,7 +1159,7 @@ struct StoryStakeSheet: View {
             .opacity(canStake ? 1 : 0.5)
 
             Button(action: onSeeMyBets) {
-                Text("See My Bets")
+                Text("See My Challenges")
                     .font(VibeTypography.bodyMedium)
                     .foregroundColor(VibeTheme.textPrimary)
                     .frame(maxWidth: .infinity)

@@ -116,12 +116,12 @@ actor BettingService {
         side: BetSide,
         amount: Int,
         isAnonymous: Bool = false
-    ) async throws -> BetParticipant {
+    ) async throws -> StakeResponse {
         let response: StakeResponse = try await api.post(
             "/bets/\(betId)/stake",
             body: PlaceStakeRequest(side: side.rawValue, amount: amount, isAnonymous: isAnonymous)
         )
-        return response.participant
+        return response
     }
 
     // MARK: - Get My Stake

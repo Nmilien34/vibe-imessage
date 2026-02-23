@@ -13,6 +13,9 @@ export declare const AURA_CONSTANTS: {
     readonly MIN_STAKE: 10;
     readonly MAX_STAKE: 500;
     readonly CREATION_COST: 0;
+    readonly BET_CREATION_FEE_PER_DAY: 1;
+    readonly MAX_BET_CREATION_FEE: 5;
+    readonly NEW_STAKE_FEE: 0.8;
     readonly DISPUTE_WINDOW_MS: number;
     readonly CONSENSUS_VOTE_WINDOW_MS: number;
     readonly OBSERVABLE_DISPUTE_WINDOW_MS: number;

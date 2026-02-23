@@ -86,7 +86,7 @@ struct BetResolutionComposerView: View {
                     .tint(.green)
                     .padding(.horizontal, 40)
 
-                Text(submitProgress < 0.7 ? "Uploading proof..." : "Submitting resolution...")
+                Text(submitProgress < 0.7 ? "Uploading receipts..." : "Finalizing result...")
                     .foregroundColor(.white)
                     .font(VibeTypography.titleSmall)
             }
@@ -162,7 +162,7 @@ struct BetResolutionComposerView: View {
                 throw NSError(
                     domain: "BetResolutionComposerView",
                     code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Only photo or video proof is supported."]
+                    userInfo: [NSLocalizedDescriptionKey: "Only photo or video receipts are supported."]
                 )
             }
 

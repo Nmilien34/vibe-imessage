@@ -364,13 +364,13 @@ struct UserProfileView: View {
                 .vibeSectionHeader()
 
             VStack(spacing: 0) {
-                quickLinkRow(icon: "sparkles", title: "Aura Hub", subtitle: "Economy & leaderboard") {
+                quickLinkRow(icon: "sparkles", title: "Aura Bank", subtitle: "Balance, history & leaderboard") {
                     appState.navigateToAuraHub()
                 }
 
                 Divider().padding(.leading, VibeSpacing.iconCircleSmall + VibeSpacing.md)
 
-                quickLinkRow(icon: "list.bullet.rectangle.fill", title: "My Bets", subtitle: "View all bets") {
+                quickLinkRow(icon: "list.bullet.rectangle.fill", title: "My Challenges", subtitle: "See all your challenges") {
                     appState.navigateToBetList()
                 }
             }

@@ -310,8 +310,9 @@ struct CreateChallengeSheet: View {
         starterChoices.first(where: { $0.id == selectedStarterId })
     }
 
-    private let betCreationFee = 0
     private let teaCreationFee = 10
+    private let newStakeFee = 1
+    private let maxBetCreationFee = 5
 
     private var isQuickTeaMode: Bool {
         selectedKind == .tea && teaMode == .quick
@@ -343,15 +344,18 @@ struct CreateChallengeSheet: View {
 
     private var creationFee: Int {
         if isQuickTeaMode { return 0 }
-        return selectedKind == .tea ? teaCreationFee : betCreationFee
+        if selectedKind == .tea { return teaCreationFee }
+        let dynamicBetFee = Int(floor(deadlineHours / 24))
+        return min(maxBetCreationFee, max(0, dynamicBetFee))
     }
     private var totalCost: Int {
-        selectedKind.needsStake ? creationFee + stakeAmount : creationFee
+        selectedKind.needsStake ? creationFee + stakeAmount + newStakeFee : creationFee
     }
 
     private var canSubmit: Bool {
         guard descriptionText.count > 3, !isSubmitting else { return false }
         if selectedKind.needsTarget && targetUserId == nil { return false }
+        if selectedKind.needsStake && appState.auraBalance < totalCost { return false }
         if selectedKind == .tea {
             if isQuickTeaMode { return true }
             let validOptions = teaOptions.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -364,11 +368,11 @@ struct CreateChallengeSheet: View {
     private var selectedResolutionSubtitle: String {
         switch selectedResolutionType {
         case .proof:
-            return "Proof is reviewed before payout."
+            return "Proof gets checked before payout."
         case .observable:
-            return "Creator declares outcome, stakers can dispute."
+            return "Creator makes the call, stakers can challenge it."
         case .consensus:
-            return "Stakers vote to settle outcome."
+            return "Everyone who staked votes to settle it."
         }
     }
 
@@ -543,11 +547,11 @@ struct CreateChallengeSheet: View {
                     Label("Link challenge", systemImage: "link")
                 } else {
                     Label(selectedSpice.label, systemImage: selectedSpice.icon)
-                    Label("Use a starter", systemImage: "sparkles")
+                    Label("Pick a prompt", systemImage: "sparkles")
                     if selectedKind.needsStake {
-                        Label("Add stake", systemImage: "bolt.fill")
+                        Label("Lock your stake", systemImage: "bolt.fill")
                     }
-                    Label("Set deadline", systemImage: "timer")
+                    Label("Set time window", systemImage: "timer")
                 }
             }
             .font(.system(size: 11, weight: .semibold))
@@ -679,6 +683,12 @@ struct CreateChallengeSheet: View {
                     }
                 }
             }
+
+            if selectedKind != .tea {
+                Text("Creator fee right now: \(creationFee) Aura (caps at 5).")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(VibeTheme.textTertiary)
+            }
         }
     }
 
@@ -686,7 +696,7 @@ struct CreateChallengeSheet: View {
 
     private var descriptionField: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-            Text("Description")
+            Text("Challenge details")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -776,7 +786,7 @@ struct CreateChallengeSheet: View {
                 .foregroundColor(VibeTheme.textSecondary)
 
             if targetUsers.isEmpty {
-                Text("No eligible targets in your network for this chat yet.")
+                Text("No eligible targets in this chat yet.")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(VibeTheme.textTertiary)
                     .padding(.vertical, VibeSpacing.xs)
@@ -821,7 +831,7 @@ struct CreateChallengeSheet: View {
 
     private var resolutionTypeSelector: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-            Text("Resolution mode")
+            Text("How this settles")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -875,10 +885,10 @@ struct CreateChallengeSheet: View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
             Toggle(isOn: $thresholdEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Require participation threshold")
+                    Text("Wait for enough people")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(VibeTheme.textPrimary)
-                    Text("Bet starts when enough people join.")
+                    Text("Challenge goes live when enough people lock in.")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(VibeTheme.textSecondary)
                 }
@@ -908,7 +918,7 @@ struct CreateChallengeSheet: View {
                     }
                 }
 
-                Text("Starts at \(Int((thresholdValue * 100).rounded()))% chat participation.")
+                Text("Goes live at \(Int((thresholdValue * 100).rounded()))% chat participation.")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(VibeTheme.textTertiary)
             }
@@ -925,10 +935,10 @@ struct CreateChallengeSheet: View {
     private var anonymousStakeToggle: some View {
         Toggle(isOn: $anonymousStakeEnabled) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Anonymous initial stake")
+                Text("Anonymous first stake")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(VibeTheme.textPrimary)
-                Text("Hide your identity in payout summaries.")
+                Text("Hide your name in payout recaps.")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(VibeTheme.textSecondary)
             }
@@ -946,22 +956,22 @@ struct CreateChallengeSheet: View {
     private func resolutionTitle(for type: BetResolutionType) -> String {
         switch type {
         case .proof:
-            return "Proof Review"
+            return "Receipt Check"
         case .observable:
-            return "Observable Claim"
+            return "Creator Call"
         case .consensus:
-            return "Consensus Vote"
+            return "Squad Vote"
         }
     }
 
     private func resolutionDescription(for type: BetResolutionType) -> String {
         switch type {
         case .proof:
-            return "Uploader submits proof; stakers can confirm or dispute."
+            return "Post proof, then stakers mark it legit or challenge."
         case .observable:
-            return "Creator declares the result; stakers can challenge it."
+            return "Creator calls the result first; stakers can back it or challenge it."
         case .consensus:
-            return "All stakers vote on outcome after deadline."
+            return "Everyone who staked votes after the timer ends."
         }
     }
 
@@ -1046,7 +1056,7 @@ struct CreateChallengeSheet: View {
             }
 
             VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-                Text("Link to challenge (optional)")
+                Text("Link challenge (optional)")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(VibeTheme.textSecondary)
 
@@ -1169,7 +1179,7 @@ struct CreateChallengeSheet: View {
 
     private var stakeSelector: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-            Text("Stake")
+            Text("Your stake")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -1205,7 +1215,7 @@ struct CreateChallengeSheet: View {
 
     private var deadlineSelector: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.xs) {
-            Text("Deadline")
+            Text("Time window")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -1238,7 +1248,7 @@ struct CreateChallengeSheet: View {
     private var costSummary: some View {
         VStack(spacing: VibeSpacing.xs) {
             HStack {
-                Text("Creation Fee")
+                Text("Creator Fee")
                     .font(VibeTypography.captionLarge)
                     .foregroundColor(VibeTheme.textSecondary)
                 Spacer()
@@ -1252,6 +1262,14 @@ struct CreateChallengeSheet: View {
                         .foregroundColor(VibeTheme.textSecondary)
                     Spacer()
                     AuraBadge(amount: stakeAmount, size: .small)
+                }
+
+                HStack {
+                    Text("Entry Fee")
+                        .font(VibeTypography.captionLarge)
+                        .foregroundColor(VibeTheme.textSecondary)
+                    Spacer()
+                    AuraBadge(amount: newStakeFee, size: .small)
                 }
             }
 
@@ -1300,9 +1318,9 @@ struct CreateChallengeSheet: View {
 
     private var submitButtonTitle: String {
         if isQuickTeaMode {
-            return "Post Tea Take"
+            return "Drop Tea Take"
         }
-        return selectedKind == .tea ? "Post Tea" : "Create Challenge"
+        return selectedKind == .tea ? "Drop Tea" : "Start Challenge"
     }
 
     // MARK: - Submit Logic

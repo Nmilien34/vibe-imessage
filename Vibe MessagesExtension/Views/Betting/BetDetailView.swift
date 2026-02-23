@@ -180,12 +180,12 @@ struct BetDetailView: View {
                 EmptyView()
             }
         }
-        .confirmationDialog("Choose Resolution Outcome", isPresented: $showOutcomePicker, titleVisibility: .visible) {
-            Button("YES Side Wins") {
+        .confirmationDialog("Pick the Winner", isPresented: $showOutcomePicker, titleVisibility: .visible) {
+            Button("YES Wins") {
                 selectedResolutionOutcome = .yes
                 showResolutionComposer = true
             }
-            Button("NO Side Wins") {
+            Button("NO Wins") {
                 selectedResolutionOutcome = .no
                 showResolutionComposer = true
             }
@@ -266,16 +266,16 @@ struct BetDetailView: View {
                     Text("Resolved \(currentBet.updatedAt ?? currentBet.deadline, style: .relative)")
                         .font(VibeTypography.captionSmall)
                 } else if currentBet.lifecycleStatus == .resolving {
-                    Text("Resolution window \(currentBet.deadline, style: .relative)")
+                    Text("Call window \(currentBet.deadline, style: .relative)")
                         .font(VibeTypography.captionSmall)
                 } else if currentBet.lifecycleStatus == .pending {
-                    Text("Threshold window \(currentBet.deadline, style: .relative)")
+                    Text("Warm-up window \(currentBet.deadline, style: .relative)")
                         .font(VibeTypography.captionSmall)
                 } else if currentBet.isExpired {
                     Text("Expired")
                         .font(VibeTypography.captionSmall)
                 } else {
-                    Text("Ends \(currentBet.deadline, style: .relative)")
+                    Text("Closes \(currentBet.deadline, style: .relative)")
                         .font(VibeTypography.captionSmall)
                 }
             }
@@ -297,7 +297,7 @@ struct BetDetailView: View {
     private var lifecycleSummarySection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
             HStack {
-                Text("LOOP STAGE")
+                Text("LOOP STATUS")
                     .vibeSectionHeader()
                 Spacer()
                 Text(loopModeLabel)
@@ -390,7 +390,7 @@ struct BetDetailView: View {
                     HStack(spacing: VibeSpacing.sm) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
-                        Text("You staked \(userStake.amount) Aura on \(userStake.side.rawValue.uppercased())")
+                        Text("You're in for \(userStake.amount) Aura on \(userStake.side.rawValue.uppercased())")
                             .font(VibeTypography.titleSmall)
                             .foregroundColor(VibeTheme.textPrimary)
                     }
@@ -404,7 +404,7 @@ struct BetDetailView: View {
 
                     if canCurrentUserRestake {
                         VStack(spacing: VibeSpacing.md) {
-                            Text("ADD TO YOUR \(userStake.side.rawValue.uppercased()) STAKE")
+                            Text("BOOST YOUR \(userStake.side.rawValue.uppercased()) SIDE")
                                 .vibeSectionHeader()
 
                             VStack(spacing: VibeSpacing.xs) {
@@ -449,7 +449,7 @@ struct BetDetailView: View {
             } else {
                 // Stake UI
                 VStack(spacing: VibeSpacing.md) {
-                    Text("PLACE YOUR STAKE")
+                    Text("LOCK YOUR SIDE")
                         .vibeSectionHeader()
 
                     // Side picker
@@ -468,7 +468,7 @@ struct BetDetailView: View {
                         Slider(value: stakeSliderBinding, in: stakeSliderRange, step: 5)
                         .tint(selectedSide == .yes ? .green : .red)
 
-                        Text("Balance: \(appState.auraBalance)")
+                        Text("Balance: \(appState.auraBalance) • +1 entry fee")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     }
@@ -482,12 +482,12 @@ struct BetDetailView: View {
                             if isStaking {
                                 ProgressView().tint(.white)
                             }
-                            Text(isStaking ? "Staking..." : "Stake \(stakeAmount) Aura")
+                            Text(isStaking ? "Locking in..." : "Lock \(stakeAmount) Aura")
                         }
                         .vibeButton(.primary)
                     }
                     .buttonStyle(VibePressStyle())
-                    .disabled(isStaking || appState.auraBalance < stakeAmount)
+                    .disabled(isStaking || appState.auraBalance < (stakeAmount + 1))
 
                     if let stakeError {
                         Text(stakeError)
@@ -503,7 +503,7 @@ struct BetDetailView: View {
 
     private var stakeActivitySection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("YOUR STAKE ACTIVITY")
+            Text("YOUR STAKE MOVES")
                 .vibeSectionHeader()
 
             VStack(spacing: 0) {
@@ -578,7 +578,7 @@ struct BetDetailView: View {
                 .vibeSectionHeader()
 
             if participants.isEmpty {
-                Text("No stakes yet")
+                Text("No one has locked in yet")
                     .font(VibeTypography.bodyMedium)
                     .foregroundColor(VibeTheme.textTertiary)
                     .frame(maxWidth: .infinity)
@@ -631,7 +631,7 @@ struct BetDetailView: View {
 
     private var proofsSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("PROOF")
+            Text("RECEIPTS")
                 .vibeSectionHeader()
 
             ForEach(proofs) { proof in
@@ -659,7 +659,7 @@ struct BetDetailView: View {
                                         .foregroundColor(status == .confirmed ? .green : status == .disputed ? .red : .orange)
                                 }
 
-                                Text("\(confirmations) confirm • \(disputes) dispute")
+                                Text("\(confirmations) legit • \(disputes) challenge")
                                     .font(VibeTypography.captionSmall)
                                     .foregroundColor(VibeTheme.textTertiary)
                             }
@@ -679,7 +679,7 @@ struct BetDetailView: View {
                     }
 
                     if let disputeDeadline {
-                        Text("Dispute window \(disputeDeadline > Date() ? "closes" : "closed") \(disputeDeadline, style: .relative)")
+                        Text("Challenge window \(disputeDeadline > Date() ? "closes" : "closed") \(disputeDeadline, style: .relative)")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
                     }
@@ -699,7 +699,7 @@ struct BetDetailView: View {
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, VibeSpacing.sm)
                                 } else {
-                                    Text("Confirm Proof")
+                                    Text("Looks Legit")
                                         .vibeButton(.primary)
                                 }
                             }
@@ -710,14 +710,14 @@ struct BetDetailView: View {
                                 VibeHaptic.warning()
                                 Task { await reactToProof(proof: proof, reaction: "dispute") }
                             } label: {
-                                Text("Dispute")
+                                Text("Challenge It")
                                     .vibeButton(.tertiary)
                             }
                             .buttonStyle(VibePressStyle())
                             .disabled(isReactingToProofId != nil)
                         }
                     } else if lockedProofReactionIds.contains(proof.proofId) {
-                        Text("Your proof reaction is already recorded.")
+                        Text("You already voted on this proof.")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textSecondary)
                     }
@@ -732,10 +732,10 @@ struct BetDetailView: View {
 
     private var resolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("SUBMIT PROOF CLAIM")
+            Text("POST RECEIPTS")
                 .vibeSectionHeader()
 
-            Text("Capture or upload photo/video proof first, then request payout resolution.")
+            Text("Capture or upload photo/video proof, then submit it for payout.")
                 .font(VibeTypography.bodySmall)
                 .foregroundColor(VibeTheme.textSecondary)
 
@@ -744,7 +744,7 @@ struct BetDetailView: View {
                 resolutionError = nil
                 showOutcomePicker = true
             } label: {
-                Text("Resolve with Proof")
+                Text("Submit Proof")
                     .vibeButton(.primary)
             }
             .buttonStyle(VibePressStyle())
@@ -769,11 +769,11 @@ struct BetDetailView: View {
         }()
 
         return VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("AWAITING PARTICIPATION")
+            Text("WAITING FOR LOCK-INS")
                 .vibeSectionHeader()
 
             if let requiredCount {
-                Text("\(currentCount) of \(requiredCount) participants joined.")
+                Text("\(currentCount) of \(requiredCount) people locked in.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textPrimary)
 
@@ -781,12 +781,12 @@ struct BetDetailView: View {
                     .tint(VibeTheme.betAccent)
 
                 if let participationThreshold = currentBet.participationThreshold {
-                    Text("Threshold set to \(Int((participationThreshold * 100).rounded()))% of the chat.")
+                    Text("Launch threshold: \(Int((participationThreshold * 100).rounded()))% of the chat.")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 }
             } else {
-                Text("This challenge is waiting for more stakers before it activates.")
+                Text("This challenge is waiting for more people to lock in before it goes live.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textSecondary)
             }
@@ -797,12 +797,12 @@ struct BetDetailView: View {
 
     private var resolvingLoopSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("RESOLUTION LOOP")
+            Text("SETTLEMENT PHASE")
                 .vibeSectionHeader()
 
             switch effectiveResolutionType {
             case .proof:
-                Text("Proof submissions are under review. Stakers can confirm or dispute during the dispute window.")
+                Text("Proof is being reviewed. Stakers can back it or challenge it during the window.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textSecondary)
             case .consensus:
@@ -823,11 +823,11 @@ struct BetDetailView: View {
 
     private var consensusResolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("Stakers vote YES or NO before the timer ends.")
+            Text("People who staked vote YES or NO before time is up.")
                 .font(VibeTypography.bodySmall)
                 .foregroundColor(VibeTheme.textSecondary)
 
-            Text("Vote window closes \(currentBet.deadline, style: .relative)")
+            Text("Voting closes \(currentBet.deadline, style: .relative)")
                 .font(VibeTypography.captionSmall)
                 .foregroundColor(VibeTheme.textTertiary)
 
@@ -839,7 +839,7 @@ struct BetDetailView: View {
 
             if isCurrentUserStaker {
                 if hasSubmittedConsensusVote {
-                    Text("Your vote is recorded.")
+                    Text("Your vote is locked.")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 } else {
@@ -866,7 +866,7 @@ struct BetDetailView: View {
                     }
                 }
             } else {
-                Text("Only stakers can vote in consensus.")
+                Text("Only people who staked can vote here.")
                     .font(VibeTypography.captionSmall)
                     .foregroundColor(VibeTheme.textSecondary)
             }
@@ -876,11 +876,11 @@ struct BetDetailView: View {
     private var observableResolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
             if let declaredOutcome = currentBet.observableDeclaredOutcome {
-                Text("Creator declared \(declaredOutcome.rawValue.uppercased()).")
+                Text("Creator called \(declaredOutcome.rawValue.uppercased()).")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textPrimary)
 
-                Text("Dispute window closes \(currentBet.deadline, style: .relative)")
+                Text("Challenge window closes \(currentBet.deadline, style: .relative)")
                     .font(VibeTypography.captionSmall)
                     .foregroundColor(VibeTheme.textTertiary)
 
@@ -892,7 +892,7 @@ struct BetDetailView: View {
 
                 if isCurrentUserStaker {
                     if hasSubmittedConsensusVote {
-                        Text("Your vote is recorded.")
+                        Text("Your vote is locked.")
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textSecondary)
                     } else {
@@ -919,12 +919,12 @@ struct BetDetailView: View {
                         }
                     }
                 } else {
-                    Text("Only stakers can dispute or support this declaration.")
+                    Text("Only people who staked can back or challenge this call.")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 }
             } else if currentBet.creatorId == appState.userId {
-                Text("Declare the observable outcome to open the dispute window.")
+                Text("Make your call to open the challenge window.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textSecondary)
 
@@ -933,7 +933,7 @@ struct BetDetailView: View {
                         VibeHaptic.medium()
                         Task { await declareObservableOutcome(.yes) }
                     } label: {
-                        Text(isVoting ? "Submitting..." : "Declare YES")
+                        Text(isVoting ? "Submitting..." : "Call YES")
                             .vibeButton(.primary)
                     }
                     .buttonStyle(VibePressStyle())
@@ -943,14 +943,14 @@ struct BetDetailView: View {
                         VibeHaptic.medium()
                         Task { await declareObservableOutcome(.no) }
                     } label: {
-                        Text("Declare NO")
+                        Text("Call NO")
                             .vibeButton(.tertiary)
                     }
                     .buttonStyle(VibePressStyle())
                     .disabled(isVoting)
                 }
             } else {
-                Text("Waiting for the creator to declare an outcome.")
+                Text("Waiting on the creator's call.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textSecondary)
             }
@@ -959,14 +959,14 @@ struct BetDetailView: View {
 
     private var resolvedOutcomeSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("FINAL OUTCOME")
+            Text("RESULTS")
                 .vibeSectionHeader()
 
             if isLoadingResolutionPayload {
                 HStack(spacing: VibeSpacing.sm) {
                     ProgressView()
                         .tint(VibeTheme.accent)
-                    Text("Loading payout breakdown...")
+                    Text("Loading payout details...")
                         .font(VibeTypography.bodySmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 }
@@ -1024,7 +1024,7 @@ struct BetDetailView: View {
                     }
                 }
             } else {
-                Text("Resolution details are unavailable right now.")
+                Text("Result details are unavailable right now.")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textSecondary)
             }
@@ -1053,15 +1053,15 @@ struct BetDetailView: View {
 
     private var pendingResolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("PENDING CLAIM REVIEW")
+            Text("PENDING REVIEW")
                 .vibeSectionHeader()
 
             if let claim = pendingClaim {
-                Text("\(appState.nameForUser(claim.proposedBy)) proposed \(claim.proposedOutcome.rawValue.uppercased()).")
+                Text("\(appState.nameForUser(claim.proposedBy)) called \(claim.proposedOutcome.rawValue.uppercased()).")
                     .font(VibeTypography.bodySmall)
                     .foregroundColor(VibeTheme.textPrimary)
 
-                Text("Auto-confirms \(claim.autoConfirmAt, style: .relative)")
+                Text("Auto-locks \(claim.autoConfirmAt, style: .relative)")
                     .font(VibeTypography.captionSmall)
                     .foregroundColor(VibeTheme.textTertiary)
 
@@ -1078,7 +1078,7 @@ struct BetDetailView: View {
                             VibeHaptic.success()
                             Task { await confirmPendingClaim() }
                         } label: {
-                            Text("Confirm")
+                            Text("Approve")
                                 .vibeButton(.primary)
                         }
                         .buttonStyle(VibePressStyle())
@@ -1088,18 +1088,18 @@ struct BetDetailView: View {
                             VibeHaptic.warning()
                             Task { await disputePendingClaim() }
                         } label: {
-                            Text("Dispute")
+                            Text("Challenge")
                                 .vibeButton(.tertiary)
                         }
                         .buttonStyle(VibePressStyle())
                         .disabled(isResolving)
                     }
                 } else if hasCurrentUserReviewedClaim {
-                    Text("Your review has been recorded.")
+                    Text("Your review is locked in.")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 } else if currentBet.creatorId == appState.userId {
-                    Text("Waiting for reviewers to confirm or dispute.")
+                    Text("Waiting on reviewer votes.")
                         .font(VibeTypography.captionSmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 }
@@ -1113,7 +1113,7 @@ struct BetDetailView: View {
                 HStack(spacing: VibeSpacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
-                    Text("Pending claim details are unavailable. Pull to refresh.")
+                    Text("Pending review details are unavailable. Pull to refresh.")
                         .font(VibeTypography.bodySmall)
                         .foregroundColor(VibeTheme.textSecondary)
                 }
@@ -1184,7 +1184,7 @@ struct BetDetailView: View {
         case .proof:
             return "Proof"
         case .observable:
-            return "Observable"
+            return "Creator Call"
         case .consensus:
             return "Consensus"
         }
@@ -1193,26 +1193,26 @@ struct BetDetailView: View {
     private var loopStageDescription: String {
         switch currentBet.lifecycleStatus {
         case .pending:
-            return "This challenge is waiting for enough participants before it activates."
+            return "This challenge is warming up while more people lock in."
         case .active:
-            return "Staking is open. Once the timer ends, it moves into the resolution phase."
+            return "Lock-ins are open. When the timer ends, this moves into settlement."
         case .resolving:
             switch effectiveResolutionType {
             case .proof:
-                return "Proof claims and disputes are currently deciding the outcome."
+                return "Proof review is live and the final outcome is being decided."
             case .observable:
-                return "Creator declaration and staker dispute votes are currently open."
+                return "Creator call is live and stakers can back it or challenge it."
             case .consensus:
-                return "Stakers are currently voting YES or NO to settle this challenge."
+                return "Stakers are voting YES or NO to settle this challenge."
             }
         case .completed:
             return "Challenge completed and payouts were distributed."
         case .expired:
-            return "Challenge expired and remaining stakes were refunded."
+            return "Time ran out and remaining stakes were refunded."
         case .ducked:
             return "Challenge was marked as ducked."
         case .cancelled:
-            return "Challenge was cancelled."
+            return "Challenge was canceled."
         }
     }
 

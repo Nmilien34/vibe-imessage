@@ -241,6 +241,10 @@ struct AuraHubView: View {
     }
 
     private func transactionDetailLabel(_ transaction: AuraTransaction) -> String? {
+        if transaction.type == "bet_stake_fee" {
+            return "New stake fee: \(abs(transaction.amount)) Aura"
+        }
+
         guard transaction.type == "bet_stake" else {
             return transaction.description
         }

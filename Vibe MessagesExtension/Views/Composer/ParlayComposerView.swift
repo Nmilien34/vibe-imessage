@@ -25,12 +25,14 @@ struct ParlayComposerView: View {
     @State private var customAmount = ""
     @State private var selectedTargetUserId: String? = nil
     @State private var selectedQuickBet: String? = nil
+    @State private var deadlineHours: Double = 24
     @State private var isSending = false
     @State private var eligibleTargets: [(id: String, name: String)] = []
     @State private var hasAttemptedTargetLoad = false
 
     let amounts = ["$5", "$10", "$20", "$30", "$50", "$100", "Other..."]
     let quickBets = ["Sports Game", "Weather tmrw", "Finish pizza", "FIFA match", "Who pays dinner"]
+    let deadlineChips: [(String, Double)] = [("1h", 1), ("4h", 4), ("12h", 12), ("24h", 24), ("48h", 48)]
 
     private var targetOptions: [TargetOption] {
         [TargetOption(id: "anyone", userId: nil, name: "Anyone")]
@@ -48,6 +50,18 @@ struct ParlayComposerView: View {
         } else {
             return amounts[selectedAmountIndex]
         }
+    }
+
+    private var initialStakeAmount: Int {
+        max(10, Int(finalDisplayAmount.filter(\.isNumber)) ?? 25)
+    }
+
+    private var creationFee: Int {
+        min(5, max(0, Int(floor(deadlineHours / 24))))
+    }
+
+    private var totalAuraCost: Int {
+        creationFee + initialStakeAmount + 1 // +1 new stake fee
     }
 
     var body: some View {
@@ -71,7 +85,7 @@ struct ParlayComposerView: View {
 
                     Spacer()
 
-                    Text("New Parlay")
+                    Text("New Challenge")
                         .font(VibeTypography.titleLarge)
                         .foregroundColor(VibeTheme.textPrimary)
 
@@ -99,10 +113,10 @@ struct ParlayComposerView: View {
 
                         // MARK: 1. The Bet Input
                         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-                            Text("WHAT'S THE PARLAY?")
+                            Text("WHAT'S THE CHALLENGE?")
                                 .vibeSectionHeader()
 
-                            TextField("E.g., I bet I can beat you in 1v1...", text: $betTitle)
+                            TextField("E.g., I can beat you in 1v1...", text: $betTitle)
                                 .font(VibeTypography.bodyLarge)
                                 .padding(VibeSpacing.md)
                                 .background(.ultraThinMaterial)
@@ -136,7 +150,7 @@ struct ParlayComposerView: View {
 
                         // MARK: 2. The Wager Roller
                         VStack(spacing: VibeSpacing.sm) {
-                            Text("THE WAGER")
+                            Text("YOUR STAKE")
                                 .vibeSectionHeader()
                                 .padding(.horizontal, VibeSpacing.screenHorizontal)
 
@@ -171,9 +185,42 @@ struct ParlayComposerView: View {
                             .padding(.horizontal, VibeSpacing.screenHorizontal)
                         }
 
-                        // MARK: 3. Pick Opponent
+                        // MARK: 3. Time Window
                         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-                            Text("VS WHO?")
+                            Text("TIME WINDOW")
+                                .vibeSectionHeader()
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: VibeSpacing.xs) {
+                                    ForEach(deadlineChips, id: \.1) { chip in
+                                        Button {
+                                            VibeHaptic.selection()
+                                            withAnimation(VibeAnimation.snappy) {
+                                                deadlineHours = chip.1
+                                            }
+                                        } label: {
+                                            Text(chip.0)
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundColor(deadlineHours == chip.1 ? .white : VibeTheme.textPrimary)
+                                                .padding(.horizontal, VibeSpacing.sm)
+                                                .padding(.vertical, VibeSpacing.xs)
+                                                .background(deadlineHours == chip.1 ? VibeTheme.betAccent : VibeTheme.surfaceOverlay)
+                                                .clipShape(Capsule())
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
+
+                            Text("Creator fee: \(creationFee) Aura (max 5) • Total to start: \(totalAuraCost) Aura")
+                                .font(VibeTypography.captionSmall)
+                                .foregroundColor(VibeTheme.textSecondary)
+                        }
+                        .padding(.horizontal, VibeSpacing.screenHorizontal)
+
+                        // MARK: 4. Pick Opponent
+                        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                            Text("WHO'S IN?")
                                 .vibeSectionHeader()
 
                             ScrollView(.horizontal, showsIndicators: false) {
@@ -215,7 +262,7 @@ struct ParlayComposerView: View {
 
                         Spacer(minLength: VibeSpacing.lg)
 
-                        // MARK: 4. Send Button
+                        // MARK: 5. Send Button
                         Button {
                             VibeHaptic.success()
                             Task { await sendParlay() }
@@ -224,7 +271,7 @@ struct ParlayComposerView: View {
                                 if isSending {
                                     ProgressView().tint(.white)
                                 } else {
-                                    Text("Send Parlay")
+                                    Text("Send Challenge")
                                     Spacer()
                                     Text(finalDisplayAmount)
                                 }
@@ -237,8 +284,8 @@ struct ParlayComposerView: View {
                             .vibeShadow(.lg)
                         }
                         .buttonStyle(VibePressStyle())
-                        .disabled(betTitle.trimmingCharacters(in: .whitespaces).isEmpty || isSending)
-                        .opacity(betTitle.trimmingCharacters(in: .whitespaces).isEmpty ? 0.5 : 1)
+                        .disabled(betTitle.trimmingCharacters(in: .whitespaces).isEmpty || isSending || appState.auraBalance < totalAuraCost)
+                        .opacity((betTitle.trimmingCharacters(in: .whitespaces).isEmpty || appState.auraBalance < totalAuraCost) ? 0.5 : 1)
                         .padding(.horizontal, VibeSpacing.screenHorizontal)
                         .padding(.bottom, VibeSpacing.xxl)
                     }
@@ -265,13 +312,13 @@ struct ParlayComposerView: View {
 
         do {
             // Create a real challenge record first so this parlay vibe deep-links to a specific bet.
-            let initialStake = max(10, Int(finalDisplayAmount.filter(\.isNumber)) ?? 25)
+            let initialStake = initialStakeAmount
             let betType: BetType = selectedTargetUserId == nil ? .self : .dare
             let opponentName: String? = selectedTargetUserId == nil ? nil : selectedTargetName
             let linkedBet = try await appState.createBet(
                 betType: betType,
                 description: title,
-                deadline: Date().addingTimeInterval(24 * 60 * 60),
+                deadline: Date().addingTimeInterval(deadlineHours * 60 * 60),
                 initialStake: initialStake,
                 initialSide: .yes,
                 targetUserId: selectedTargetUserId

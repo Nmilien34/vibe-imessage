@@ -451,6 +451,9 @@ struct CreateBetResponse: Codable {
 struct StakeResponse: Codable {
     let success: Bool
     let participant: BetParticipant
+    let chargedFee: Int?
+    let totalDebited: Int?
+    let isNewStake: Bool?
     let thresholdActivated: Bool?
     let betStatus: BetStatus?
 }

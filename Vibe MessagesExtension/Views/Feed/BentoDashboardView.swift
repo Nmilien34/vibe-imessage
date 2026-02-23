@@ -566,12 +566,12 @@ struct MeTabView: View {
 
                 // Quick Links
                 VStack(spacing: 0) {
-                    QuickLinkRow(icon: "sparkles", title: "Aura Hub", color: Color(red: 1.0, green: 0.75, blue: 0.0)) {
+                    QuickLinkRow(icon: "sparkles", title: "Aura Bank", color: Color(red: 1.0, green: 0.75, blue: 0.0)) {
                         appState.navigateToAuraHub()
                     }
                     Divider().padding(.leading, 44)
 
-                    QuickLinkRow(icon: "list.bullet", title: "My Bets", color: VibeTheme.betAccent) {
+                    QuickLinkRow(icon: "list.bullet", title: "My Challenges", color: VibeTheme.betAccent) {
                         appState.navigateToBetList()
                     }
                     Divider().padding(.leading, 44)

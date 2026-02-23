@@ -214,13 +214,14 @@ router.post('/:betId/stake', auth_1.authMiddleware, async (req, res) => {
         }
         const betBeforeStake = await (0, betService_1.getBetById)(betId);
         // Call service layer
-        const participant = await (0, betService_1.placeBetStake)({
+        const stakeResult = await (0, betService_1.placeBetStake)({
             betId,
             userId,
             side,
             amount,
             isAnonymous,
         });
+        const { participant, chargedFee, totalDebited, isNewStake } = stakeResult;
         const betAfterStake = await (0, betService_1.getBetById)(betId);
         const thresholdActivated = betBeforeStake?.status === 'pending' && betAfterStake?.status === 'active';
         res.status(201).json({
@@ -236,6 +237,9 @@ router.post('/:betId/stake', auth_1.authMiddleware, async (req, res) => {
                 won: participant.won ?? null,
                 createdAt: participant.createdAt
             },
+            chargedFee,
+            totalDebited,
+            isNewStake,
             thresholdActivated,
             betStatus: betAfterStake?.status ?? null,
         });
