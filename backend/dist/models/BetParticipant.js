@@ -45,6 +45,9 @@ const betParticipantSchema = new mongoose_1.Schema({
         required: true,
     },
     amount: { type: Number, required: true, min: 10 },
+    isAnonymous: { type: Boolean, default: false },
+    payout: { type: Number },
+    won: { type: Boolean },
 }, { timestamps: true });
 // One participation per user per bet
 betParticipantSchema.index({ betId: 1, userId: 1 }, { unique: true });

@@ -19,6 +19,8 @@ import userRoutes from './routes/user';
 import betRoutes from './routes/bet';
 import auraRoutes from './routes/aura';
 import teaRoutes from './routes/tea';
+import leaderboardRoutes from './routes/leaderboard';
+import { startBackgroundJobs } from './services/backgroundJobs';
 
 const app = express();
 
@@ -27,6 +29,7 @@ connectDB();
 
 // Initialize Vibe Wire Scheduler
 initScheduler();
+startBackgroundJobs();
 
 // Middleware
 app.use(helmet());
@@ -67,6 +70,7 @@ app.use('/api/user', userRoutes);
 app.use('/api/bets', betRoutes);
 app.use('/api/aura', auraRoutes);
 app.use('/api/tea', teaRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {

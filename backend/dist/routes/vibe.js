@@ -18,7 +18,7 @@ const upload = (0, multer_1.default)({
 });
 /**
  * @route   POST /api/vibe/upload
- * @desc    Upload a video vibe (Multipart)
+ * @desc    Upload vibe media (Multipart)
  */
 router.post('/upload', auth_1.authMiddleware, upload.single('video'), async (req, res) => {
     try {
@@ -27,7 +27,7 @@ router.post('/upload', auth_1.authMiddleware, upload.single('video'), async (req
         const userId = authenticatedUserId;
         const file = req.file;
         if (!file) {
-            return res.status(400).json({ error: 'No video file provided' });
+            return res.status(400).json({ error: 'No media file provided' });
         }
         if (requestedUserId && requestedUserId !== authenticatedUserId) {
             return res.status(403).json({ error: 'Cannot upload as another user' });

@@ -18,7 +18,9 @@ import {
   confirmBetResolution,
   disputeBetResolution,
   resolveBet,
-  getBetResolution,
+  getBetResolutionPayload,
+  voteOnConsensus,
+  reactToProof,
   autoExpireBets,
   getEligibleBetTargets
 } from '../services/betService';
@@ -34,18 +36,34 @@ const router: Router = express.Router();
 router.post('/create', authMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = req.userId!;
-    const { chatId, betType, description, deadline, targetUserId, initialStake, initialSide } = req.body;
+    const {
+      chatId,
+      betType,
+      description,
+      deadline,
+      targetUserId,
+      side,
+      amount,
+      initialStake,
+      initialSide,
+      participationThreshold,
+      resolutionType,
+      isAnonymous,
+    } = req.body;
+
+    const normalizedInitialStake = amount ?? initialStake;
+    const normalizedInitialSide = side ?? initialSide;
 
     // Validate required fields
-    if (!chatId || !betType || !description || !deadline || initialStake === undefined || !initialSide) {
+    if (!chatId || !betType || !description || !deadline || normalizedInitialStake === undefined || !normalizedInitialSide) {
       return res.status(400).json({
         error: 'Missing required fields',
-        required: ['chatId', 'betType', 'description', 'deadline', 'initialStake', 'initialSide']
+        required: ['chatId', 'betType', 'description', 'deadline', 'side', 'amount']
       });
     }
 
     // Validate betType enum
-    const validBetTypes = ['self', 'callout', 'dare'];
+    const validBetTypes = ['self', 'callout', 'dare', 'prediction'];
     if (!validBetTypes.includes(betType)) {
       return res.status(400).json({
         error: 'Invalid betType',
@@ -63,15 +81,39 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
     }
 
     // Validate initial stake and side
-    if (typeof initialStake !== 'number' || !Number.isInteger(initialStake) || initialStake < 10) {
+    if (typeof normalizedInitialStake !== 'number' || !Number.isInteger(normalizedInitialStake) || normalizedInitialStake < 10) {
       return res.status(400).json({
-        error: 'initialStake must be an integer >= 10'
+        error: 'amount must be an integer >= 10'
       });
     }
 
-    if (initialSide !== 'yes' && initialSide !== 'no') {
+    if (normalizedInitialSide !== 'yes' && normalizedInitialSide !== 'no') {
       return res.status(400).json({
-        error: 'initialSide must be "yes" or "no"'
+        error: 'side must be "yes" or "no"'
+      });
+    }
+
+    if (
+      participationThreshold !== undefined &&
+      (
+        typeof participationThreshold !== 'number'
+        || Number.isNaN(participationThreshold)
+        || participationThreshold < 0.1
+        || participationThreshold > 1.0
+      )
+    ) {
+      return res.status(400).json({
+        error: 'participationThreshold must be a number between 0.1 and 1.0'
+      });
+    }
+
+    if (
+      resolutionType !== undefined
+      && !['proof', 'observable', 'consensus'].includes(resolutionType)
+    ) {
+      return res.status(400).json({
+        error: 'Invalid resolutionType',
+        allowed: ['proof', 'observable', 'consensus']
       });
     }
 
@@ -82,9 +124,12 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       betType,
       description,
       deadline: deadlineDate,
-      initialStake,
-      initialSide,
+      initialStake: normalizedInitialStake,
+      initialSide: normalizedInitialSide,
       targetUserId,
+      participationThreshold,
+      resolutionType,
+      isAnonymous,
     });
 
     if ((betType === 'callout' || betType === 'dare')
@@ -114,6 +159,11 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
         creationCost: bet.creationCost,
+        participationThreshold: bet.participationThreshold,
+        resolutionType: bet.resolutionType,
+        thresholdMemberCount: bet.thresholdMemberCount,
+        activatedAt: bet.activatedAt,
+        originalDeadlineDuration: bet.originalDeadlineDuration,
         status: bet.status,
         createdAt: bet.createdAt,
       }
@@ -133,6 +183,8 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
       'requires a target user',
       'Initial stake',
       'Initial side',
+      'participationThreshold',
+      'resolutionType',
       'Deadline must be',
       'Description',
     ];
@@ -194,7 +246,7 @@ router.post('/:betId/stake', authMiddleware, async (req: Request, res: Response)
   try {
     const userId = req.userId!;
     const { betId } = req.params;
-    const { side, amount } = req.body;
+    const { side, amount, isAnonymous } = req.body;
 
     // Validate required fields
     if (!side || amount === undefined) {
@@ -219,13 +271,19 @@ router.post('/:betId/stake', authMiddleware, async (req: Request, res: Response)
       });
     }
 
+    const betBeforeStake = await getBetById(betId);
+
     // Call service layer
     const participant = await placeBetStake({
       betId,
       userId,
       side,
-      amount
+      amount,
+      isAnonymous,
     });
+
+    const betAfterStake = await getBetById(betId);
+    const thresholdActivated = betBeforeStake?.status === 'pending' && betAfterStake?.status === 'active';
 
     res.status(201).json({
       success: true,
@@ -235,8 +293,13 @@ router.post('/:betId/stake', authMiddleware, async (req: Request, res: Response)
         userId: participant.userId,
         side: participant.side,
         amount: participant.amount,
+        isAnonymous: participant.isAnonymous ?? false,
+        payout: participant.payout ?? null,
+        won: participant.won ?? null,
         createdAt: participant.createdAt
-      }
+      },
+      thresholdActivated,
+      betStatus: betAfterStake?.status ?? null,
     });
 
   } catch (error: any) {
@@ -309,6 +372,9 @@ router.get('/:betId/participants', authMiddleware, async (req: Request, res: Res
         userId: p.userId,
         side: p.side,
         amount: p.amount,
+        isAnonymous: p.isAnonymous ?? false,
+        payout: p.payout ?? null,
+        won: p.won ?? null,
         createdAt: p.createdAt
       })),
       totals: {
@@ -369,6 +435,9 @@ router.get('/:betId/my-stake', authMiddleware, async (req: Request, res: Respons
         participantId: stake.participantId,
         side: stake.side,
         amount: stake.amount,
+        isAnonymous: stake.isAnonymous ?? false,
+        payout: stake.payout ?? null,
+        won: stake.won ?? null,
         createdAt: stake.createdAt
       }
     });
@@ -480,6 +549,11 @@ router.get('/:betId', authMiddleware, async (req: Request, res: Response) => {
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
         creationCost: bet.creationCost,
+        participationThreshold: bet.participationThreshold,
+        resolutionType: bet.resolutionType,
+        thresholdMemberCount: bet.thresholdMemberCount,
+        activatedAt: bet.activatedAt,
+        originalDeadlineDuration: bet.originalDeadlineDuration,
         status: bet.status,
         createdAt: bet.createdAt,
         updatedAt: bet.updatedAt,
@@ -489,6 +563,9 @@ router.get('/:betId', authMiddleware, async (req: Request, res: Response) => {
         userId: p.userId,
         side: p.side,
         amount: p.amount,
+        isAnonymous: p.isAnonymous ?? false,
+        payout: p.payout ?? null,
+        won: p.won ?? null,
         createdAt: p.createdAt
       })),
       totals: {
@@ -502,6 +579,9 @@ router.get('/:betId', authMiddleware, async (req: Request, res: Response) => {
         participantId: userStake.participantId,
         side: userStake.side,
         amount: userStake.amount,
+        isAnonymous: userStake.isAnonymous ?? false,
+        payout: userStake.payout ?? null,
+        won: userStake.won ?? null,
         createdAt: userStake.createdAt
       } : null
     });
@@ -542,10 +622,10 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
     }
 
     // Validate status
-    if (status && !['active', 'pending_resolution', 'completed', 'expired', 'ducked'].includes(status as string)) {
+    if (status && !['pending', 'active', 'completed', 'expired', 'ducked', 'resolving', 'cancelled'].includes(status as string)) {
       return res.status(400).json({
         error: 'Invalid status',
-        allowed: ['active', 'pending_resolution', 'completed', 'expired', 'ducked']
+        allowed: ['pending', 'active', 'completed', 'expired', 'ducked', 'resolving', 'cancelled']
       });
     }
 
@@ -561,6 +641,11 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
         deadline: bet.deadline,
         targetUserId: bet.targetUserId,
         creationCost: bet.creationCost,
+        participationThreshold: bet.participationThreshold,
+        resolutionType: bet.resolutionType,
+        thresholdMemberCount: bet.thresholdMemberCount,
+        activatedAt: bet.activatedAt,
+        originalDeadlineDuration: bet.originalDeadlineDuration,
         status: bet.status,
         createdAt: bet.createdAt,
       })),
@@ -658,6 +743,162 @@ router.post('/:betId/proof', authMiddleware, async (req: Request, res: Response)
 
     res.status(500).json({
       error: 'Failed to submit proof',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/vote
+ * @desc    Cast consensus vote for a resolving bet
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/vote', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId } = req.params;
+    const { vote } = req.body;
+
+    if (!vote || !['yes', 'no'].includes(vote)) {
+      return res.status(400).json({
+        error: 'vote must be "yes" or "no"'
+      });
+    }
+
+    const counts = await voteOnConsensus({ betId, userId, vote });
+
+    res.status(201).json({
+      success: true,
+      counts
+    });
+  } catch (error: any) {
+    console.error('Consensus vote error:', error);
+
+    if (error.message === 'Bet not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('already voted')
+      || error.message?.includes('not available')
+      || error.message?.includes('Only stakers')
+      || error.message?.includes('must be resolving')
+    ) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to cast vote',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/proof/:proofId/confirm
+ * @desc    Confirm pending proof during dispute window
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/proof/:proofId/confirm', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId, proofId } = req.params;
+
+    const result = await reactToProof({
+      betId,
+      proofId,
+      userId,
+      reaction: 'confirm',
+    });
+
+    res.status(201).json({
+      success: true,
+      proof: {
+        proofId: result.proof.proofId,
+        status: result.proof.status,
+        confirmations: result.confirmations,
+        disputes: result.disputes,
+        disputeDeadline: result.proof.disputeDeadline ?? null,
+      }
+    });
+  } catch (error: any) {
+    console.error('Proof confirm error:', error);
+
+    if (
+      error.message?.includes('Bet not found')
+      || error.message?.includes('Proof not found')
+    ) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('Cannot react to proof')
+      || error.message?.includes('Dispute window')
+      || error.message?.includes('Only stakers')
+      || error.message?.includes('cannot react to their own proof')
+      || error.message?.includes('already reacted')
+      || error.message?.includes('status')
+    ) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to confirm proof',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * @route   POST /api/bets/:betId/proof/:proofId/dispute
+ * @desc    Dispute pending proof during dispute window
+ * @access  Private (JWT required)
+ */
+router.post('/:betId/proof/:proofId/dispute', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = req.userId!;
+    const { betId, proofId } = req.params;
+
+    const result = await reactToProof({
+      betId,
+      proofId,
+      userId,
+      reaction: 'dispute',
+    });
+
+    res.status(201).json({
+      success: true,
+      proof: {
+        proofId: result.proof.proofId,
+        status: result.proof.status,
+        confirmations: result.confirmations,
+        disputes: result.disputes,
+        disputeDeadline: result.proof.disputeDeadline ?? null,
+      }
+    });
+  } catch (error: any) {
+    console.error('Proof dispute error:', error);
+
+    if (
+      error.message?.includes('Bet not found')
+      || error.message?.includes('Proof not found')
+    ) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (
+      error.message?.includes('Cannot react to proof')
+      || error.message?.includes('Dispute window')
+      || error.message?.includes('Only stakers')
+      || error.message?.includes('cannot react to their own proof')
+      || error.message?.includes('already reacted')
+      || error.message?.includes('status')
+    ) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.status(500).json({
+      error: 'Failed to dispute proof',
       message: error.message
     });
   }
@@ -928,7 +1169,7 @@ router.post('/:betId/claim-resolution', authMiddleware, async (req: Request, res
     const userErrors = [
       'Cannot claim resolution for',
       'Invalid outcome',
-      'Only callouts can be marked as ducked',
+      'Only callouts or dares can be marked as ducked',
       'Cannot submit proof',
       'Deadline has passed',
       'Media URL and key',
@@ -1085,6 +1326,11 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
     const userId = req.userId!;
     const { betId } = req.params;
     const { outcome, notes } = req.body;
+    const bet = await getBetById(betId);
+
+    if (!bet) {
+      return res.status(404).json({ error: 'Bet not found' });
+    }
 
     // Validate required fields
     if (!outcome) {
@@ -1104,16 +1350,38 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
       });
     }
 
+    if (bet.resolutionType === 'consensus') {
+      return res.status(400).json({
+        error: 'Consensus bets must be resolved via voting',
+        endpoint: `POST /api/bets/${betId}/vote`
+      });
+    }
+
+    if (bet.resolutionType === 'observable') {
+      if (userId !== bet.creatorId) {
+        return res.status(403).json({
+          error: 'Only the bet creator can declare observable outcomes'
+        });
+      }
+
+      if (outcome !== 'yes' && outcome !== 'no') {
+        return res.status(400).json({
+          error: 'Observable bets must resolve to yes or no'
+        });
+      }
+    }
+
     // Resolve bet
     const resolution = await resolveBet({
       betId,
       resolvedBy: userId,
       outcome,
       notes,
+      allowedStatuses: bet.resolutionType === 'observable' ? ['resolving'] : ['active', 'resolving'],
     });
 
     // Get final bet state
-    const bet = await getBetById(betId);
+    const updatedBet = await getBetById(betId);
     const totals = await getBetTotals(betId);
 
     res.json({
@@ -1127,7 +1395,7 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
         notes: resolution.notes,
       },
       bet: {
-        status: bet?.status,
+        status: updatedBet?.status,
         finalPot: totals.totalPot,
       },
       message: outcome === 'yes' ? 'Bet completed successfully! Winners have been paid.' :
@@ -1150,7 +1418,9 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
     const userErrors = [
       'already',
       'Invalid outcome',
-      'Only callouts can be marked as ducked',
+      'Only callouts or dares can be marked as ducked',
+      'Consensus bets must be resolved via voting',
+      'Observable bets must resolve to yes or no',
     ];
 
     const isUserError = userErrors.some(msg => error.message?.includes(msg));
@@ -1168,53 +1438,28 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
 
 /**
  * @route   GET /api/bets/:betId/resolution
- * @desc    Get resolution details for a bet
- * @access  Private (JWT required)
+ * @desc    Get rich resolution payload for iMessage result bubble
+ * @access  Optional auth
  */
-router.get('/:betId/resolution', authMiddleware, async (req: Request, res: Response) => {
+router.get('/:betId/resolution', async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
     const { betId } = req.params;
-
-    // Get bet to check chat membership
-    const bet = await getBetById(betId);
-
-    if (!bet) {
-      return res.status(404).json({ error: 'Bet not found' });
-    }
-
-    // Verify user is in chat
-    const canAccess = await isUserInChat(userId, bet.chatId);
-
-    if (!canAccess) {
-      return res.status(403).json({
-        error: 'You do not have access to this bet'
-      });
-    }
-
-    // Get resolution (may be null if not resolved yet)
-    const resolution = await getBetResolution(betId);
-
-    if (!resolution) {
-      return res.json({
-        resolution: null,
-        message: 'Bet has not been resolved yet'
-      });
-    }
+    const resolution = await getBetResolutionPayload(betId);
 
     res.json({
-      resolution: {
-        resolutionId: resolution.resolutionId,
-        betId: resolution.betId,
-        outcome: resolution.outcome,
-        resolvedBy: resolution.resolvedBy,
-        resolvedAt: resolution.resolvedAt,
-        notes: resolution.notes,
-      }
+      resolution
     });
-
   } catch (error: any) {
     console.error('Resolution fetch error:', error);
+
+    if (error.message === 'Bet not found') {
+      return res.status(404).json({ error: error.message });
+    }
+
+    if (error.message?.includes('has not been resolved')) {
+      return res.status(409).json({ error: error.message });
+    }
+
     res.status(500).json({
       error: 'Failed to fetch resolution',
       message: error.message

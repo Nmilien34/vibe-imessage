@@ -21,6 +21,46 @@ function parseAllowedAppleAudiences() {
         .filter(Boolean);
     return Array.from(new Set([...fromEnv, ...DEFAULT_APPLE_AUDIENCES]));
 }
+function normalizeOptionalString(value) {
+    if (typeof value !== 'string')
+        return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+function isPlaceholderFirstName(value) {
+    if (!value)
+        return true;
+    const normalized = value.trim().toLowerCase();
+    return (normalized.length === 0 ||
+        normalized === 'user' ||
+        normalized === 'vibe user' ||
+        normalized === 'unknown' ||
+        normalized === 'unknown user' ||
+        normalized === 'anonymous' ||
+        normalized === 'anon');
+}
+function deriveFirstName(providedFirstName, emailCandidates) {
+    if (!isPlaceholderFirstName(providedFirstName))
+        return providedFirstName;
+    for (const email of emailCandidates) {
+        if (!email)
+            continue;
+        const localPart = email.split('@')[0];
+        if (!localPart)
+            continue;
+        const cleaned = localPart
+            .replace(/[._-]+/g, ' ')
+            .trim();
+        if (!cleaned)
+            continue;
+        return cleaned
+            .split(/\s+/)
+            .filter(Boolean)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+    }
+    return undefined;
+}
 function decodeAppleTokenPayload(identityToken) {
     const parts = identityToken.split('.');
     if (parts.length < 2)
@@ -124,6 +164,9 @@ async function verifyAppleIdentityToken(identityToken, allowedAudiences) {
  */
 router.post('/apple', async (req, res) => {
     const { identityToken, userIdentifier, firstName, lastName, email } = req.body;
+    const normalizedFirstName = normalizeOptionalString(firstName);
+    const normalizedLastName = normalizeOptionalString(lastName);
+    const normalizedEmail = normalizeOptionalString(email)?.toLowerCase();
     if (!identityToken || typeof identityToken !== 'string' || !identityToken.trim()) {
         return res.status(400).json({ error: 'Identity token is required' });
     }
@@ -149,6 +192,7 @@ router.post('/apple', async (req, res) => {
         });
     }
     const { sub: appleId, email: appleEmail } = verification.verified;
+    const normalizedAppleEmail = normalizeOptionalString(appleEmail)?.toLowerCase();
     if (!appleId) {
         return res.status(401).json({
             error: 'Missing Apple subject claim',
@@ -168,12 +212,13 @@ router.post('/apple', async (req, res) => {
         }
         let isNewUser = false;
         if (!user) {
+            const derivedFirstName = deriveFirstName(normalizedFirstName, [normalizedEmail, normalizedAppleEmail]);
             user = new User_1.default({
                 _id: appleId,
                 appleId,
-                email: email || appleEmail,
-                firstName,
-                lastName,
+                email: normalizedEmail || normalizedAppleEmail,
+                firstName: derivedFirstName,
+                lastName: normalizedLastName,
             });
             await user.save();
             isNewUser = true;
@@ -185,16 +230,17 @@ router.post('/apple', async (req, res) => {
                 user.appleId = appleId;
                 shouldSave = true;
             }
-            if (!user.email && (email || appleEmail)) {
-                user.email = email || appleEmail;
+            if (!user.email && (normalizedEmail || normalizedAppleEmail)) {
+                user.email = normalizedEmail || normalizedAppleEmail;
                 shouldSave = true;
             }
-            if (!user.firstName && firstName) {
-                user.firstName = firstName;
+            const derivedFirstName = deriveFirstName(normalizedFirstName, [user.email, normalizedEmail, normalizedAppleEmail]);
+            if (isPlaceholderFirstName(user.firstName) && derivedFirstName) {
+                user.firstName = derivedFirstName;
                 shouldSave = true;
             }
-            if (!user.lastName && lastName) {
-                user.lastName = lastName;
+            if (!user.lastName && normalizedLastName) {
+                user.lastName = normalizedLastName;
                 shouldSave = true;
             }
             if (shouldSave) {
@@ -205,25 +251,28 @@ router.post('/apple', async (req, res) => {
             try {
                 await (0, contactNetworkService_1.registerVerifiedEmailIdentifier)({
                     userId: user._id,
-                    email: user.email || appleEmail || email,
+                    email: user.email || normalizedAppleEmail || normalizedEmail,
                 });
             }
             catch (identifierError) {
                 console.error('Auth identifier registration warning:', identifierError);
             }
         }
-        const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id);
+        const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id, {
+            awardDailyBonus: false,
+        });
         if (dailyBonusClaimed) {
             console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
         }
         const token = jsonwebtoken_1.default.sign({ userId: user._id, appleId: user.appleId }, jwtSecret, { expiresIn: '7d' });
+        const responseFirstName = deriveFirstName(user.firstName, [user.email, normalizedAppleEmail, normalizedEmail]);
         res.json({
             token,
             isNewUser,
             dailyBonusClaimed,
             user: {
                 id: user._id,
-                firstName: user.firstName,
+                firstName: responseFirstName,
                 lastName: user.lastName,
                 email: user.email,
                 profilePicture: user.profilePicture,
@@ -279,7 +328,9 @@ router.post('/dev-login', async (req, res) => {
                 console.error('Dev auth identifier registration warning:', identifierError);
             }
         }
-        const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id);
+        const { auraBalance, vibeScore, dailyBonusClaimed } = await (0, auraService_1.processLoginUpdates)(user._id, {
+            awardDailyBonus: false,
+        });
         if (dailyBonusClaimed) {
             console.log(`Daily bonus (+50 Aura) awarded to ${user._id}`);
         }

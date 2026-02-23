@@ -1,0 +1,31 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.AURA_CONSTANTS = void 0;
+exports.AURA_CONSTANTS = {
+    // Starting balance
+    INITIAL_BALANCE: 1000,
+    // Earning
+    DAILY_BONUS: 50,
+    DARE_COMPLETION_BONUS: 25,
+    CALLOUT_FOLLOWTHROUGH_BONUS: 25,
+    PROOF_UPLOAD_BONUS: 10,
+    POPULAR_VIBE_BONUS: 15,
+    STREAK_BONUS_PER_DAY: 10,
+    // Penalties
+    DUCK_PENALTY: 50,
+    INACTIVITY_DECAY_PER_DAY: 10,
+    INACTIVITY_DECAY_MAX: 100,
+    INACTIVITY_GRACE_DAYS: 3,
+    // Staking
+    MIN_STAKE: 10,
+    MAX_STAKE: 500,
+    CREATION_COST: 0,
+    // Resolution windows
+    DISPUTE_WINDOW_MS: 60 * 60 * 1000, // 1 hour
+    CONSENSUS_VOTE_WINDOW_MS: 2 * 60 * 60 * 1000, // 2 hours
+    THRESHOLD_EXPIRY_MS: 48 * 60 * 60 * 1000, // 48 hours
+    CREATOR_DECLARE_WINDOW_MS: 24 * 60 * 60 * 1000, // 24 hours
+    // House rake
+    HOUSE_RAKE: 0,
+};
+//# sourceMappingURL=auraConstants.js.map

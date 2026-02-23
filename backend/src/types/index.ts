@@ -25,12 +25,16 @@ export type ReminderType = 'birthday' | 'hangout' | 'event' | 'custom';
 export type ChatType = 'individual' | 'group';
 
 // Betting System
-export type BetType = 'self' | 'callout' | 'dare';
-export type BetStatus = 'active' | 'pending_resolution' | 'completed' | 'expired' | 'ducked';
+export type BetType = 'self' | 'callout' | 'dare' | 'prediction';
+export type BetStatus = 'pending' | 'active' | 'completed' | 'expired' | 'ducked' | 'resolving' | 'cancelled';
 export type BetSide = 'yes' | 'no';
 export type BetOutcome = 'yes' | 'no' | 'expired' | 'ducked';
 export type ProofMediaType = 'photo' | 'video';
 export type ResolutionClaimStatus = 'pending' | 'confirmed' | 'auto_confirmed' | 'disputed';
+export type BetResolutionType = 'proof' | 'observable' | 'consensus';
+export type BetProofStatus = 'pending' | 'confirmed' | 'disputed';
+export type ConsensusVoteChoice = 'yes' | 'no';
+export type ProofReactionType = 'confirm' | 'dispute';
 
 // Tea Spill
 export type TeaSpillStatus = 'active' | 'revealed' | 'expired';
@@ -149,6 +153,13 @@ export interface IUserDocument {
   betsFailed?: number;
   calloutsReceived?: number;
   calloutsIgnored?: number;
+  wins?: number;
+  losses?: number;
+  ducks?: number;
+  streak?: number;
+  lastActiveDate?: Date;
+  winRate?: number;
+  duckRate?: number;
 
   createdAt: Date;
   updatedAt: Date;
@@ -255,6 +266,11 @@ export interface IBet {
   status: BetStatus;
   targetUserId?: string;
   creationCost: number;
+  participationThreshold?: number;
+  resolutionType?: BetResolutionType;
+  thresholdMemberCount?: number;
+  activatedAt?: Date;
+  originalDeadlineDuration?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -266,6 +282,9 @@ export interface IBetParticipant {
   userId: string;
   side: BetSide;
   amount: number;
+  isAnonymous?: boolean;
+  payout?: number;
+  won?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -281,6 +300,31 @@ export interface IBetProof {
   thumbnailUrl?: string;
   thumbnailKey?: string;
   caption?: string;
+  status?: BetProofStatus;
+  confirmations?: number;
+  disputes?: number;
+  disputeDeadline?: Date;
+  isStory?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IConsensusVote {
+  _id: Types.ObjectId;
+  voteId: string;
+  betId: string;
+  userId: string;
+  vote: ConsensusVoteChoice;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IProofReaction {
+  _id: Types.ObjectId;
+  reactionId: string;
+  proofId: string;
+  userId: string;
+  reaction: ProofReactionType;
   createdAt: Date;
   updatedAt: Date;
 }

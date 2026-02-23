@@ -21,7 +21,7 @@ export declare function generateFeed(params: {
     userId: string;
     limit?: number;
     offset?: number;
-    status?: 'active' | 'completed' | 'expired' | 'ducked';
+    status?: 'pending' | 'active' | 'completed' | 'expired' | 'ducked' | 'resolving' | 'cancelled';
 }): Promise<{
     bets: FeedBet[];
     total: number;

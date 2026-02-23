@@ -35,6 +35,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
 const mediaTypes = ['photo', 'video'];
+const proofStatuses = ['pending', 'confirmed', 'disputed'];
 const betProofSchema = new mongoose_1.Schema({
     proofId: { type: String, required: true, unique: true },
     betId: { type: String, required: true, index: true },
@@ -49,6 +50,15 @@ const betProofSchema = new mongoose_1.Schema({
     thumbnailUrl: { type: String },
     thumbnailKey: { type: String },
     caption: { type: String },
+    status: {
+        type: String,
+        enum: proofStatuses,
+        default: 'pending',
+    },
+    confirmations: { type: Number, default: 0 },
+    disputes: { type: Number, default: 0 },
+    disputeDeadline: { type: Date },
+    isStory: { type: Boolean, default: true },
 }, { timestamps: true });
 const BetProof = mongoose_1.default.model('BetProof', betProofSchema);
 exports.default = BetProof;

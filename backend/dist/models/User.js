@@ -78,7 +78,7 @@ const userSchema = new mongoose_1.Schema({
     // Aura Economy
     auraBalance: {
         type: Number,
-        default: 100,
+        default: 1000,
     },
     lifetimeAuraEarned: {
         type: Number,
@@ -114,6 +114,34 @@ const userSchema = new mongoose_1.Schema({
         default: 0,
     },
     calloutsIgnored: {
+        type: Number,
+        default: 0,
+    },
+    wins: {
+        type: Number,
+        default: 0,
+    },
+    losses: {
+        type: Number,
+        default: 0,
+    },
+    ducks: {
+        type: Number,
+        default: 0,
+    },
+    streak: {
+        type: Number,
+        default: 0,
+    },
+    lastActiveDate: {
+        type: Date,
+        default: null,
+    },
+    winRate: {
+        type: Number,
+        default: 0,
+    },
+    duckRate: {
         type: Number,
         default: 0,
     },

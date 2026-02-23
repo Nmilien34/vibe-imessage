@@ -32,7 +32,7 @@ export async function generateFeed(params: {
   userId: string;
   limit?: number;
   offset?: number;
-  status?: 'active' | 'pending_resolution' | 'completed' | 'expired' | 'ducked';
+  status?: 'pending' | 'active' | 'completed' | 'expired' | 'ducked' | 'resolving' | 'cancelled';
 }): Promise<{
   bets: FeedBet[];
   total: number;

@@ -34,8 +34,9 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const betTypes = ['self', 'callout', 'dare'];
-const betStatuses = ['active', 'completed', 'expired', 'ducked'];
+const betTypes = ['self', 'callout', 'dare', 'prediction'];
+const betStatuses = ['pending', 'active', 'completed', 'expired', 'ducked', 'resolving', 'cancelled'];
+const betResolutionTypes = ['proof', 'observable', 'consensus'];
 const betSchema = new mongoose_1.Schema({
     betId: { type: String, required: true, unique: true },
     chatId: { type: String, required: true, index: true },
@@ -54,7 +55,15 @@ const betSchema = new mongoose_1.Schema({
         index: true,
     },
     targetUserId: { type: String },
-    creationCost: { type: Number, default: 2 },
+    creationCost: { type: Number, default: 0 },
+    participationThreshold: { type: Number, min: 0.1, max: 1.0 },
+    resolutionType: {
+        type: String,
+        enum: betResolutionTypes,
+    },
+    thresholdMemberCount: { type: Number },
+    activatedAt: { type: Date },
+    originalDeadlineDuration: { type: Number },
 }, { timestamps: true });
 const Bet = mongoose_1.default.model('Bet', betSchema);
 exports.default = Bet;

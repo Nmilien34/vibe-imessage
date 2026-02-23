@@ -1,1 +1,1 @@
-{"version":3,"file":"BetProof.d.ts","sourceRoot":"","sources":["../../src/models/BetProof.ts"],"names":[],"mappings":"AAAA,OAAiB,EAAU,KAAK,EAAE,MAAM,UAAU,CAAC;AACnD,OAAO,EAAE,SAAS,EAAkB,MAAM,UAAU,CAAC;AAuBrD,QAAA,MAAM,QAAQ,EAAE,KAAK,CAAC,SAAS,CAAyD,CAAC;AAEzF,eAAe,QAAQ,CAAC"}
+{"version":3,"file":"BetProof.d.ts","sourceRoot":"","sources":["../../src/models/BetProof.ts"],"names":[],"mappings":"AAAA,OAAiB,EAAU,KAAK,EAAE,MAAM,UAAU,CAAC;AACnD,OAAO,EAAE,SAAS,EAAkC,MAAM,UAAU,CAAC;AAiCrE,QAAA,MAAM,QAAQ,EAAE,KAAK,CAAC,SAAS,CAAyD,CAAC;AAEzF,eAAe,QAAQ,CAAC"}

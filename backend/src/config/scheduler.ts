@@ -1,25 +1,20 @@
 import cron from 'node-cron';
 import { fetchVibeNews } from '../services/vibeWireService';
-import { autoExpireBets } from '../services/betService';
 import { autoExpireTeaSpills } from '../services/teaService';
 
 // Initialize Scheduled Jobs
 export const initScheduler = () => {
     console.log('[Scheduler] Initializing Vibe Wire Daily Cycle...');
 
-    // Bet + tea settlement tick
-    // Runs every 15 minutes so pending resolution claims auto-confirm
-    // after their 6-hour review window without manual intervention.
+    // Tea settlement tick
+    // Bet settlement runs in backgroundJobs (every 60s).
     cron.schedule('*/15 * * * *', async () => {
         try {
-            const [{ expiredCount, autoConfirmedCount }, expiredTeas] = await Promise.all([
-                autoExpireBets(),
-                autoExpireTeaSpills(),
-            ]);
+            const expiredTeas = await autoExpireTeaSpills();
 
-            if (expiredCount > 0 || autoConfirmedCount > 0 || expiredTeas > 0) {
+            if (expiredTeas > 0) {
                 console.log(
-                    `[Scheduler] Settlement tick - expired bets: ${expiredCount}, auto-confirmed claims: ${autoConfirmedCount}, expired teas: ${expiredTeas}`
+                    `[Scheduler] Settlement tick - expired teas: ${expiredTeas}`
                 );
             }
         } catch (error) {
@@ -48,5 +43,5 @@ export const initScheduler = () => {
         await fetchVibeNews('evening');
     });
 
-    console.log('[Scheduler] Jobs scheduled: every 15m settlement + 6am, 12pm, 6pm vibe wire');
+    console.log('[Scheduler] Jobs scheduled: every 15m tea settlement + 6am, 12pm, 6pm vibe wire');
 };

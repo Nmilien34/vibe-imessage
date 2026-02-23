@@ -1,7 +1,8 @@
 import mongoose, { Schema, Model } from 'mongoose';
-import { IBetProof, ProofMediaType } from '../types';
+import { IBetProof, ProofMediaType, BetProofStatus } from '../types';
 
 const mediaTypes: ProofMediaType[] = ['photo', 'video'];
+const proofStatuses: BetProofStatus[] = ['pending', 'confirmed', 'disputed'];
 
 const betProofSchema = new Schema<IBetProof>(
   {
@@ -18,6 +19,15 @@ const betProofSchema = new Schema<IBetProof>(
     thumbnailUrl: { type: String },
     thumbnailKey: { type: String },
     caption: { type: String },
+    status: {
+      type: String,
+      enum: proofStatuses,
+      default: 'pending',
+    },
+    confirmations: { type: Number, default: 0 },
+    disputes: { type: Number, default: 0 },
+    disputeDeadline: { type: Date },
+    isStory: { type: Boolean, default: true },
   },
   { timestamps: true }
 );

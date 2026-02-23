@@ -11,4 +11,5 @@ export { default as betRoutes } from './bet';
 export { default as auraRoutes } from './aura';
 export { default as vibeWireRoutes } from './vibewire';
 export { default as teaRoutes } from './tea';
+export { default as leaderboardRoutes } from './leaderboard';
 //# sourceMappingURL=index.d.ts.map

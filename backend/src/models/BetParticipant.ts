@@ -14,6 +14,9 @@ const betParticipantSchema = new Schema<IBetParticipant>(
       required: true,
     },
     amount: { type: Number, required: true, min: 10 },
+    isAnonymous: { type: Boolean, default: false },
+    payout: { type: Number },
+    won: { type: Boolean },
   },
   { timestamps: true }
 );

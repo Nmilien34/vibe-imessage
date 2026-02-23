@@ -1,11 +1,13 @@
 /**
- * Runs on every login. Two jobs:
- *   1. Awards +50 Aura if 24h has passed since lastDailyBonus (or never claimed)
+ * Recomputes user economy snapshot for auth and claim flows.
+ *   1. Optionally awards +50 Aura when explicitly requested and eligible
  *   2. Recalculates vibeScore from current bet/callout stats
  *
  * Returns the final values to put directly into the login response.
  */
-export declare function processLoginUpdates(userId: string): Promise<{
+export declare function processLoginUpdates(userId: string, options?: {
+    awardDailyBonus?: boolean;
+}): Promise<{
     auraBalance: number;
     vibeScore: number;
     dailyBonusClaimed: boolean;

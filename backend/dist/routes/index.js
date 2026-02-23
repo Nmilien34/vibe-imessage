@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.teaRoutes = exports.vibeWireRoutes = exports.auraRoutes = exports.betRoutes = exports.userRoutes = exports.vibesRoutes = exports.vibeRoutes = exports.uploadRoutes = exports.remindersRoutes = exports.groupRoutes = exports.feedRoutes = exports.chatRoutes = exports.authRoutes = void 0;
+exports.leaderboardRoutes = exports.teaRoutes = exports.vibeWireRoutes = exports.auraRoutes = exports.betRoutes = exports.userRoutes = exports.vibesRoutes = exports.vibeRoutes = exports.uploadRoutes = exports.remindersRoutes = exports.groupRoutes = exports.feedRoutes = exports.chatRoutes = exports.authRoutes = void 0;
 var auth_1 = require("./auth");
 Object.defineProperty(exports, "authRoutes", { enumerable: true, get: function () { return __importDefault(auth_1).default; } });
 var chat_1 = require("./chat");
@@ -30,4 +30,6 @@ var vibewire_1 = require("./vibewire");
 Object.defineProperty(exports, "vibeWireRoutes", { enumerable: true, get: function () { return __importDefault(vibewire_1).default; } });
 var tea_1 = require("./tea");
 Object.defineProperty(exports, "teaRoutes", { enumerable: true, get: function () { return __importDefault(tea_1).default; } });
+var leaderboard_1 = require("./leaderboard");
+Object.defineProperty(exports, "leaderboardRoutes", { enumerable: true, get: function () { return __importDefault(leaderboard_1).default; } });
 //# sourceMappingURL=index.js.map

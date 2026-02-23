@@ -23,11 +23,14 @@ const user_1 = __importDefault(require("./routes/user"));
 const bet_1 = __importDefault(require("./routes/bet"));
 const aura_1 = __importDefault(require("./routes/aura"));
 const tea_1 = __importDefault(require("./routes/tea"));
+const leaderboard_1 = __importDefault(require("./routes/leaderboard"));
+const backgroundJobs_1 = require("./services/backgroundJobs");
 const app = (0, express_1.default)();
 // Connect to MongoDB
 (0, db_1.default)();
 // Initialize Vibe Wire Scheduler
 (0, scheduler_1.initScheduler)();
+(0, backgroundJobs_1.startBackgroundJobs)();
 // Middleware
 app.use((0, helmet_1.default)());
 // CORS Configuration
@@ -65,6 +68,7 @@ app.use('/api/user', user_1.default);
 app.use('/api/bets', bet_1.default);
 app.use('/api/aura', aura_1.default);
 app.use('/api/tea', tea_1.default);
+app.use('/api/leaderboard', leaderboard_1.default);
 // Health check
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

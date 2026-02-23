@@ -56,12 +56,22 @@ const deriveFirstName = (firstName?: string | null, email?: string | null): stri
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
     const user = await User.findById(req.userId!).select(
-      'firstName lastName email profilePicture auraBalance vibeScore betsCreated betsCompleted betsFailed contactDiscoveryEnabled'
+      'firstName lastName email profilePicture auraBalance vibeScore betsCreated betsCompleted betsFailed wins losses ducks calloutsReceived calloutsIgnored streak lastActiveDate winRate duckRate contactDiscoveryEnabled'
     );
 
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    const wins = user.wins ?? user.betsCompleted ?? 0;
+    const losses = user.losses ?? user.betsFailed ?? 0;
+    const ducks = user.ducks ?? user.calloutsIgnored ?? 0;
+    const totalDecisions = wins + losses;
+    const computedWinRate = totalDecisions > 0 ? Math.round((wins / totalDecisions) * 100) : 0;
+    const totalDuckOpportunities = ducks + (user.calloutsReceived ?? 0);
+    const computedDuckRate = totalDuckOpportunities > 0
+      ? Math.round((ducks / totalDuckOpportunities) * 100)
+      : 0;
 
     res.json({
       user: {
@@ -77,9 +87,13 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
           betsCreated: user.betsCreated ?? 0,
           betsCompleted: user.betsCompleted ?? 0,
           betsFailed: user.betsFailed ?? 0,
-          winRate: (user.betsCreated ?? 0) > 0
-            ? (((user.betsCompleted ?? 0) / (user.betsCreated ?? 0)) * 100).toFixed(1) + '%'
-            : '0%',
+          wins,
+          losses,
+          ducks,
+          winRate: user.winRate ?? computedWinRate,
+          duckRate: user.duckRate ?? computedDuckRate,
+          streak: user.streak ?? 0,
+          lastActiveDate: user.lastActiveDate ?? null,
         },
       },
     });
