@@ -254,21 +254,64 @@ struct BetCard: View {
         }
     }
 
+    private var creatorName: String {
+        appState.nameForUser(bet.creatorId)
+    }
+
+    private var creatorProfilePictureURL: String? {
+        if bet.creatorId == appState.userId {
+            return appState.userProfilePictureURL
+        }
+        return appState.userCache[bet.creatorId]?.profilePicture
+    }
+
+    private var creatorInitial: String {
+        String(creatorName.prefix(1)).uppercased()
+    }
+
+    private var creatorAvatar: some View {
+        ZStack {
+            Circle()
+                .fill(VibeTheme.betAccent.opacity(0.15))
+
+            if let profileURL = creatorProfilePictureURL,
+               let url = URL.httpURL(from: profileURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        creatorInitialFallback
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .failure:
+                        creatorInitialFallback
+                    @unknown default:
+                        creatorInitialFallback
+                    }
+                }
+            } else {
+                creatorInitialFallback
+            }
+        }
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
+    }
+
+    private var creatorInitialFallback: some View {
+        Text(creatorInitial)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundColor(VibeTheme.betAccent)
+    }
+
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
                 // Row 1: Creator + metadata
                 HStack(spacing: VibeSpacing.xs) {
                     // Creator avatar
-                    Circle()
-                        .fill(VibeTheme.betAccent.opacity(0.15))
-                        .frame(width: 28, height: 28)
-                        .overlay(
-                            Text(String(appState.nameForUser(bet.creatorId).prefix(1)))
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundColor(VibeTheme.betAccent)
-                        )
+                    creatorAvatar
 
-                    Text(appState.nameForUser(bet.creatorId))
+                    Text(creatorName)
                         .font(VibeTypography.captionLarge)
                         .foregroundColor(VibeTheme.textPrimary)
 

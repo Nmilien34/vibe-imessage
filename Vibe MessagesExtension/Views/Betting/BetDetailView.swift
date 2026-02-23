@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct BetDetailView: View {
     @EnvironmentObject var appState: AppState
@@ -29,6 +30,9 @@ struct BetDetailView: View {
     @State private var pendingClaim: ResolutionClaim?
     @State private var pendingClaimViewer: ResolutionClaimViewer?
     @State private var resolutionError: String?
+    @State private var showShareOptions = false
+    @State private var showExternalShareSheet = false
+    @State private var externalShareURL: URL?
 
     init(bet: Bet) {
         _currentBet = State(initialValue: bet)
@@ -111,7 +115,7 @@ struct BetDetailView: View {
         .overlay(alignment: .topTrailing) {
             Button {
                 VibeHaptic.medium()
-                appState.sendBetMessage(bet: currentBet)
+                showShareOptions = true
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 16, weight: .semibold))
@@ -126,6 +130,32 @@ struct BetDetailView: View {
         }
         .task {
             await loadBetDetails()
+        }
+        .confirmationDialog("Share Challenge", isPresented: $showShareOptions, titleVisibility: .visible) {
+            Button("Send in This iMessage Chat") {
+                appState.sendBetMessage(bet: currentBet)
+            }
+            if let url = betShareURL {
+                Button("Share Link Anywhere") {
+                    externalShareURL = url
+                    showExternalShareSheet = true
+                }
+                Button("Copy Link") {
+                    UIPasteboard.general.string = url.absoluteString
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Share this challenge in iMessage or copy a public link for Instagram, WhatsApp, or SMS.")
+        }
+        .sheet(isPresented: $showExternalShareSheet, onDismiss: {
+            externalShareURL = nil
+        }) {
+            if let externalShareURL {
+                ShareActivityView(activityItems: [externalShareURL])
+            } else {
+                EmptyView()
+            }
         }
         .confirmationDialog("Choose Resolution Outcome", isPresented: $showOutcomePicker, titleVisibility: .visible) {
             Button("YES Side Wins") {
@@ -683,6 +713,8 @@ struct BetDetailView: View {
             URLQueryItem(name: "bet_id", value: currentBet.betId),
             URLQueryItem(name: "chat_id", value: currentBet.chatId),
             URLQueryItem(name: "type", value: "bet"),
+            URLQueryItem(name: "inviter_id", value: appState.userId),
+            URLQueryItem(name: "source", value: "external_share"),
             URLQueryItem(name: "timestamp", value: String(Int(Date().timeIntervalSince1970)))
         ]
         if let userFirstName = appState.userFirstName, !userFirstName.isEmpty {
@@ -690,10 +722,6 @@ struct BetDetailView: View {
         }
         components.queryItems = queryItems
         return components.url
-    }
-
-    private var shareMessageText: String {
-        "Join this bet on Vibe: \"\(currentBet.description)\""
     }
 
     private var statusLabel: String {
@@ -839,4 +867,17 @@ struct BetDetailView: View {
         }
         isResolving = false
     }
+}
+
+private struct ShareActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(
+            activityItems: activityItems,
+            applicationActivities: nil
+        )
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
