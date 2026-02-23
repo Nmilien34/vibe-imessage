@@ -467,6 +467,31 @@ class AppState: ObservableObject {
                     return chatId
                 }
 
+                if let lastResolutionError = ConversationManager.shared.lastResolutionError,
+                   let apiError = lastResolutionError as? APIError {
+                    switch apiError {
+                    case .httpError(let statusCode, let message):
+                        if statusCode == 401 || statusCode == 403 {
+                            let fallbackMessage = statusCode == 401
+                                ? "Your session expired. Please sign in again."
+                                : "You don't have access to this chat."
+                            throw APIError.httpError(statusCode: statusCode, message: message ?? fallbackMessage)
+                        }
+
+                        // 4xx failures are deterministic and won't recover on retry.
+                        if (400...499).contains(statusCode) {
+                            throw APIError.httpError(
+                                statusCode: statusCode,
+                                message: message ?? "Couldn't connect this chat. Please retry."
+                            )
+                        }
+                    case .invalidURL, .invalidResponse, .decodingError:
+                        throw apiError
+                    case .networkError, .uploadFailed:
+                        break
+                    }
+                }
+
                 if Task.isCancelled {
                     throw CancellationError()
                 }
@@ -637,10 +662,6 @@ class AppState: ObservableObject {
         let trimmed = chatId.trimmingCharacters(in: .whitespacesAndNewlines)
         guard isAuthenticated, !trimmed.isEmpty else { return false }
 
-        if trimmed == currentChatId {
-            return true
-        }
-
         struct UserChatsResponse: Decodable {
             let chats: [ChatSummary]
         }
@@ -674,6 +695,12 @@ class AppState: ObservableObject {
         do {
             let response: UserChatsResponse = try await APIClient.shared.get("/chat/user/\(userId)/chats")
             return response.chats.contains { $0.id == trimmed }
+        } catch let apiError as APIError {
+            print("AppState Error: Checking chat access failed: \(apiError)")
+            if case .httpError(let statusCode, _) = apiError, statusCode == 403 || statusCode == 404 {
+                return false
+            }
+            return nil
         } catch {
             print("AppState Error: Checking chat access failed: \(error)")
             return nil
@@ -811,9 +838,22 @@ class AppState: ObservableObject {
     }
 
     private func shouldShowFeedNetworkBanner(for error: Error) -> Bool {
+        if error is CancellationError {
+            return false
+        }
+
         if let apiError = error as? APIError {
             switch apiError {
-            case .networkError:
+            case .networkError(let nested):
+                if nested is CancellationError {
+                    return false
+                }
+                if let urlError = nested as? URLError {
+                    return isConnectivityURLError(urlError)
+                }
+                if let nestedAPIError = nested as? APIError {
+                    return shouldShowFeedNetworkBanner(for: nestedAPIError)
+                }
                 return true
             case .httpError(let statusCode, _):
                 return statusCode >= 500 || statusCode == 408 || statusCode == 429
@@ -823,23 +863,29 @@ class AppState: ObservableObject {
         }
 
         if let urlError = error as? URLError {
-            switch urlError.code {
-            case .notConnectedToInternet,
-                 .networkConnectionLost,
-                 .timedOut,
-                 .cannotConnectToHost,
-                 .cannotFindHost,
-                 .dnsLookupFailed,
-                 .dataNotAllowed,
-                 .internationalRoamingOff,
-                 .secureConnectionFailed:
-                return true
-            default:
-                return false
-            }
+            return isConnectivityURLError(urlError)
         }
 
         return false
+    }
+
+    private func isConnectivityURLError(_ urlError: URLError) -> Bool {
+        switch urlError.code {
+        case .notConnectedToInternet,
+             .networkConnectionLost,
+             .timedOut,
+             .cannotConnectToHost,
+             .cannotFindHost,
+             .dnsLookupFailed,
+             .dataNotAllowed,
+             .internationalRoamingOff,
+             .secureConnectionFailed:
+            return true
+        case .cancelled:
+            return false
+        default:
+            return false
+        }
     }
 
     /**
@@ -1265,7 +1311,13 @@ class AppState: ObservableObject {
             isLocked: false
         )
 
-        let contextText = "\(trimmedTitle)|\(displayAmount)|\(targetName ?? "Anyone")"
+        let contextText = buildParlayBubbleContext(
+            title: trimmedTitle,
+            stakeText: displayAmount,
+            targetName: targetName,
+            deadline: bet.deadline,
+            creatorName: nameForUser(bet.creatorId)
+        )
         sendVibeMessage(
             vibeId: challengeVibe.id,
             isLocked: false,
@@ -1891,13 +1943,48 @@ class AppState: ObservableObject {
         }
     }
 
+    /// Encodes a rich challenge payload used to render compelling iMessage bet bubbles.
+    func buildParlayBubbleContext(
+        title: String,
+        stakeText: String? = nil,
+        targetName: String? = nil,
+        deadline: Date? = nil,
+        creatorName: String? = nil
+    ) -> String {
+        var components = URLComponents()
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "title", value: title.trimmingCharacters(in: .whitespacesAndNewlines))
+        ]
+
+        if let stakeText = stakeText?.trimmingCharacters(in: .whitespacesAndNewlines), !stakeText.isEmpty {
+            queryItems.append(URLQueryItem(name: "stake", value: stakeText))
+        }
+        if let targetName = targetName?.trimmingCharacters(in: .whitespacesAndNewlines), !targetName.isEmpty {
+            queryItems.append(URLQueryItem(name: "target", value: targetName))
+        }
+        if let deadline {
+            queryItems.append(URLQueryItem(name: "deadline", value: String(Int(deadline.timeIntervalSince1970))))
+        }
+        if let creatorName = creatorName?.trimmingCharacters(in: .whitespacesAndNewlines), !creatorName.isEmpty {
+            queryItems.append(URLQueryItem(name: "creator", value: creatorName))
+        }
+
+        components.queryItems = queryItems
+        return "parlay_v2?\(components.percentEncodedQuery ?? "")"
+    }
+
     /// Sends a bet as an interactive MSMessage bubble into the current conversation.
     func sendBetMessage(bet: Bet) {
+        let creatorName = nameForUser(bet.creatorId)
         sendVibeMessage(
             vibeId: bet.betId,
             isLocked: false,
             vibeType: .parlay,
-            contextText: "\(bet.description)|\(bet.creationCost ?? 0)|Anyone",
+            contextText: buildParlayBubbleContext(
+                title: bet.description,
+                deadline: bet.deadline,
+                creatorName: creatorName
+            ),
             linkedBetId: bet.betId
         )
     }
@@ -2255,14 +2342,30 @@ class AppState: ObservableObject {
 
             // Resolve chat membership first
             if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
-                let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                let resolvedSharedChatId = await ConversationManager.shared.resolveSharedChatID(
+                    preferredChatId: chatId,
                     conversation: conversation,
                     userId: userId
                 )
-                let finalChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
-                currentChatId = finalChatId
-                if let senderId = senderId, !senderId.isEmpty, senderId != userId {
-                    await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                let finalChatId = resolvedSharedChatId ?? chatId
+
+                let hasAccess = await hasAccessToChat(finalChatId)
+                if hasAccess == false {
+                    error = "You don't have access to this chat."
+                    navigateToBetList()
+                    return
+                }
+                if hasAccess == nil {
+                    error = "Couldn't verify chat access. Check your connection and try again."
+                    navigateToBetList()
+                    return
+                }
+
+                if hasAccess == true {
+                    currentChatId = finalChatId
+                    if let senderId = senderId, !senderId.isEmpty, senderId != userId {
+                        await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                    }
                 }
             }
 
@@ -2279,14 +2382,19 @@ class AppState: ObservableObject {
             clearPendingDeepLink()
 
             if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
-                let resolvedChatId = await ConversationManager.shared.resolveChatID(
+                let resolvedSharedChatId = await ConversationManager.shared.resolveSharedChatID(
+                    preferredChatId: chatId,
                     conversation: conversation,
                     userId: userId
                 )
-                let finalChatId = resolvedChatId.hasPrefix("chat_") ? resolvedChatId : chatId
-                currentChatId = finalChatId
-                if let senderId = senderId, !senderId.isEmpty, senderId != userId {
-                    await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                let finalChatId = resolvedSharedChatId ?? chatId
+
+                let hasAccess = await hasAccessToChat(finalChatId)
+                if hasAccess == true {
+                    currentChatId = finalChatId
+                    if let senderId = senderId, !senderId.isEmpty, senderId != userId {
+                        await ensureNetworkConnection(targetUserId: senderId, sourceChatId: finalChatId)
+                    }
                 }
             }
 

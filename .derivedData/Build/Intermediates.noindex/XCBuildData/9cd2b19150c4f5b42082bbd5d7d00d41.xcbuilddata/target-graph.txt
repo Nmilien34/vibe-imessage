@@ -1,4 +1,0 @@
-Target dependency graph (2 targets)
-Target 'Vibe' in project 'Vibe'
-➜ Explicit dependency on target 'Vibe MessagesExtension' in project 'Vibe'
-Target 'Vibe MessagesExtension' in project 'Vibe' (no dependencies)

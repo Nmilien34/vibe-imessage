@@ -341,7 +341,13 @@ struct ParlayComposerView: View {
                 isLocked: isLocked
             )
 
-            let contextText = "\(title)|\(finalDisplayAmount)|\(selectedTargetName)"
+            let contextText = appState.buildParlayBubbleContext(
+                title: title,
+                stakeText: finalDisplayAmount,
+                targetName: selectedTargetUserId == nil ? nil : selectedTargetName,
+                deadline: linkedBet.deadline,
+                creatorName: appState.userFirstName
+            )
             appState.sendVibeMessage(
                 vibeId: vibe.id,
                 isLocked: isLocked,

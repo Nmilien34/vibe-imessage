@@ -233,6 +233,13 @@ class MessagesViewController: MSMessagesAppViewController {
                 presentBetAccessPrompt(chatId: resolvedChatId, betId: trimmedBetId)
                 return
             }
+            if hasAccess == nil {
+                presentSimpleAlert(
+                    title: "Couldn't verify chat access",
+                    message: "Check your connection and try again."
+                )
+                return
+            }
             appState.currentChatId = resolvedChatId
         }
 
@@ -260,15 +267,25 @@ class MessagesViewController: MSMessagesAppViewController {
             return nil
         }
 
+        if let sharedResolved = await ConversationManager.shared.resolveSharedChatID(
+            preferredChatId: chatId,
+            conversation: conversation,
+            userId: appState.userId
+        ) {
+            appState.currentChatId = sharedResolved
+            return sharedResolved
+        }
+
         let resolvedChatId = await ConversationManager.shared.resolveChatID(
             conversation: conversation,
             userId: appState.userId
         )
-        let finalChatId = resolvedChatId.hasPrefix("chat_")
-            ? resolvedChatId
-            : chatId
-        appState.currentChatId = finalChatId
-        return finalChatId
+        guard resolvedChatId.hasPrefix("chat_") else {
+            return nil
+        }
+
+        appState.currentChatId = resolvedChatId
+        return resolvedChatId
     }
 
     @MainActor
@@ -366,17 +383,29 @@ class MessagesViewController: MSMessagesAppViewController {
             styledThumbnail = StoryBubbleRenderer.shared.renderVibeCard(
                 vibeType: vibeType,
                 contextText: contextText,
-                isLocked: isLocked
+                isLocked: isLocked,
+                senderName: senderName
             )
         }
 
         // 2. Create Layout with type-specific text
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
+        let parlayDetails = (vibeType == .parlay)
+            ? parseParlayBubbleContext(contextText: contextText, fallbackSenderName: senderName)
+            : nil
 
         if isLocked {
             layout.caption = "🔒 \(senderName) posted a locked Vibe"
             layout.subcaption = "Post yours to unlock"
+        } else if let parlayDetails {
+            layout.caption = "🎯 \(parlayDetails.creatorName) went on record"
+            if let deadline = parlayDetails.deadline {
+                layout.subcaption = "Closes \(formatCompactDeadline(deadline)) • Pick a side"
+            } else {
+                layout.subcaption = "Pick a side before time runs out"
+            }
+            layout.trailingSubcaption = "YES / NO"
         } else {
             layout.caption = captionForVibeType(vibeType, senderName: senderName)
             layout.subcaption = "Tap to see it"
@@ -385,7 +414,18 @@ class MessagesViewController: MSMessagesAppViewController {
         // 3. Create Message
         let message = MSMessage()
         message.layout = layout
-        message.summaryText = isLocked ? "\(senderName) posted a locked vibe 🔒" : "\(senderName) shared a \(vibeType.displayName) vibe"
+        if isLocked {
+            message.summaryText = "\(senderName) posted a locked vibe 🔒"
+        } else if let parlayDetails {
+            let title = truncated(parlayDetails.title, maxLength: 72)
+            if let deadline = parlayDetails.deadline {
+                message.summaryText = "\(parlayDetails.creatorName) challenged the chat: \(title). Pick a side before \(formatCompactDeadline(deadline))."
+            } else {
+                message.summaryText = "\(parlayDetails.creatorName) challenged the chat: \(title). Pick a side."
+            }
+        } else {
+            message.summaryText = "\(senderName) shared a \(vibeType.displayName) vibe"
+        }
 
         // 4. Encode data with chat_id for distributed ID system
         var components = URLComponents()
@@ -412,6 +452,12 @@ class MessagesViewController: MSMessagesAppViewController {
         }
         if let linkedBetId = linkedBetId?.trimmingCharacters(in: .whitespacesAndNewlines), !linkedBetId.isEmpty {
             queryItems.append(URLQueryItem(name: "bet_id", value: linkedBetId))
+            if let parlayDetails {
+                queryItems.append(URLQueryItem(name: "bet_title", value: parlayDetails.title))
+                if let deadline = parlayDetails.deadline {
+                    queryItems.append(URLQueryItem(name: "bet_deadline", value: String(Int(deadline.timeIntervalSince1970))))
+                }
+            }
         }
 
         components.queryItems = queryItems
@@ -440,9 +486,73 @@ class MessagesViewController: MSMessagesAppViewController {
         case .eta:      return "📍 \(senderName) shared their ETA"
         case .song:     return "🎵 \(senderName) shared a song"
         case .dailyDrop: return "🎲 \(senderName) sent a challenge"
-        case .parlay:   return "💸 \(senderName) sent a parlay"
+        case .parlay:   return "🎯 \(senderName) started a challenge"
         default:        return "✨ \(senderName) just posted!"
         }
+    }
+
+    private struct ParlayBubbleContext {
+        let title: String
+        let deadline: Date?
+        let creatorName: String
+    }
+
+    private func parseParlayBubbleContext(contextText: String?, fallbackSenderName: String) -> ParlayBubbleContext? {
+        guard let raw = contextText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return nil
+        }
+
+        if raw.hasPrefix("parlay_v2?") {
+            let query = String(raw.dropFirst("parlay_v2?".count))
+            if let components = URLComponents(string: "https://getvibe.app/open?\(query)") {
+                let queryItems = components.queryItems ?? []
+                let title = queryItems.first(where: { $0.name == "title" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let creator = queryItems.first(where: { $0.name == "creator" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let deadline = queryItems.first(where: { $0.name == "deadline" })?.value.flatMap(TimeInterval.init).map {
+                    Date(timeIntervalSince1970: $0)
+                }
+
+                if let title, !title.isEmpty {
+                    let normalizedCreator = creator ?? ""
+                    let creatorName = normalizedCreator.isEmpty ? fallbackSenderName : normalizedCreator
+                    return ParlayBubbleContext(title: title, deadline: deadline, creatorName: creatorName)
+                }
+            }
+        }
+
+        // Legacy format fallback: "title|amount|opponent"
+        let legacyParts = raw.split(separator: "|", maxSplits: 2).map(String.init)
+        if let first = legacyParts.first {
+            let title = first.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty {
+                return ParlayBubbleContext(title: title, deadline: nil, creatorName: fallbackSenderName)
+            }
+        }
+
+        return nil
+    }
+
+    private func formatCompactDeadline(_ deadline: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+        timeFormatter.dateStyle = .none
+
+        if calendar.isDateInToday(deadline) {
+            return "today \(timeFormatter.string(from: deadline))"
+        }
+        if calendar.isDateInTomorrow(deadline) {
+            return "tomorrow \(timeFormatter.string(from: deadline))"
+        }
+
+        let nearFormatter = DateFormatter()
+        nearFormatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
+        return nearFormatter.string(from: deadline)
+    }
+
+    private func truncated(_ text: String, maxLength: Int) -> String {
+        guard text.count > maxLength else { return text }
+        return String(text.prefix(maxLength - 1)) + "…"
     }
 
     private func generateThumbnail(for url: URL) -> UIImage? {

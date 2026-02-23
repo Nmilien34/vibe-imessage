@@ -299,13 +299,25 @@ router.post('/join', authMiddleware, async (req: Request<{}, {}, JoinChatRequest
  * @route   GET /api/chat/:chatId
  * @desc    Get chat details
  */
-router.get('/:chatId', async (req: Request<{ chatId: string }>, res: Response) => {
+router.get('/:chatId', authMiddleware, async (req: Request<{ chatId: string }>, res: Response) => {
   try {
+    const userId = req.userId!;
     const { chatId } = req.params;
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
       return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    let member = await ChatMember.findOne({ chatId, userId });
+    if (!member) {
+      const repaired = await ensureChatMembershipIfKnown(chatId, userId);
+      if (repaired) {
+        member = await ChatMember.findOne({ chatId, userId });
+      }
+    }
+    if (!member) {
+      return res.status(403).json({ error: 'Cannot view a chat you are not in' });
     }
 
     res.json(chat);
@@ -319,13 +331,25 @@ router.get('/:chatId', async (req: Request<{ chatId: string }>, res: Response) =
  * @route   GET /api/chat/:chatId/members
  * @desc    Get chat members
  */
-router.get('/:chatId/members', async (req: Request<{ chatId: string }>, res: Response) => {
+router.get('/:chatId/members', authMiddleware, async (req: Request<{ chatId: string }>, res: Response) => {
   try {
+    const userId = req.userId!;
     const { chatId } = req.params;
 
     const chat = await Chat.findById(chatId);
     if (!chat) {
       return res.status(404).json({ error: 'Chat not found' });
+    }
+
+    let member = await ChatMember.findOne({ chatId, userId });
+    if (!member) {
+      const repaired = await ensureChatMembershipIfKnown(chatId, userId);
+      if (repaired) {
+        member = await ChatMember.findOne({ chatId, userId });
+      }
+    }
+    if (!member) {
+      return res.status(403).json({ error: 'Only chat members can view members' });
     }
 
     const members = await User.find({ _id: { $in: chat.members } });
@@ -345,9 +369,14 @@ router.get('/:chatId/members', async (req: Request<{ chatId: string }>, res: Res
  * @route   GET /api/chat/user/:userId/chats
  * @desc    Get all chats for a user
  */
-router.get('/user/:userId/chats', async (req: Request<{ userId: string }>, res: Response) => {
+router.get('/user/:userId/chats', authMiddleware, async (req: Request<{ userId: string }>, res: Response) => {
   try {
+    const authenticatedUserId = req.userId!;
     const { userId } = req.params;
+
+    if (userId !== authenticatedUserId) {
+      return res.status(403).json({ error: 'Cannot view chats for another user' });
+    }
 
     const user = await User.findById(userId);
     if (!user) {

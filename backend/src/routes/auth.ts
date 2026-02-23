@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User';
 import { processLoginUpdates } from '../services/auraService';
 import { registerVerifiedEmailIdentifier } from '../services/contactNetworkService';
+import { authMiddleware } from '../middleware/auth';
 
 const router: Router = express.Router();
 
@@ -446,13 +447,18 @@ router.post('/dev-login', async (req: Request<{}, {}, { userId: string }>, res: 
 /**
  * @route PUT /api/auth/birthday
  * @desc Save user's birthday (month + day)
- * @access Private
+ * @access Private (JWT required)
  */
-router.put('/birthday', async (req: Request<{}, {}, BirthdayRequest>, res: Response) => {
+router.put('/birthday', authMiddleware, async (req: Request<{}, {}, BirthdayRequest>, res: Response) => {
   const { userId, month, day } = req.body;
+  const authenticatedUserId = req.userId!;
 
   if (!userId || !month || !day) {
     return res.status(400).json({ error: 'userId, month, and day are required' });
+  }
+
+  if (userId !== authenticatedUserId) {
+    return res.status(403).json({ error: 'Cannot update birthday for another user' });
   }
 
   if (month < 1 || month > 12 || day < 1 || day > 31) {

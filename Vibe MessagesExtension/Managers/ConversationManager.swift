@@ -28,6 +28,7 @@ class ConversationManager: ObservableObject {
     // MARK: - Published State
     @Published var currentChatId: String?
     @Published var isResolvingChat = false
+    @Published private(set) var lastResolutionError: Error?
 
     private init() {}
 
@@ -46,6 +47,7 @@ class ConversationManager: ObservableObject {
         conversation: MSConversation,
         userId: String
     ) async -> String {
+        lastResolutionError = nil
         isResolvingChat = true
         defer { isResolvingChat = false }
         let mappingKey = conversationMappingKey(for: conversation)
@@ -116,6 +118,33 @@ class ConversationManager: ObservableObject {
         currentChatId = fallbackId
         print("ConversationManager: Backend resolve failed, using \(fallbackId)")
         return fallbackId
+    }
+
+    /// Resolves the exact chat id provided by a shared bubble URL.
+    /// This is preferred over local deterministic ids when opening shared content.
+    func resolveSharedChatID(
+        preferredChatId: String,
+        conversation: MSConversation,
+        userId: String
+    ) async -> String? {
+        let normalizedChatId = preferredChatId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard isValidBackendChatId(normalizedChatId) else { return nil }
+
+        lastResolutionError = nil
+        let mappingKey = conversationMappingKey(for: conversation)
+        let lookupKeys = [mappingKey] + legacyConversationMappingKeys(for: conversation)
+
+        guard let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: normalizedChatId) else {
+            return nil
+        }
+
+        saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+        for key in lookupKeys where key != mappingKey {
+            saveChatIdMapping(mappingKey: key, chatId: resolved)
+        }
+        currentChatId = resolved
+        print("ConversationManager: Resolved shared chat_id: \(resolved)")
+        return resolved
     }
 
     /// Provides a deterministic participant-scoped chat id that can be embedded in outgoing messages
@@ -355,6 +384,7 @@ class ConversationManager: ObservableObject {
 
             return response.chatId
         } catch {
+            lastResolutionError = error
             print("ConversationManager: Failed to resolve chat on backend: \(error)")
             return nil
         }

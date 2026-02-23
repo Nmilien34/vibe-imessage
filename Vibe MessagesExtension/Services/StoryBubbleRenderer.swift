@@ -30,11 +30,12 @@ class StoryBubbleRenderer {
 
     /// Renders a type-specific message card for non-media vibes
     @MainActor
-    func renderVibeCard(vibeType: VibeType, contextText: String?, isLocked: Bool) -> UIImage {
+    func renderVibeCard(vibeType: VibeType, contextText: String?, isLocked: Bool, senderName: String? = nil) -> UIImage {
         let view = VibeCardBubbleView(
             vibeType: vibeType,
             contextText: contextText,
-            isLocked: isLocked
+            isLocked: isLocked,
+            senderName: senderName
         )
 
         let renderer = ImageRenderer(content: view)
@@ -146,6 +147,7 @@ struct VibeCardBubbleView: View {
     let vibeType: VibeType
     let contextText: String?
     let isLocked: Bool
+    let senderName: String?
 
     var body: some View {
         ZStack {
@@ -172,6 +174,8 @@ struct VibeCardBubbleView: View {
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                 }
+            } else if vibeType == .parlay {
+                parlayCardLayout
             } else {
                 // Type-specific content
                 VStack(spacing: 10) {
@@ -181,27 +185,29 @@ struct VibeCardBubbleView: View {
                 .padding()
             }
 
-            // Footer
-            VStack {
-                Spacer()
-                HStack {
-                    Image(systemName: "clock")
-                        .font(.caption2)
-                    Text("Expires in 24h")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
+            if vibeType != .parlay {
+                // Footer
+                VStack {
                     Spacer()
-                    Text("Vibez")
-                        .font(.caption2)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.25))
-                        .cornerRadius(6)
+                    HStack {
+                        Image(systemName: "clock")
+                            .font(.caption2)
+                        Text("Expires in 24h")
+                            .font(.caption2)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text("Vibez")
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.25))
+                            .cornerRadius(6)
+                    }
+                    .foregroundColor(.white.opacity(0.9))
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
                 }
-                .foregroundColor(.white.opacity(0.9))
-                .padding(.horizontal, 14)
-                .padding(.bottom, 10)
             }
         }
         .frame(width: 300, height: 200)
@@ -221,7 +227,7 @@ struct VibeCardBubbleView: View {
 
     @ViewBuilder
     private var vibeIcon: some View {
-        Image(systemName: vibeType.icon)
+        Image(systemName: vibeType == .parlay ? "person.fill.checkmark" : vibeType.icon)
             .font(.system(size: 36))
             .foregroundColor(.white)
     }
@@ -325,38 +331,210 @@ struct VibeCardBubbleView: View {
             }
 
         case .parlay:
-            // contextText is "title|amount|opponent" format
-            if let text = contextText {
-                let parts = text.split(separator: "|", maxSplits: 2)
-                VStack(spacing: 6) {
-                    Text("💸 Parlay")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white.opacity(0.8))
-                    Text(String(parts.first ?? "Bet"))
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(2)
-                    if parts.count > 1 {
-                        Text(String(parts[1]))
-                            .font(.system(size: 28, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-                }
-            } else {
-                Text("💸 New Parlay")
-                    .font(.title3)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-            }
+            Text("Challenge")
+                .font(.headline)
+                .foregroundColor(.white)
 
         default:
             Text("New Vibe")
                 .font(.headline)
                 .foregroundColor(.white)
         }
+    }
+
+    private struct ParlayBubbleDetails {
+        let title: String
+        let deadline: Date?
+        let creatorName: String
+    }
+
+    @ViewBuilder
+    private var parlayCardLayout: some View {
+        let details = parseParlayContext(from: contextText, fallbackSenderName: senderName)
+
+        VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.fill.checkmark")
+                    .font(.system(size: 13, weight: .bold))
+                Text("FRIEND CHALLENGE")
+                    .font(.system(size: 11, weight: .black, design: .rounded))
+                    .tracking(0.4)
+            }
+            .foregroundColor(.white.opacity(0.92))
+            .padding(.top, 12)
+
+            Text(details.title)
+                .font(parlayTitleFont(for: details.title))
+                .fontWeight(.heavy)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(parlayTitleLineLimit(for: details.title))
+                .minimumScaleFactor(0.72)
+                .allowsTightening(true)
+                .padding(.horizontal, 14)
+                .padding(.top, 6)
+
+            Spacer(minLength: 4)
+
+            Text("\(details.creatorName) went on record")
+                .font(.caption2)
+                .fontWeight(.semibold)
+                .foregroundColor(.white.opacity(0.9))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+
+            if let deadline = details.deadline {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill")
+                        .font(.caption2)
+                    Text("Closes \(formatCompactDeadline(deadline))")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.white.opacity(0.9))
+                .padding(.top, 2)
+            }
+
+            Text("PICK A SIDE: YES / NO")
+                .font(.system(size: 10, weight: .black, design: .rounded))
+                .foregroundColor(Color(red: 0.6, green: 0.2, blue: 1.0))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white)
+                .clipShape(Capsule())
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
+            HStack {
+                Image(systemName: "clock")
+                    .font(.caption2)
+                Text(parlayFooterExpiryLabel(for: details.deadline))
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                Spacer()
+                Text("Vibez")
+                    .font(.caption2)
+                    .fontWeight(.bold)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.25))
+                    .cornerRadius(6)
+            }
+            .foregroundColor(.white.opacity(0.9))
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private func parlayTitleFont(for title: String) -> Font {
+        let count = title.count
+        if count > 220 {
+            return .system(size: 10, weight: .heavy, design: .rounded)
+        }
+        if count > 165 {
+            return .system(size: 11, weight: .heavy, design: .rounded)
+        }
+        if count > 125 {
+            return .system(size: 12, weight: .heavy, design: .rounded)
+        }
+        if count > 95 {
+            return .system(size: 13, weight: .heavy, design: .rounded)
+        }
+        if count > 60 {
+            return .system(size: 14, weight: .heavy, design: .rounded)
+        }
+        return .system(size: 15, weight: .heavy, design: .rounded)
+    }
+
+    private func parlayTitleLineLimit(for title: String) -> Int {
+        let count = title.count
+        if count > 170 { return 5 }
+        if count > 95 { return 4 }
+        if count > 65 { return 3 }
+        return 2
+    }
+
+    private func parlayFooterExpiryLabel(for deadline: Date?) -> String {
+        guard let deadline else { return "Expires soon" }
+
+        let remaining = Int(deadline.timeIntervalSinceNow)
+        if remaining <= 0 { return "Closed" }
+
+        let days = remaining / 86_400
+        let hours = (remaining % 86_400) / 3_600
+        let minutes = (remaining % 3_600) / 60
+
+        if days > 0 {
+            return "Expires in \(days)d \(hours)h"
+        }
+        if hours > 0 {
+            return "Expires in \(hours)h \(minutes)m"
+        }
+        return "Expires in \(max(1, minutes))m"
+    }
+
+    private func parseParlayContext(from rawContext: String?, fallbackSenderName: String?) -> ParlayBubbleDetails {
+        let normalizedSender = fallbackSenderName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let fallbackCreator = normalizedSender.isEmpty ? "Your friend" : normalizedSender
+        let fallback = ParlayBubbleDetails(
+            title: "Tap to pick your side",
+            deadline: nil,
+            creatorName: fallbackCreator
+        )
+
+        guard let rawContext = rawContext?.trimmingCharacters(in: .whitespacesAndNewlines), !rawContext.isEmpty else {
+            return fallback
+        }
+
+        if rawContext.hasPrefix("parlay_v2?") {
+            let query = String(rawContext.dropFirst("parlay_v2?".count))
+            if let components = URLComponents(string: "https://getvibe.app/open?\(query)") {
+                let items = components.queryItems ?? []
+                let title = items.first(where: { $0.name == "title" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let creator = items.first(where: { $0.name == "creator" })?.value?.trimmingCharacters(in: .whitespacesAndNewlines)
+                let deadline = items.first(where: { $0.name == "deadline" })?.value.flatMap(TimeInterval.init).map {
+                    Date(timeIntervalSince1970: $0)
+                }
+
+                if let title, !title.isEmpty {
+                    let normalizedCreator = creator ?? ""
+                    return ParlayBubbleDetails(
+                        title: title,
+                        deadline: deadline,
+                        creatorName: normalizedCreator.isEmpty ? fallbackCreator : normalizedCreator
+                    )
+                }
+            }
+        }
+
+        // Legacy format support: "title|amount|opponent"
+        let parts = rawContext.split(separator: "|", maxSplits: 2).map(String.init)
+        if let first = parts.first {
+            let title = first.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty {
+                return ParlayBubbleDetails(title: title, deadline: nil, creatorName: fallbackCreator)
+            }
+        }
+
+        return fallback
+    }
+
+    private func formatCompactDeadline(_ deadline: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.timeStyle = .short
+        timeFormatter.dateStyle = .none
+
+        if calendar.isDateInToday(deadline) {
+            return "today \(timeFormatter.string(from: deadline))"
+        }
+        if calendar.isDateInTomorrow(deadline) {
+            return "tomorrow \(timeFormatter.string(from: deadline))"
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.setLocalizedDateFormatFromTemplate("EEE h:mm a")
+        return dateFormatter.string(from: deadline)
     }
 
     private var gradientColors: [Color] {

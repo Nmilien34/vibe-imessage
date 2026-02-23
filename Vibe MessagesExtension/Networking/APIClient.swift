@@ -568,6 +568,12 @@ actor APIClient {
             return try decoder.decode(T.self, from: data)
         } catch let error as APIError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch let error as DecodingError {
+            throw APIError.decodingError(error)
         } catch {
             throw APIError.networkError(error)
         }
@@ -599,6 +605,10 @@ actor APIClient {
             }
         } catch let error as APIError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
         } catch {
             throw APIError.networkError(error)
         }
