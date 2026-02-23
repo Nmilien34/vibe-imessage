@@ -115,6 +115,9 @@ router.post('/create', auth_1.authMiddleware, async (req, res) => {
                 thresholdMemberCount: bet.thresholdMemberCount,
                 activatedAt: bet.activatedAt,
                 originalDeadlineDuration: bet.originalDeadlineDuration,
+                observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+                observableDeclaredBy: bet.observableDeclaredBy ?? null,
+                observableDeclaredAt: bet.observableDeclaredAt ?? null,
                 status: bet.status,
                 createdAt: bet.createdAt,
             }
@@ -461,6 +464,9 @@ router.get('/:betId', auth_1.authMiddleware, async (req, res) => {
                 thresholdMemberCount: bet.thresholdMemberCount,
                 activatedAt: bet.activatedAt,
                 originalDeadlineDuration: bet.originalDeadlineDuration,
+                observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+                observableDeclaredBy: bet.observableDeclaredBy ?? null,
+                observableDeclaredAt: bet.observableDeclaredAt ?? null,
                 status: bet.status,
                 createdAt: bet.createdAt,
                 updatedAt: bet.updatedAt,
@@ -548,6 +554,9 @@ router.get('/chat/:chatId', auth_1.authMiddleware, async (req, res) => {
                 thresholdMemberCount: bet.thresholdMemberCount,
                 activatedAt: bet.activatedAt,
                 originalDeadlineDuration: bet.originalDeadlineDuration,
+                observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+                observableDeclaredBy: bet.observableDeclaredBy ?? null,
+                observableDeclaredAt: bet.observableDeclaredAt ?? null,
                 status: bet.status,
                 createdAt: bet.createdAt,
             })),
@@ -668,7 +677,10 @@ router.post('/:betId/vote', auth_1.authMiddleware, async (req, res) => {
         if (error.message?.includes('already voted')
             || error.message?.includes('not available')
             || error.message?.includes('Only stakers')
-            || error.message?.includes('must be resolving')) {
+            || error.message?.includes('must be resolving')
+            || error.message?.includes('No observable declaration')
+            || error.message?.includes('dispute window has closed')
+            || error.message?.includes('voting window has closed')) {
             return res.status(400).json({ error: error.message });
         }
         res.status(500).json({
@@ -802,6 +814,10 @@ router.get('/:betId/proofs', auth_1.authMiddleware, async (req, res) => {
                 mediaUrl: p.mediaUrl,
                 thumbnailUrl: p.thumbnailUrl,
                 caption: p.caption,
+                status: p.status ?? null,
+                confirmations: p.confirmations ?? 0,
+                disputes: p.disputes ?? 0,
+                disputeDeadline: p.disputeDeadline ?? null,
                 createdAt: p.createdAt
             })),
             count: proofs.length
@@ -1162,6 +1178,11 @@ router.post('/:betId/resolve', auth_1.authMiddleware, async (req, res) => {
                 received: outcome
             });
         }
+        if (bet.resolutionType === 'proof') {
+            return res.status(400).json({
+                error: 'Proof-based bets resolve through proof validation, not manual declaration'
+            });
+        }
         if (bet.resolutionType === 'consensus') {
             return res.status(400).json({
                 error: 'Consensus bets must be resolved via voting',
@@ -1179,6 +1200,23 @@ router.post('/:betId/resolve', auth_1.authMiddleware, async (req, res) => {
                     error: 'Observable bets must resolve to yes or no'
                 });
             }
+            const updatedBet = await (0, betService_1.declareObservableOutcome)({
+                betId,
+                creatorId: userId,
+                outcome,
+            });
+            return res.status(202).json({
+                success: true,
+                bet: {
+                    betId: updatedBet.betId,
+                    status: updatedBet.status,
+                    resolutionType: updatedBet.resolutionType,
+                    disputeDeadline: updatedBet.deadline,
+                    declaredOutcome: updatedBet.observableDeclaredOutcome,
+                    declaredAt: updatedBet.observableDeclaredAt,
+                },
+                message: 'Observable outcome declared. Stakers can dispute for 30 minutes.'
+            });
         }
         // Resolve bet
         const resolution = await (0, betService_1.resolveBet)({
@@ -1186,7 +1224,7 @@ router.post('/:betId/resolve', auth_1.authMiddleware, async (req, res) => {
             resolvedBy: userId,
             outcome,
             notes,
-            allowedStatuses: bet.resolutionType === 'observable' ? ['resolving'] : ['active', 'resolving'],
+            allowedStatuses: ['active', 'resolving'],
         });
         // Get final bet state
         const updatedBet = await (0, betService_1.getBetById)(betId);
@@ -1225,6 +1263,10 @@ router.post('/:betId/resolve', auth_1.authMiddleware, async (req, res) => {
             'Only callouts or dares can be marked as ducked',
             'Consensus bets must be resolved via voting',
             'Observable bets must resolve to yes or no',
+            'Proof-based bets resolve through proof validation',
+            'Only observable bets can use creator declaration',
+            'Observable declaration only allowed while resolving',
+            'already pending confirmation',
         ];
         const isUserError = userErrors.some(msg => error.message?.includes(msg));
         if (isUserError) {
@@ -1245,9 +1287,7 @@ router.get('/:betId/resolution', async (req, res) => {
     try {
         const { betId } = req.params;
         const resolution = await (0, betService_1.getBetResolutionPayload)(betId);
-        res.json({
-            resolution
-        });
+        res.json(resolution);
     }
     catch (error) {
         console.error('Resolution fetch error:', error);

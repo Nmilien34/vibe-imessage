@@ -71,6 +71,58 @@ struct LeaderboardEntry: Codable, Identifiable {
     let vibeScore: Int
     let winRate: Int
     let duckRate: Int
+    let wins: Int?
+    let losses: Int?
+    let ducks: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case rank, id, userId, name, displayName, profilePicture
+        case auraBalance, vibeScore, winRate, duckRate
+        case wins, losses, ducks
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.rank = try container.decodeIfPresent(Int.self, forKey: .rank) ?? 0
+        self.id = try container.decodeIfPresent(String.self, forKey: .id)
+            ?? (try container.decodeIfPresent(String.self, forKey: .userId))
+            ?? UUID().uuidString
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? (try container.decodeIfPresent(String.self, forKey: .displayName))
+            ?? "Unknown"
+        self.profilePicture = try container.decodeIfPresent(String.self, forKey: .profilePicture)
+        self.auraBalance = try container.decodeIfPresent(Int.self, forKey: .auraBalance) ?? 0
+        self.vibeScore = try container.decodeIfPresent(Int.self, forKey: .vibeScore) ?? 100
+        self.winRate = try container.decodeIfPresent(Int.self, forKey: .winRate) ?? 0
+        self.wins = try container.decodeIfPresent(Int.self, forKey: .wins)
+        self.losses = try container.decodeIfPresent(Int.self, forKey: .losses)
+        self.ducks = try container.decodeIfPresent(Int.self, forKey: .ducks)
+
+        if let explicitDuckRate = try container.decodeIfPresent(Int.self, forKey: .duckRate) {
+            self.duckRate = explicitDuckRate
+        } else if let ducks, let losses {
+            let total = ducks + losses
+            self.duckRate = total > 0 ? Int((Double(ducks) / Double(total)) * 100.0) : 0
+        } else {
+            self.duckRate = 0
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(rank, forKey: .rank)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(profilePicture, forKey: .profilePicture)
+        try container.encode(auraBalance, forKey: .auraBalance)
+        try container.encode(vibeScore, forKey: .vibeScore)
+        try container.encode(winRate, forKey: .winRate)
+        try container.encode(duckRate, forKey: .duckRate)
+        try container.encodeIfPresent(wins, forKey: .wins)
+        try container.encodeIfPresent(losses, forKey: .losses)
+        try container.encodeIfPresent(ducks, forKey: .ducks)
+    }
 }
 
 // MARK: - API Response Types

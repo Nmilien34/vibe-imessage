@@ -152,6 +152,11 @@ export declare function resolveBet(params: {
  * Retrieves the resolution record for a bet.
  */
 export declare function getBetResolution(betId: string): Promise<IBetResolution | null>;
+export declare function declareObservableOutcome(params: {
+    betId: string;
+    creatorId: string;
+    outcome: 'yes' | 'no';
+}): Promise<IBet>;
 export declare function refundAllStakes(betId: string): Promise<void>;
 export declare function applyDuckPenalty(userId: string, betId: string): Promise<void>;
 export declare function voteOnConsensus(params: {

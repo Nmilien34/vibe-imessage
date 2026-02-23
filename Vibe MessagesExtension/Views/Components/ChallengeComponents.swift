@@ -222,12 +222,12 @@ struct BetCard: View {
     }
 
     private var canQuickStake: Bool {
-        appState.betCanStakeById[bet.betId] ?? (bet.status == .active && !bet.isExpired)
+        appState.betCanStakeById[bet.betId] ?? (bet.supportsStaking && !bet.isExpired)
     }
 
     private var shouldOfferStakeUpPrompt: Bool {
         guard interactionStyle == .quickStake else { return false }
-        guard bet.status == .active, !bet.isExpired else { return false }
+        guard bet.supportsStaking, !bet.isExpired else { return false }
         guard bet.creatorId == appState.userId else { return false }
         guard canQuickStake == false else { return false }
 
@@ -244,12 +244,16 @@ struct BetCard: View {
     }
 
     private var statusLabel: String {
-        let displayStatus: BetStatus = (bet.status == .active && bet.isExpired) ? .expired : bet.status
-        switch displayStatus {
+        if bet.lifecycleStatus == .active && bet.isExpired {
+            return "Expired"
+        }
+
+        switch bet.lifecycleStatus {
+        case .pending: return "Awaiting Quorum"
         case .active: return "Active"
-        case .pendingResolution: return "Pending"
+        case .resolving: return "Resolving"
         case .completed: return "Completed"
-        case .expired: return "Expired"
+        case .expired, .cancelled: return "Expired"
         case .ducked: return "Ducked"
         }
     }
@@ -376,7 +380,7 @@ struct BetCard: View {
                 }
 
                 // Row 4: Stake buttons (only for active bets)
-                if bet.status == .active && !bet.isExpired {
+                if bet.supportsStaking && !bet.isExpired {
                     HStack(spacing: VibeSpacing.sm) {
                         StakeButton(label: interactionStyle == .quickStake ? "Yes" : "Stake Yes", color: VibeTheme.stakeYes, compactStyle: interactionStyle == .quickStake) {
                             if interactionStyle == .quickStake {

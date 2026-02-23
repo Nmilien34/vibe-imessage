@@ -1179,6 +1179,46 @@ export async function getBetResolution(betId: string): Promise<IBetResolution | 
   return await BetResolution.findOne({ betId });
 }
 
+export async function declareObservableOutcome(params: {
+  betId: string;
+  creatorId: string;
+  outcome: 'yes' | 'no';
+}): Promise<IBet> {
+  const { betId, creatorId, outcome } = params;
+  const bet = await Bet.findOne({ betId });
+
+  if (!bet) {
+    throw new Error('Bet not found');
+  }
+
+  if (bet.resolutionType !== 'observable') {
+    throw new Error('Only observable bets can use creator declaration');
+  }
+
+  if (bet.status !== 'resolving') {
+    throw new Error(`Observable declaration only allowed while resolving (current: ${bet.status})`);
+  }
+
+  if (bet.creatorId !== creatorId) {
+    throw new Error('Only the bet creator can declare observable outcomes');
+  }
+
+  if (bet.observableDeclaredOutcome && bet.deadline > new Date()) {
+    throw new Error('An observable declaration is already pending confirmation');
+  }
+
+  bet.observableDeclaredOutcome = outcome;
+  bet.observableDeclaredBy = creatorId;
+  bet.observableDeclaredAt = new Date();
+  bet.deadline = new Date(Date.now() + AURA_CONSTANTS.OBSERVABLE_DISPUTE_WINDOW_MS);
+  await bet.save();
+
+  // Reset votes whenever a fresh declaration starts a new dispute window.
+  await ConsensusVote.deleteMany({ betId });
+
+  return bet;
+}
+
 export async function refundAllStakes(betId: string): Promise<void> {
   const participants = await BetParticipant.find({ betId });
 
@@ -1247,9 +1287,22 @@ export async function voteOnConsensus(params: {
     throw new Error(`Bet must be resolving to vote. Current status: ${bet.status}`);
   }
 
-  const isConsensusAllowed = bet.resolutionType === 'consensus' || bet.resolutionType === 'observable';
-  if (!isConsensusAllowed) {
+  if (bet.resolutionType !== 'consensus' && bet.resolutionType !== 'observable') {
     throw new Error('Consensus voting is not available for this bet');
+  }
+
+  if (bet.resolutionType === 'consensus' && bet.deadline <= new Date()) {
+    throw new Error('Consensus voting window has closed');
+  }
+
+  if (bet.resolutionType === 'observable') {
+    if (!bet.observableDeclaredOutcome) {
+      throw new Error('No observable declaration is currently open for dispute');
+    }
+
+    if (bet.deadline <= new Date()) {
+      throw new Error('Observable dispute window has closed');
+    }
   }
 
   const participant = await BetParticipant.findOne({ betId, userId });
@@ -1420,7 +1473,7 @@ export async function getBetResolutionPayload(betId: string): Promise<{
     const payout = participant.payout ?? 0;
     const net = payout - participant.amount;
 
-    if (participant.won) {
+    if (participant.won || net > 0) {
       winners.push({
         userId: publicUserId,
         displayName,
@@ -1428,12 +1481,12 @@ export async function getBetResolutionPayload(betId: string): Promise<{
         payout,
         netGain: net,
       });
-    } else {
+    } else if (net < 0) {
       losers.push({
         userId: publicUserId,
         displayName,
         stakeAmount: participant.amount,
-        netLoss: -participant.amount,
+        netLoss: net,
       });
     }
   }

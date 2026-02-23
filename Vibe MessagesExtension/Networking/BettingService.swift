@@ -14,6 +14,14 @@ actor BettingService {
 
     private init() {}
 
+    private func statusQueryValue(_ status: BetStatus) -> String {
+        // Server now uses "pending" where legacy client used "pending_resolution".
+        if status == .pendingResolution {
+            return "pending"
+        }
+        return status.rawValue
+    }
+
     // MARK: - Create Bet
 
     struct CreateBetRequest: Encodable {
@@ -24,6 +32,9 @@ actor BettingService {
         let initialStake: Int
         let initialSide: String
         let targetUserId: String?
+        let participationThreshold: Double?
+        let resolutionType: String?
+        let isAnonymous: Bool?
     }
 
     func createBet(
@@ -33,7 +44,10 @@ actor BettingService {
         deadline: Date,
         initialStake: Int,
         initialSide: BetSide = .yes,
-        targetUserId: String? = nil
+        targetUserId: String? = nil,
+        participationThreshold: Double? = nil,
+        resolutionType: BetResolutionType? = nil,
+        isAnonymous: Bool = false
     ) async throws -> Bet {
         let response: CreateBetResponse = try await api.post(
             "/bets/create",
@@ -44,7 +58,10 @@ actor BettingService {
                 deadline: deadline,
                 initialStake: initialStake,
                 initialSide: initialSide.rawValue,
-                targetUserId: targetUserId
+                targetUserId: targetUserId,
+                participationThreshold: participationThreshold,
+                resolutionType: resolutionType?.rawValue,
+                isAnonymous: isAnonymous
             )
         )
         return response.bet
@@ -61,8 +78,13 @@ actor BettingService {
     func getBetsForChat(chatId: String, status: BetStatus? = nil, limit: Int = 50) async throws -> BetListResponse {
         var path = "/bets/chat/\(chatId)?limit=\(limit)"
         if let status = status {
-            path += "&status=\(status.rawValue)"
+            path += "&status=\(statusQueryValue(status))"
         }
+        return try await api.get(path)
+    }
+
+    func getBetsForChat(chatId: String, statusRaw: BetLifecycleStatus, limit: Int = 50) async throws -> BetListResponse {
+        let path = "/bets/chat/\(chatId)?limit=\(limit)&status=\(statusRaw.rawValue)"
         return try await api.get(path)
     }
 
@@ -71,8 +93,13 @@ actor BettingService {
     func getDiscoverBets(status: BetStatus? = nil, limit: Int = 50, offset: Int = 0) async throws -> DiscoverBetResponse {
         var path = "/feed/discover?limit=\(limit)&offset=\(offset)"
         if let status = status {
-            path += "&status=\(status.rawValue)"
+            path += "&status=\(statusQueryValue(status))"
         }
+        return try await api.get(path)
+    }
+
+    func getDiscoverBets(statusRaw: BetLifecycleStatus, limit: Int = 50, offset: Int = 0) async throws -> DiscoverBetResponse {
+        let path = "/feed/discover?limit=\(limit)&offset=\(offset)&status=\(statusRaw.rawValue)"
         return try await api.get(path)
     }
 
@@ -81,12 +108,18 @@ actor BettingService {
     struct PlaceStakeRequest: Encodable {
         let side: String
         let amount: Int
+        let isAnonymous: Bool?
     }
 
-    func placeStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
+    func placeStake(
+        betId: String,
+        side: BetSide,
+        amount: Int,
+        isAnonymous: Bool = false
+    ) async throws -> BetParticipant {
         let response: StakeResponse = try await api.post(
             "/bets/\(betId)/stake",
-            body: PlaceStakeRequest(side: side.rawValue, amount: amount)
+            body: PlaceStakeRequest(side: side.rawValue, amount: amount, isAnonymous: isAnonymous)
         )
         return response.participant
     }
@@ -147,6 +180,53 @@ actor BettingService {
 
     func getProofs(betId: String) async throws -> ProofListResponse {
         return try await api.get("/bets/\(betId)/proofs")
+    }
+
+    // MARK: - Proof Reactions
+
+    struct ProofReactionCounts: Codable {
+        let success: Bool
+        let proof: ProofReactionState
+    }
+
+    struct ProofReactionState: Codable {
+        let proofId: String
+        let status: BetProofStatus?
+        let confirmations: Int
+        let disputes: Int
+        let disputeDeadline: Date?
+    }
+
+    func confirmProof(betId: String, proofId: String) async throws -> ProofReactionCounts {
+        return try await api.postEmpty("/bets/\(betId)/proof/\(proofId)/confirm")
+    }
+
+    func disputeProof(betId: String, proofId: String) async throws -> ProofReactionCounts {
+        return try await api.postEmpty("/bets/\(betId)/proof/\(proofId)/dispute")
+    }
+
+    // MARK: - Consensus Vote
+
+    struct ConsensusVoteRequest: Encodable {
+        let vote: String
+    }
+
+    struct ConsensusVoteCounts: Codable {
+        let success: Bool
+        let counts: VoteCounts
+    }
+
+    struct VoteCounts: Codable {
+        let yesVotes: Int
+        let noVotes: Int
+        let totalVotes: Int
+    }
+
+    func voteOnBet(betId: String, vote: BetSide) async throws -> ConsensusVoteCounts {
+        return try await api.post(
+            "/bets/\(betId)/vote",
+            body: ConsensusVoteRequest(vote: vote.rawValue)
+        )
     }
 
     // MARK: - Resolve Bet

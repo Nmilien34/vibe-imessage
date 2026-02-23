@@ -137,6 +137,15 @@ struct BetListView: View {
                             .font(VibeTypography.captionSmall)
                             .foregroundColor(VibeTheme.textTertiary)
 
+                        if displayStatus == .pendingResolution {
+                            Text("•")
+                                .font(VibeTypography.captionSmall)
+                                .foregroundColor(VibeTheme.textTertiary)
+                            Text(pendingDetailLabel(for: bet))
+                                .font(VibeTypography.captionSmall)
+                                .foregroundColor(.purple)
+                        }
+
                         if !bet.isExpired && bet.status == .active {
                             Text(bet.timeRemainingFormatted)
                                 .font(VibeTypography.captionSmall)
@@ -190,10 +199,21 @@ struct BetListView: View {
     private func statusLabel(_ status: BetStatus) -> String {
         switch status {
         case .active: return "Active"
-        case .pendingResolution: return "Pending"
+        case .pendingResolution: return "Pending / Resolving"
         case .completed: return "Completed"
         case .expired: return "Expired"
         case .ducked: return "Ducked"
+        }
+    }
+
+    private func pendingDetailLabel(for bet: Bet) -> String {
+        switch bet.lifecycleStatus {
+        case .pending:
+            return "Awaiting quorum"
+        case .resolving:
+            return "Resolving"
+        default:
+            return "Pending"
         }
     }
 

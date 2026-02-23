@@ -37,7 +37,8 @@ actor AuraService {
     // MARK: - Get Leaderboard
 
     func getLeaderboard(limit: Int = 20, sortBy: String = "auraBalance") async throws -> [LeaderboardEntry] {
-        let response: LeaderboardResponse = try await api.get("/aura/leaderboard?limit=\(limit)&sortBy=\(sortBy)")
+        _ = sortBy // Server leaderboard is Aura-sorted by design in loop spec.
+        let response: LeaderboardResponse = try await api.get("/leaderboard?limit=\(limit)")
         return response.leaderboard
     }
 }

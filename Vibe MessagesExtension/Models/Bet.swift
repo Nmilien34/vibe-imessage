@@ -13,6 +13,59 @@ enum BetType: String, Codable {
     case `self`
     case callout
     case dare
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? BetType.`self`.rawValue
+
+        switch rawValue {
+        case BetType.`self`.rawValue:
+            self = .self
+        case BetType.callout.rawValue:
+            self = .callout
+        case BetType.dare.rawValue:
+            self = .dare
+        case "prediction":
+            // Legacy client fallback for new server bet type.
+            self = .self
+        default:
+            self = .self
+        }
+    }
+}
+
+enum BetLifecycleStatus: String, Codable {
+    case pending
+    case active
+    case resolving
+    case completed
+    case expired
+    case ducked
+    case cancelled
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = (try? container.decode(String.self)) ?? BetLifecycleStatus.active.rawValue
+
+        switch rawValue {
+        case BetLifecycleStatus.pending.rawValue, "pending_resolution":
+            self = .pending
+        case BetLifecycleStatus.active.rawValue:
+            self = .active
+        case BetLifecycleStatus.resolving.rawValue:
+            self = .resolving
+        case BetLifecycleStatus.completed.rawValue:
+            self = .completed
+        case BetLifecycleStatus.expired.rawValue:
+            self = .expired
+        case BetLifecycleStatus.ducked.rawValue:
+            self = .ducked
+        case BetLifecycleStatus.cancelled.rawValue:
+            self = .cancelled
+        default:
+            self = .active
+        }
+    }
 }
 
 enum BetStatus: String, Codable {
@@ -21,11 +74,38 @@ enum BetStatus: String, Codable {
     case completed
     case expired
     case ducked
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let lifecycle = (try? container.decode(BetLifecycleStatus.self)) ?? .active
+        self = BetStatus(lifecycleStatus: lifecycle)
+    }
+
+    init(lifecycleStatus: BetLifecycleStatus) {
+        switch lifecycleStatus {
+        case .active:
+            self = .active
+        case .pending, .resolving:
+            self = .pendingResolution
+        case .completed:
+            self = .completed
+        case .expired, .cancelled:
+            self = .expired
+        case .ducked:
+            self = .ducked
+        }
+    }
 }
 
 enum BetSide: String, Codable {
     case yes
     case no
+}
+
+enum BetResolutionType: String, Codable {
+    case proof
+    case observable
+    case consensus
 }
 
 enum BetOutcome: String, Codable {
@@ -40,6 +120,12 @@ enum ProofMediaType: String, Codable {
     case video
 }
 
+enum BetProofStatus: String, Codable {
+    case pending
+    case confirmed
+    case disputed
+}
+
 // MARK: - Bet
 
 struct Bet: Codable, Identifiable, Equatable {
@@ -50,9 +136,18 @@ struct Bet: Codable, Identifiable, Equatable {
     let betType: BetType
     let description: String
     let deadline: Date
+    let lifecycleStatus: BetLifecycleStatus
     let status: BetStatus
     let targetUserId: String?
     let creationCost: Int?
+    let participationThreshold: Double?
+    let resolutionType: BetResolutionType?
+    let thresholdMemberCount: Int?
+    let activatedAt: Date?
+    let originalDeadlineDuration: Int?
+    let observableDeclaredOutcome: BetSide?
+    let observableDeclaredBy: String?
+    let observableDeclaredAt: Date?
     let createdAt: Date
     let updatedAt: Date?
 
@@ -60,6 +155,8 @@ struct Bet: Codable, Identifiable, Equatable {
         case id = "_id"
         case betId, chatId, creatorId, betType, description
         case deadline, status, targetUserId, creationCost
+        case participationThreshold, resolutionType, thresholdMemberCount, activatedAt, originalDeadlineDuration
+        case observableDeclaredOutcome, observableDeclaredBy, observableDeclaredAt
         case createdAt, updatedAt
     }
 
@@ -72,9 +169,18 @@ struct Bet: Codable, Identifiable, Equatable {
         self.betType = try container.decode(BetType.self, forKey: .betType)
         self.description = try container.decode(String.self, forKey: .description)
         self.deadline = try container.decode(Date.self, forKey: .deadline)
-        self.status = try container.decode(BetStatus.self, forKey: .status)
+        self.lifecycleStatus = try container.decode(BetLifecycleStatus.self, forKey: .status)
+        self.status = BetStatus(lifecycleStatus: lifecycleStatus)
         self.targetUserId = try container.decodeIfPresent(String.self, forKey: .targetUserId)
         self.creationCost = try container.decodeIfPresent(Int.self, forKey: .creationCost)
+        self.participationThreshold = try container.decodeIfPresent(Double.self, forKey: .participationThreshold)
+        self.resolutionType = try container.decodeIfPresent(BetResolutionType.self, forKey: .resolutionType)
+        self.thresholdMemberCount = try container.decodeIfPresent(Int.self, forKey: .thresholdMemberCount)
+        self.activatedAt = try container.decodeIfPresent(Date.self, forKey: .activatedAt)
+        self.originalDeadlineDuration = try container.decodeIfPresent(Int.self, forKey: .originalDeadlineDuration)
+        self.observableDeclaredOutcome = try container.decodeIfPresent(BetSide.self, forKey: .observableDeclaredOutcome)
+        self.observableDeclaredBy = try container.decodeIfPresent(String.self, forKey: .observableDeclaredBy)
+        self.observableDeclaredAt = try container.decodeIfPresent(Date.self, forKey: .observableDeclaredAt)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
         self.updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
     }
@@ -85,6 +191,18 @@ struct Bet: Codable, Identifiable, Equatable {
 }
 
 extension Bet {
+    var isPendingThreshold: Bool {
+        lifecycleStatus == .pending
+    }
+
+    var isResolving: Bool {
+        lifecycleStatus == .resolving
+    }
+
+    var supportsStaking: Bool {
+        lifecycleStatus == .active || lifecycleStatus == .pending
+    }
+
     var isExpired: Bool {
         deadline < Date()
     }
@@ -115,11 +233,14 @@ struct BetParticipant: Codable, Identifiable, Equatable {
     let userId: String
     let side: BetSide
     let amount: Int
+    let isAnonymous: Bool?
+    let payout: Int?
+    let won: Bool?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
-        case participantId, betId, userId, side, amount, createdAt
+        case participantId, betId, userId, side, amount, isAnonymous, payout, won, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -130,6 +251,9 @@ struct BetParticipant: Codable, Identifiable, Equatable {
         self.userId = try container.decode(String.self, forKey: .userId)
         self.side = try container.decode(BetSide.self, forKey: .side)
         self.amount = try container.decode(Int.self, forKey: .amount)
+        self.isAnonymous = try container.decodeIfPresent(Bool.self, forKey: .isAnonymous)
+        self.payout = try container.decodeIfPresent(Int.self, forKey: .payout)
+        self.won = try container.decodeIfPresent(Bool.self, forKey: .won)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
@@ -154,6 +278,9 @@ struct UserStake: Codable {
     let participantId: String
     let side: BetSide
     let amount: Int
+    let isAnonymous: Bool?
+    let payout: Int?
+    let won: Bool?
     let createdAt: Date
 }
 
@@ -197,12 +324,16 @@ struct BetProof: Codable, Identifiable, Equatable {
     let mediaUrl: String
     let thumbnailUrl: String?
     let caption: String?
+    let status: BetProofStatus?
+    let confirmations: Int?
+    let disputes: Int?
+    let disputeDeadline: Date?
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case proofId, betId, userId, mediaType, mediaUrl
-        case thumbnailUrl, caption, createdAt
+        case thumbnailUrl, caption, status, confirmations, disputes, disputeDeadline, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -215,6 +346,10 @@ struct BetProof: Codable, Identifiable, Equatable {
         self.mediaUrl = try container.decode(String.self, forKey: .mediaUrl)
         self.thumbnailUrl = try container.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         self.caption = try container.decodeIfPresent(String.self, forKey: .caption)
+        self.status = try container.decodeIfPresent(BetProofStatus.self, forKey: .status)
+        self.confirmations = try container.decodeIfPresent(Int.self, forKey: .confirmations)
+        self.disputes = try container.decodeIfPresent(Int.self, forKey: .disputes)
+        self.disputeDeadline = try container.decodeIfPresent(Date.self, forKey: .disputeDeadline)
         self.createdAt = try container.decode(Date.self, forKey: .createdAt)
     }
 
@@ -316,6 +451,8 @@ struct CreateBetResponse: Codable {
 struct StakeResponse: Codable {
     let success: Bool
     let participant: BetParticipant
+    let thresholdActivated: Bool?
+    let betStatus: BetStatus?
 }
 
 struct ProofResponse: Codable {
@@ -346,7 +483,7 @@ struct StakeTransactionListResponse: Codable {
 
 struct ResolveResponse: Codable {
     let success: Bool
-    let resolution: BetResolution
+    let resolution: BetResolution?
     let bet: BetStatusSummary?
     let message: String?
 }
@@ -356,9 +493,67 @@ struct BetStatusSummary: Codable {
     let finalPot: Int?
 }
 
+struct ResolutionProofMedia: Codable {
+    let mediaUrl: String
+    let thumbnailUrl: String?
+    let mediaType: ProofMediaType
+}
+
+struct ResolutionPayoutEntry: Codable, Identifiable {
+    let id: String
+    let userId: String?
+    let displayName: String
+    let stakeAmount: Int
+    let payout: Int?
+    let netGain: Int?
+    let netLoss: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case userId, displayName, stakeAmount, payout, netGain, netLoss
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.userId = try container.decodeIfPresent(String.self, forKey: .userId)
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.stakeAmount = try container.decode(Int.self, forKey: .stakeAmount)
+        self.payout = try container.decodeIfPresent(Int.self, forKey: .payout)
+        self.netGain = try container.decodeIfPresent(Int.self, forKey: .netGain)
+        self.netLoss = try container.decodeIfPresent(Int.self, forKey: .netLoss)
+        self.id = userId ?? UUID().uuidString
+    }
+}
+
+struct ResolutionDuckEntry: Codable, Identifiable {
+    let id: String
+    let userId: String?
+    let displayName: String
+    let penalty: Int
+
+    enum CodingKeys: String, CodingKey {
+        case userId, displayName, penalty
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.userId = try container.decodeIfPresent(String.self, forKey: .userId)
+        self.displayName = try container.decode(String.self, forKey: .displayName)
+        self.penalty = try container.decode(Int.self, forKey: .penalty)
+        self.id = userId ?? UUID().uuidString
+    }
+}
+
 struct ResolutionResponse: Codable {
-    let resolution: BetResolution?
-    let message: String?
+    let betId: String
+    let description: String
+    let betType: BetType
+    let outcome: BetOutcome
+    let proof: ResolutionProofMedia?
+    let winners: [ResolutionPayoutEntry]
+    let losers: [ResolutionPayoutEntry]
+    let ducked: [ResolutionDuckEntry]?
+    let totalPot: Int
+    let participantCount: Int
 }
 
 struct ResolutionClaimResponse: Codable {

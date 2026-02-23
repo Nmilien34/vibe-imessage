@@ -749,7 +749,7 @@ struct VibeViewerView: View {
         stakeError = nil
 
         if let bet = stakeTargetBet {
-            if bet.status != .active || bet.isExpired {
+            if !bet.supportsStaking || bet.isExpired {
                 isSubmittingStake = false
                 stakeError = "This challenge is closed. Posted \(relativeDateString(from: bet.createdAt)); closed \(absoluteDateString(from: bet.deadline))."
                 return
@@ -851,7 +851,7 @@ struct VibeViewerView: View {
 
     private func shouldOfferStakeUpPrompt(for error: Error, bet: Bet) -> Bool {
         guard bet.creatorId == appState.userId else { return false }
-        guard bet.status == .active, !bet.isExpired else { return false }
+        guard bet.supportsStaking, !bet.isExpired else { return false }
         let description = error.localizedDescription.lowercased()
         return description.contains("already staked")
             || description.contains("only add to your existing")
@@ -1276,7 +1276,7 @@ struct StoryStakeSheet: View {
     private func challengeTimingLine(for bet: Bet) -> String {
         let posted = relativeDateString(from: bet.createdAt)
         let closes = absoluteDateString(from: bet.deadline)
-        if bet.isExpired || bet.status != .active {
+        if bet.isExpired || !bet.supportsStaking {
             return "Posted \(posted) • Closed \(closes)"
         }
         return "Posted \(posted) • Closes \(closes)"

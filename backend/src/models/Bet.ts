@@ -33,6 +33,12 @@ const betSchema = new Schema<IBet>(
     thresholdMemberCount: { type: Number },
     activatedAt: { type: Date },
     originalDeadlineDuration: { type: Number },
+    observableDeclaredOutcome: {
+      type: String,
+      enum: ['yes', 'no'],
+    },
+    observableDeclaredBy: { type: String },
+    observableDeclaredAt: { type: Date },
   },
   { timestamps: true }
 );

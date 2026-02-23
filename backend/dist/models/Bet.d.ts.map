@@ -1,1 +1,1 @@
-{"version":3,"file":"Bet.d.ts","sourceRoot":"","sources":["../../src/models/Bet.ts"],"names":[],"mappings":"AAAA,OAAiB,EAAU,KAAK,EAAE,MAAM,UAAU,CAAC;AACnD,OAAO,EAAE,IAAI,EAAyC,MAAM,UAAU,CAAC;AAsCvE,QAAA,MAAM,GAAG,EAAE,KAAK,CAAC,IAAI,CAA0C,CAAC;AAEhE,eAAe,GAAG,CAAC"}
+{"version":3,"file":"Bet.d.ts","sourceRoot":"","sources":["../../src/models/Bet.ts"],"names":[],"mappings":"AAAA,OAAiB,EAAU,KAAK,EAAE,MAAM,UAAU,CAAC;AACnD,OAAO,EAAE,IAAI,EAAyC,MAAM,UAAU,CAAC;AA4CvE,QAAA,MAAM,GAAG,EAAE,KAAK,CAAC,IAAI,CAA0C,CAAC;AAEhE,eAAe,GAAG,CAAC"}

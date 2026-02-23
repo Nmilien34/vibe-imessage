@@ -23,6 +23,7 @@ exports.AURA_CONSTANTS = {
     // Resolution windows
     DISPUTE_WINDOW_MS: 60 * 60 * 1000, // 1 hour
     CONSENSUS_VOTE_WINDOW_MS: 2 * 60 * 60 * 1000, // 2 hours
+    OBSERVABLE_DISPUTE_WINDOW_MS: 30 * 60 * 1000, // 30 minutes
     THRESHOLD_EXPIRY_MS: 48 * 60 * 60 * 1000, // 48 hours
     CREATOR_DECLARE_WINDOW_MS: 24 * 60 * 60 * 1000, // 24 hours
     // House rake

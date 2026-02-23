@@ -459,12 +459,26 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
                 if !isAcceptable { return }
             }
 
-            // Use actual file duration as a reliable fallback
+            // Use actual file duration as a reliable fallback.
             let asset = AVURLAsset(url: outputFileURL)
-            let assetDuration = CMTimeGetSeconds(asset.duration)
-            let duration = assetDuration > 0 ? assetDuration : finalDuration
+            if #available(iOS 16.0, *) {
+                Task { [weak self] in
+                    let assetDuration: Double
+                    do {
+                        let loadedDuration = try await asset.load(.duration)
+                        assetDuration = CMTimeGetSeconds(loadedDuration)
+                    } catch {
+                        assetDuration = 0
+                    }
 
-            self.recordedVideo = VideoRecording(url: outputFileURL, duration: duration)
+                    let duration = assetDuration > 0 ? assetDuration : finalDuration
+                    await MainActor.run {
+                        self?.recordedVideo = VideoRecording(url: outputFileURL, duration: duration)
+                    }
+                }
+            } else {
+                self.recordedVideo = VideoRecording(url: outputFileURL, duration: finalDuration)
+            }
         }
     }
 }

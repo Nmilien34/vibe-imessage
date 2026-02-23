@@ -18,6 +18,7 @@ import {
   confirmBetResolution,
   disputeBetResolution,
   resolveBet,
+  declareObservableOutcome,
   getBetResolutionPayload,
   voteOnConsensus,
   reactToProof,
@@ -164,6 +165,9 @@ router.post('/create', authMiddleware, async (req: Request, res: Response) => {
         thresholdMemberCount: bet.thresholdMemberCount,
         activatedAt: bet.activatedAt,
         originalDeadlineDuration: bet.originalDeadlineDuration,
+        observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+        observableDeclaredBy: bet.observableDeclaredBy ?? null,
+        observableDeclaredAt: bet.observableDeclaredAt ?? null,
         status: bet.status,
         createdAt: bet.createdAt,
       }
@@ -554,6 +558,9 @@ router.get('/:betId', authMiddleware, async (req: Request, res: Response) => {
         thresholdMemberCount: bet.thresholdMemberCount,
         activatedAt: bet.activatedAt,
         originalDeadlineDuration: bet.originalDeadlineDuration,
+        observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+        observableDeclaredBy: bet.observableDeclaredBy ?? null,
+        observableDeclaredAt: bet.observableDeclaredAt ?? null,
         status: bet.status,
         createdAt: bet.createdAt,
         updatedAt: bet.updatedAt,
@@ -646,6 +653,9 @@ router.get('/chat/:chatId', authMiddleware, async (req: Request, res: Response) 
         thresholdMemberCount: bet.thresholdMemberCount,
         activatedAt: bet.activatedAt,
         originalDeadlineDuration: bet.originalDeadlineDuration,
+        observableDeclaredOutcome: bet.observableDeclaredOutcome ?? null,
+        observableDeclaredBy: bet.observableDeclaredBy ?? null,
+        observableDeclaredAt: bet.observableDeclaredAt ?? null,
         status: bet.status,
         createdAt: bet.createdAt,
       })),
@@ -783,6 +793,9 @@ router.post('/:betId/vote', authMiddleware, async (req: Request, res: Response) 
       || error.message?.includes('not available')
       || error.message?.includes('Only stakers')
       || error.message?.includes('must be resolving')
+      || error.message?.includes('No observable declaration')
+      || error.message?.includes('dispute window has closed')
+      || error.message?.includes('voting window has closed')
     ) {
       return res.status(400).json({ error: error.message });
     }
@@ -941,6 +954,10 @@ router.get('/:betId/proofs', authMiddleware, async (req: Request, res: Response)
         mediaUrl: p.mediaUrl,
         thumbnailUrl: p.thumbnailUrl,
         caption: p.caption,
+        status: p.status ?? null,
+        confirmations: p.confirmations ?? 0,
+        disputes: p.disputes ?? 0,
+        disputeDeadline: p.disputeDeadline ?? null,
         createdAt: p.createdAt
       })),
       count: proofs.length
@@ -1350,6 +1367,12 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
       });
     }
 
+    if (bet.resolutionType === 'proof') {
+      return res.status(400).json({
+        error: 'Proof-based bets resolve through proof validation, not manual declaration'
+      });
+    }
+
     if (bet.resolutionType === 'consensus') {
       return res.status(400).json({
         error: 'Consensus bets must be resolved via voting',
@@ -1369,6 +1392,25 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
           error: 'Observable bets must resolve to yes or no'
         });
       }
+
+      const updatedBet = await declareObservableOutcome({
+        betId,
+        creatorId: userId,
+        outcome,
+      });
+
+      return res.status(202).json({
+        success: true,
+        bet: {
+          betId: updatedBet.betId,
+          status: updatedBet.status,
+          resolutionType: updatedBet.resolutionType,
+          disputeDeadline: updatedBet.deadline,
+          declaredOutcome: updatedBet.observableDeclaredOutcome,
+          declaredAt: updatedBet.observableDeclaredAt,
+        },
+        message: 'Observable outcome declared. Stakers can dispute for 30 minutes.'
+      });
     }
 
     // Resolve bet
@@ -1377,7 +1419,7 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
       resolvedBy: userId,
       outcome,
       notes,
-      allowedStatuses: bet.resolutionType === 'observable' ? ['resolving'] : ['active', 'resolving'],
+      allowedStatuses: ['active', 'resolving'],
     });
 
     // Get final bet state
@@ -1421,6 +1463,10 @@ router.post('/:betId/resolve', authMiddleware, async (req: Request, res: Respons
       'Only callouts or dares can be marked as ducked',
       'Consensus bets must be resolved via voting',
       'Observable bets must resolve to yes or no',
+      'Proof-based bets resolve through proof validation',
+      'Only observable bets can use creator declaration',
+      'Observable declaration only allowed while resolving',
+      'already pending confirmation',
     ];
 
     const isUserError = userErrors.some(msg => error.message?.includes(msg));
@@ -1446,9 +1492,7 @@ router.get('/:betId/resolution', async (req: Request, res: Response) => {
     const { betId } = req.params;
     const resolution = await getBetResolutionPayload(betId);
 
-    res.json({
-      resolution
-    });
+    res.json(resolution);
   } catch (error: any) {
     console.error('Resolution fetch error:', error);
 

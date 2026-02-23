@@ -26,6 +26,7 @@ exports.getUserProofs = getUserProofs;
 exports.deleteBetProof = deleteBetProof;
 exports.resolveBet = resolveBet;
 exports.getBetResolution = getBetResolution;
+exports.declareObservableOutcome = declareObservableOutcome;
 exports.refundAllStakes = refundAllStakes;
 exports.applyDuckPenalty = applyDuckPenalty;
 exports.voteOnConsensus = voteOnConsensus;
@@ -924,6 +925,33 @@ async function resolveBet(params) {
 async function getBetResolution(betId) {
     return await BetResolution_1.default.findOne({ betId });
 }
+async function declareObservableOutcome(params) {
+    const { betId, creatorId, outcome } = params;
+    const bet = await Bet_1.default.findOne({ betId });
+    if (!bet) {
+        throw new Error('Bet not found');
+    }
+    if (bet.resolutionType !== 'observable') {
+        throw new Error('Only observable bets can use creator declaration');
+    }
+    if (bet.status !== 'resolving') {
+        throw new Error(`Observable declaration only allowed while resolving (current: ${bet.status})`);
+    }
+    if (bet.creatorId !== creatorId) {
+        throw new Error('Only the bet creator can declare observable outcomes');
+    }
+    if (bet.observableDeclaredOutcome && bet.deadline > new Date()) {
+        throw new Error('An observable declaration is already pending confirmation');
+    }
+    bet.observableDeclaredOutcome = outcome;
+    bet.observableDeclaredBy = creatorId;
+    bet.observableDeclaredAt = new Date();
+    bet.deadline = new Date(Date.now() + auraConstants_1.AURA_CONSTANTS.OBSERVABLE_DISPUTE_WINDOW_MS);
+    await bet.save();
+    // Reset votes whenever a fresh declaration starts a new dispute window.
+    await ConsensusVote_1.default.deleteMany({ betId });
+    return bet;
+}
 async function refundAllStakes(betId) {
     const participants = await BetParticipant_1.default.find({ betId });
     for (const participant of participants) {
@@ -978,9 +1006,19 @@ async function voteOnConsensus(params) {
     if (bet.status !== 'resolving') {
         throw new Error(`Bet must be resolving to vote. Current status: ${bet.status}`);
     }
-    const isConsensusAllowed = bet.resolutionType === 'consensus' || bet.resolutionType === 'observable';
-    if (!isConsensusAllowed) {
+    if (bet.resolutionType !== 'consensus' && bet.resolutionType !== 'observable') {
         throw new Error('Consensus voting is not available for this bet');
+    }
+    if (bet.resolutionType === 'consensus' && bet.deadline <= new Date()) {
+        throw new Error('Consensus voting window has closed');
+    }
+    if (bet.resolutionType === 'observable') {
+        if (!bet.observableDeclaredOutcome) {
+            throw new Error('No observable declaration is currently open for dispute');
+        }
+        if (bet.deadline <= new Date()) {
+            throw new Error('Observable dispute window has closed');
+        }
     }
     const participant = await BetParticipant_1.default.findOne({ betId, userId });
     if (!participant) {
@@ -1082,7 +1120,7 @@ async function getBetResolutionPayload(betId) {
         const publicUserId = isAnonymous ? null : participant.userId.toString();
         const payout = participant.payout ?? 0;
         const net = payout - participant.amount;
-        if (participant.won) {
+        if (participant.won || net > 0) {
             winners.push({
                 userId: publicUserId,
                 displayName,
@@ -1091,12 +1129,12 @@ async function getBetResolutionPayload(betId) {
                 netGain: net,
             });
         }
-        else {
+        else if (net < 0) {
             losers.push({
                 userId: publicUserId,
                 displayName,
                 stakeAmount: participant.amount,
-                netLoss: -participant.amount,
+                netLoss: net,
             });
         }
     }

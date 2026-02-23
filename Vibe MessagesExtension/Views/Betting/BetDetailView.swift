@@ -30,6 +30,14 @@ struct BetDetailView: View {
     @State private var pendingClaim: ResolutionClaim?
     @State private var pendingClaimViewer: ResolutionClaimViewer?
     @State private var resolutionError: String?
+    @State private var resolutionPayload: ResolutionResponse?
+    @State private var isLoadingResolutionPayload = false
+    @State private var isVoting = false
+    @State private var consensusVoteCounts: BettingService.VoteCounts?
+    @State private var hasSubmittedConsensusVote = false
+    @State private var proofReactionStateById: [String: BettingService.ProofReactionState] = [:]
+    @State private var isReactingToProofId: String?
+    @State private var lockedProofReactionIds: Set<String> = []
     @State private var showShareOptions = false
     @State private var showExternalShareSheet = false
     @State private var externalShareURL: URL?
@@ -66,13 +74,16 @@ struct BetDetailView: View {
                     // Header
                     betHeader
 
+                    // Loop Summary
+                    lifecycleSummarySection
+
                     // Pot Visualization
                     if let totals {
                         potVisualization(totals)
                     }
 
                     // Action Section
-                    if currentBet.status == .active {
+                    if currentBet.supportsStaking && !currentBet.isExpired {
                         actionSection
                     }
 
@@ -84,12 +95,24 @@ struct BetDetailView: View {
                         proofsSection
                     }
 
-                    // Resolution (for creator)
-                    if currentBet.status == .active && currentBet.creatorId == appState.userId {
+                    // Proof claim composer
+                    if canCurrentUserClaimProofOutcome {
                         resolutionSection
                     }
 
-                    if currentBet.status == .pendingResolution {
+                    if currentBet.lifecycleStatus == .pending {
+                        thresholdPendingSection
+                    }
+
+                    if currentBet.lifecycleStatus == .resolving {
+                        resolvingLoopSection
+                    }
+
+                    if shouldShowResolvedSummary {
+                        resolvedOutcomeSection
+                    }
+
+                    if shouldShowPendingClaimSection {
                         pendingResolutionSection
                     }
                 }
@@ -166,7 +189,7 @@ struct BetDetailView: View {
                 selectedResolutionOutcome = .no
                 showResolutionComposer = true
             }
-            if currentBet.betType == .callout {
+            if currentBet.betType == .callout || currentBet.betType == .dare {
                 Button("Mark as Ducked", role: .destructive) {
                     selectedResolutionOutcome = .ducked
                     showResolutionComposer = true
@@ -202,7 +225,7 @@ struct BetDetailView: View {
                     .fill(statusColor.opacity(0.15))
                     .frame(width: VibeSpacing.iconCircleLarge, height: VibeSpacing.iconCircleLarge)
 
-                Image(systemName: currentBet.status == .active ? "dice.fill" : statusIcon)
+                Image(systemName: currentBet.lifecycleStatus == .active ? "dice.fill" : statusIcon)
                     .font(.system(size: 36))
                     .foregroundColor(statusColor)
             }
@@ -239,7 +262,16 @@ struct BetDetailView: View {
             HStack(spacing: VibeSpacing.xs) {
                 Image(systemName: "clock")
                     .font(.system(size: 12))
-                if currentBet.isExpired {
+                if currentBet.lifecycleStatus == .completed || currentBet.lifecycleStatus == .ducked {
+                    Text("Resolved \(currentBet.updatedAt ?? currentBet.deadline, style: .relative)")
+                        .font(VibeTypography.captionSmall)
+                } else if currentBet.lifecycleStatus == .resolving {
+                    Text("Resolution window \(currentBet.deadline, style: .relative)")
+                        .font(VibeTypography.captionSmall)
+                } else if currentBet.lifecycleStatus == .pending {
+                    Text("Threshold window \(currentBet.deadline, style: .relative)")
+                        .font(VibeTypography.captionSmall)
+                } else if currentBet.isExpired {
                     Text("Expired")
                         .font(VibeTypography.captionSmall)
                 } else {
@@ -247,13 +279,43 @@ struct BetDetailView: View {
                         .font(VibeTypography.captionSmall)
                 }
             }
-            .foregroundColor(currentBet.isExpired ? .red : VibeTheme.textTertiary)
+            .foregroundColor(
+                currentBet.lifecycleStatus == .expired || currentBet.lifecycleStatus == .cancelled
+                ? .red
+                : VibeTheme.textTertiary
+            )
 
             // Creator
             Text("Created by \(appState.nameForUser(currentBet.creatorId))")
                 .font(VibeTypography.bodySmall)
                 .foregroundColor(VibeTheme.textSecondary)
         }
+    }
+
+    // MARK: - Loop Summary
+
+    private var lifecycleSummarySection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            HStack {
+                Text("LOOP STAGE")
+                    .vibeSectionHeader()
+                Spacer()
+                Text(loopModeLabel)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+                    .padding(.horizontal, VibeSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(VibeTheme.surfaceOverlay)
+                    .clipShape(Capsule())
+            }
+
+            Text(loopStageDescription)
+                .font(VibeTypography.bodySmall)
+                .foregroundColor(VibeTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
     }
 
     // MARK: - Pot Visualization
@@ -524,18 +586,21 @@ struct BetDetailView: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(participants) { participant in
+                        let participantName = participant.isAnonymous == true
+                            ? "Anonymous"
+                            : appState.nameForUser(participant.userId)
                         HStack(spacing: VibeSpacing.md) {
                             Circle()
                                 .fill(participant.side == .yes ? Color.green.opacity(0.15) : Color.red.opacity(0.15))
                                 .frame(width: VibeSpacing.avatarSmall, height: VibeSpacing.avatarSmall)
                                 .overlay(
-                                    Text(String(appState.nameForUser(participant.userId).prefix(1)))
+                                    Text(String(participantName.prefix(1)))
                                         .font(VibeTypography.titleSmall)
                                         .foregroundColor(participant.side == .yes ? .green : .red)
                                 )
 
                             VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
-                                Text(appState.nameForUser(participant.userId))
+                                Text(participantName)
                                     .font(VibeTypography.titleSmall)
                                     .foregroundColor(VibeTheme.textPrimary)
                                 Text(participant.side.rawValue.uppercased())
@@ -570,27 +635,92 @@ struct BetDetailView: View {
                 .vibeSectionHeader()
 
             ForEach(proofs) { proof in
-                HStack(spacing: VibeSpacing.md) {
-                    Image(systemName: proof.mediaType == .photo ? "photo.fill" : "video.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(VibeTheme.accent)
+                let reactionState = proofReactionStateById[proof.proofId]
+                let status = reactionState?.status ?? proof.status
+                let confirmations = reactionState?.confirmations ?? proof.confirmations ?? 0
+                let disputes = reactionState?.disputes ?? proof.disputes ?? 0
+                let disputeDeadline = reactionState?.disputeDeadline ?? proof.disputeDeadline
 
-                    VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
-                        Text(appState.nameForUser(proof.userId))
-                            .font(VibeTypography.titleSmall)
-                            .foregroundColor(VibeTheme.textPrimary)
-                        if let caption = proof.caption {
-                            Text(caption)
-                                .font(VibeTypography.bodySmall)
-                                .foregroundColor(VibeTheme.textSecondary)
+                VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+                    HStack(spacing: VibeSpacing.md) {
+                        Image(systemName: proof.mediaType == .photo ? "photo.fill" : "video.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(VibeTheme.accent)
+
+                        VStack(alignment: .leading, spacing: VibeSpacing.xxxs) {
+                            Text(appState.nameForUser(proof.userId))
+                                .font(VibeTypography.titleSmall)
+                                .foregroundColor(VibeTheme.textPrimary)
+
+                            HStack(spacing: VibeSpacing.xs) {
+                                if let status {
+                                    Text(status.rawValue.capitalized)
+                                        .font(VibeTypography.captionSmall)
+                                        .foregroundColor(status == .confirmed ? .green : status == .disputed ? .red : .orange)
+                                }
+
+                                Text("\(confirmations) confirm • \(disputes) dispute")
+                                    .font(VibeTypography.captionSmall)
+                                    .foregroundColor(VibeTheme.textTertiary)
+                            }
                         }
+
+                        Spacer()
+
+                        Text(proof.createdAt, style: .relative)
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
                     }
 
-                    Spacer()
+                    if let caption = proof.caption {
+                        Text(caption)
+                            .font(VibeTypography.bodySmall)
+                            .foregroundColor(VibeTheme.textSecondary)
+                    }
 
-                    Text(proof.createdAt, style: .relative)
-                        .font(VibeTypography.captionSmall)
-                        .foregroundColor(VibeTheme.textTertiary)
+                    if let disputeDeadline {
+                        Text("Dispute window \(disputeDeadline > Date() ? "closes" : "closed") \(disputeDeadline, style: .relative)")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textTertiary)
+                    }
+
+                    if canCurrentUserReactToProof(
+                        proof: proof,
+                        status: status,
+                        disputeDeadline: disputeDeadline
+                    ) {
+                        HStack(spacing: VibeSpacing.sm) {
+                            Button {
+                                VibeHaptic.success()
+                                Task { await reactToProof(proof: proof, reaction: "confirm") }
+                            } label: {
+                                if isReactingToProofId == proof.proofId {
+                                    ProgressView().tint(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, VibeSpacing.sm)
+                                } else {
+                                    Text("Confirm Proof")
+                                        .vibeButton(.primary)
+                                }
+                            }
+                            .buttonStyle(VibePressStyle())
+                            .disabled(isReactingToProofId != nil)
+
+                            Button {
+                                VibeHaptic.warning()
+                                Task { await reactToProof(proof: proof, reaction: "dispute") }
+                            } label: {
+                                Text("Dispute")
+                                    .vibeButton(.tertiary)
+                            }
+                            .buttonStyle(VibePressStyle())
+                            .disabled(isReactingToProofId != nil)
+                        }
+                    } else if lockedProofReactionIds.contains(proof.proofId) {
+                        Text("Your proof reaction is already recorded.")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textSecondary)
+                    }
                 }
                 .padding(VibeSpacing.md)
                 .vibeCard(radius: VibeTheme.radiusMedium)
@@ -602,7 +732,7 @@ struct BetDetailView: View {
 
     private var resolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("RESOLVE BET")
+            Text("SUBMIT PROOF CLAIM")
                 .vibeSectionHeader()
 
             Text("Capture or upload photo/video proof first, then request payout resolution.")
@@ -630,9 +760,300 @@ struct BetDetailView: View {
         .vibeCard(radius: VibeTheme.radiusMedium)
     }
 
+    private var thresholdPendingSection: some View {
+        let requiredCount = requiredParticipantsToActivate
+        let currentCount = participants.count
+        let progress: Double = {
+            guard let requiredCount, requiredCount > 0 else { return 0 }
+            return min(1, Double(currentCount) / Double(requiredCount))
+        }()
+
+        return VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("AWAITING PARTICIPATION")
+                .vibeSectionHeader()
+
+            if let requiredCount {
+                Text("\(currentCount) of \(requiredCount) participants joined.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                ProgressView(value: progress, total: 1)
+                    .tint(VibeTheme.betAccent)
+
+                if let participationThreshold = currentBet.participationThreshold {
+                    Text("Threshold set to \(Int((participationThreshold * 100).rounded()))% of the chat.")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+            } else {
+                Text("This challenge is waiting for more stakers before it activates.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
+    }
+
+    private var resolvingLoopSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("RESOLUTION LOOP")
+                .vibeSectionHeader()
+
+            switch effectiveResolutionType {
+            case .proof:
+                Text("Proof submissions are under review. Stakers can confirm or dispute during the dispute window.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            case .consensus:
+                consensusResolutionSection
+            case .observable:
+                observableResolutionSection
+            }
+
+            if let resolutionError {
+                Text(resolutionError)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(.red)
+            }
+        }
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
+    }
+
+    private var consensusResolutionSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("Stakers vote YES or NO before the timer ends.")
+                .font(VibeTypography.bodySmall)
+                .foregroundColor(VibeTheme.textSecondary)
+
+            Text("Vote window closes \(currentBet.deadline, style: .relative)")
+                .font(VibeTypography.captionSmall)
+                .foregroundColor(VibeTheme.textTertiary)
+
+            if let counts = consensusVoteCounts {
+                Text("Votes: \(counts.yesVotes) yes • \(counts.noVotes) no")
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+
+            if isCurrentUserStaker {
+                if hasSubmittedConsensusVote {
+                    Text("Your vote is recorded.")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                } else {
+                    HStack(spacing: VibeSpacing.sm) {
+                        Button {
+                            VibeHaptic.medium()
+                            Task { await castConsensusVote(.yes) }
+                        } label: {
+                            Text(isVoting ? "Submitting..." : "Vote YES")
+                                .vibeButton(.primary)
+                        }
+                        .buttonStyle(VibePressStyle())
+                        .disabled(isVoting)
+
+                        Button {
+                            VibeHaptic.medium()
+                            Task { await castConsensusVote(.no) }
+                        } label: {
+                            Text("Vote NO")
+                                .vibeButton(.tertiary)
+                        }
+                        .buttonStyle(VibePressStyle())
+                        .disabled(isVoting)
+                    }
+                }
+            } else {
+                Text("Only stakers can vote in consensus.")
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+    }
+
+    private var observableResolutionSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            if let declaredOutcome = currentBet.observableDeclaredOutcome {
+                Text("Creator declared \(declaredOutcome.rawValue.uppercased()).")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textPrimary)
+
+                Text("Dispute window closes \(currentBet.deadline, style: .relative)")
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textTertiary)
+
+                if let counts = consensusVoteCounts {
+                    Text("Votes: \(counts.yesVotes) yes • \(counts.noVotes) no")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+
+                if isCurrentUserStaker {
+                    if hasSubmittedConsensusVote {
+                        Text("Your vote is recorded.")
+                            .font(VibeTypography.captionSmall)
+                            .foregroundColor(VibeTheme.textSecondary)
+                    } else {
+                        HStack(spacing: VibeSpacing.sm) {
+                            Button {
+                                VibeHaptic.medium()
+                                Task { await castConsensusVote(.yes) }
+                            } label: {
+                                Text(isVoting ? "Submitting..." : "Vote YES")
+                                    .vibeButton(.primary)
+                            }
+                            .buttonStyle(VibePressStyle())
+                            .disabled(isVoting)
+
+                            Button {
+                                VibeHaptic.medium()
+                                Task { await castConsensusVote(.no) }
+                            } label: {
+                                Text("Vote NO")
+                                    .vibeButton(.tertiary)
+                            }
+                            .buttonStyle(VibePressStyle())
+                            .disabled(isVoting)
+                        }
+                    }
+                } else {
+                    Text("Only stakers can dispute or support this declaration.")
+                        .font(VibeTypography.captionSmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+            } else if currentBet.creatorId == appState.userId {
+                Text("Declare the observable outcome to open the dispute window.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+
+                HStack(spacing: VibeSpacing.sm) {
+                    Button {
+                        VibeHaptic.medium()
+                        Task { await declareObservableOutcome(.yes) }
+                    } label: {
+                        Text(isVoting ? "Submitting..." : "Declare YES")
+                            .vibeButton(.primary)
+                    }
+                    .buttonStyle(VibePressStyle())
+                    .disabled(isVoting)
+
+                    Button {
+                        VibeHaptic.medium()
+                        Task { await declareObservableOutcome(.no) }
+                    } label: {
+                        Text("Declare NO")
+                            .vibeButton(.tertiary)
+                    }
+                    .buttonStyle(VibePressStyle())
+                    .disabled(isVoting)
+                }
+            } else {
+                Text("Waiting for the creator to declare an outcome.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+    }
+
+    private var resolvedOutcomeSection: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Text("FINAL OUTCOME")
+                .vibeSectionHeader()
+
+            if isLoadingResolutionPayload {
+                HStack(spacing: VibeSpacing.sm) {
+                    ProgressView()
+                        .tint(VibeTheme.accent)
+                    Text("Loading payout breakdown...")
+                        .font(VibeTypography.bodySmall)
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+            } else if let payload = resolutionPayload {
+                Text(payload.outcome.rawValue.uppercased())
+                    .font(VibeTypography.titleMedium)
+                    .foregroundColor(statusColor)
+
+                Text("Total pot: \(payload.totalPot) Aura • \(payload.participantCount) participants")
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+
+                if !payload.winners.isEmpty {
+                    VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                        Text("Winners")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(.green)
+                        ForEach(payload.winners) { winner in
+                            payoutRow(
+                                title: winner.displayName,
+                                detail: "Stake \(winner.stakeAmount)",
+                                amountText: "+\(winner.netGain ?? 0)"
+                            )
+                        }
+                    }
+                }
+
+                if !payload.losers.isEmpty {
+                    VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                        Text("Losers")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(.red)
+                        ForEach(payload.losers) { loser in
+                            payoutRow(
+                                title: loser.displayName,
+                                detail: "Stake \(loser.stakeAmount)",
+                                amountText: "\(loser.netLoss ?? 0)"
+                            )
+                        }
+                    }
+                }
+
+                if let ducked = payload.ducked, !ducked.isEmpty {
+                    VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+                        Text("Ducked")
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(.orange)
+                        ForEach(ducked) { entry in
+                            payoutRow(
+                                title: entry.displayName,
+                                detail: "Penalty",
+                                amountText: "-\(entry.penalty)"
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text("Resolution details are unavailable right now.")
+                    .font(VibeTypography.bodySmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+        .padding(VibeSpacing.lg)
+        .vibeCard(radius: VibeTheme.radiusMedium)
+    }
+
+    private func payoutRow(title: String, detail: String, amountText: String) -> some View {
+        HStack(spacing: VibeSpacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(VibeTypography.titleSmall)
+                    .foregroundColor(VibeTheme.textPrimary)
+                Text(detail)
+                    .font(VibeTypography.captionSmall)
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+            Spacer()
+            Text(amountText)
+                .font(VibeTypography.numericMedium)
+                .foregroundColor(VibeTheme.textPrimary)
+        }
+        .padding(.vertical, 2)
+    }
+
     private var pendingResolutionSection: some View {
         VStack(alignment: .leading, spacing: VibeSpacing.sm) {
-            Text("PENDING RESOLUTION")
+            Text("PENDING CLAIM REVIEW")
                 .vibeSectionHeader()
 
             if let claim = pendingClaim {
@@ -724,32 +1145,115 @@ struct BetDetailView: View {
         return components.url
     }
 
+    private var effectiveResolutionType: BetResolutionType {
+        currentBet.resolutionType ?? .proof
+    }
+
+    private var canCurrentUserClaimProofOutcome: Bool {
+        guard effectiveResolutionType == .proof else { return false }
+        guard currentBet.creatorId == appState.userId else { return false }
+        guard pendingClaim == nil else { return false }
+        return currentBet.lifecycleStatus == .active || currentBet.lifecycleStatus == .resolving
+    }
+
+    private var shouldShowPendingClaimSection: Bool {
+        currentBet.lifecycleStatus == .resolving && pendingClaim != nil
+    }
+
+    private var shouldShowResolvedSummary: Bool {
+        switch currentBet.lifecycleStatus {
+        case .completed, .expired, .ducked, .cancelled:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var isCurrentUserStaker: Bool {
+        participants.contains { $0.userId == appState.userId }
+    }
+
+    private var requiredParticipantsToActivate: Int? {
+        guard let participationThreshold = currentBet.participationThreshold else { return nil }
+        let baseCount = currentBet.thresholdMemberCount ?? max(participants.count, 1)
+        return max(1, Int(ceil(Double(baseCount) * participationThreshold)))
+    }
+
+    private var loopModeLabel: String {
+        switch effectiveResolutionType {
+        case .proof:
+            return "Proof"
+        case .observable:
+            return "Observable"
+        case .consensus:
+            return "Consensus"
+        }
+    }
+
+    private var loopStageDescription: String {
+        switch currentBet.lifecycleStatus {
+        case .pending:
+            return "This challenge is waiting for enough participants before it activates."
+        case .active:
+            return "Staking is open. Once the timer ends, it moves into the resolution phase."
+        case .resolving:
+            switch effectiveResolutionType {
+            case .proof:
+                return "Proof claims and disputes are currently deciding the outcome."
+            case .observable:
+                return "Creator declaration and staker dispute votes are currently open."
+            case .consensus:
+                return "Stakers are currently voting YES or NO to settle this challenge."
+            }
+        case .completed:
+            return "Challenge completed and payouts were distributed."
+        case .expired:
+            return "Challenge expired and remaining stakes were refunded."
+        case .ducked:
+            return "Challenge was marked as ducked."
+        case .cancelled:
+            return "Challenge was cancelled."
+        }
+    }
+
     private var statusLabel: String {
-        switch currentBet.status {
+        if currentBet.lifecycleStatus == .active && currentBet.isExpired {
+            return "Expired"
+        }
+        switch currentBet.lifecycleStatus {
+        case .pending: return "Awaiting Quorum"
         case .active: return "Active"
-        case .pendingResolution: return "Pending"
+        case .resolving: return "Resolving"
         case .completed: return "Completed"
-        case .expired: return "Expired"
+        case .expired, .cancelled: return "Expired"
         case .ducked: return "Ducked"
         }
     }
 
     private var statusColor: Color {
-        switch currentBet.status {
+        if currentBet.lifecycleStatus == .active && currentBet.isExpired {
+            return .orange
+        }
+        switch currentBet.lifecycleStatus {
+        case .pending: return .orange
         case .active: return .green
-        case .pendingResolution: return .purple
+        case .resolving: return .purple
         case .completed: return .blue
-        case .expired: return .orange
+        case .expired, .cancelled: return .orange
         case .ducked: return .gray
         }
     }
 
     private var statusIcon: String {
-        switch currentBet.status {
+        if currentBet.lifecycleStatus == .active && currentBet.isExpired {
+            return "clock.badge.exclamationmark"
+        }
+        switch currentBet.lifecycleStatus {
+        case .pending: return "person.3.sequence.fill"
         case .active: return "dice.fill"
-        case .pendingResolution: return "hourglass.circle.fill"
+        case .resolving: return "hourglass.circle.fill"
         case .completed: return "checkmark.circle.fill"
-        case .expired: return "clock.badge.exclamationmark"
+        case .expired, .cancelled: return "clock.badge.exclamationmark"
         case .ducked: return "figure.walk"
         }
     }
@@ -772,7 +1276,7 @@ struct BetDetailView: View {
     }
 
     private var canCurrentUserRestake: Bool {
-        guard currentBet.status == .active, !currentBet.isExpired else { return false }
+        guard currentBet.supportsStaking, !currentBet.isExpired else { return false }
         guard currentBet.creatorId == appState.userId else { return false }
         guard userStake != nil else { return false }
 
@@ -802,10 +1306,41 @@ struct BetDetailView: View {
 
             let proofResponse = try await BettingService.shared.getProofs(betId: currentBet.betId)
             self.proofs = proofResponse.proofs
+            self.proofReactionStateById = Dictionary(
+                uniqueKeysWithValues: proofResponse.proofs.compactMap { proof in
+                    guard proof.status != nil || proof.confirmations != nil || proof.disputes != nil || proof.disputeDeadline != nil else {
+                        return nil
+                    }
+
+                    return (
+                        proof.proofId,
+                        BettingService.ProofReactionState(
+                            proofId: proof.proofId,
+                            status: proof.status,
+                            confirmations: proof.confirmations ?? 0,
+                            disputes: proof.disputes ?? 0,
+                            disputeDeadline: proof.disputeDeadline
+                        )
+                    )
+                }
+            )
 
             let claimResponse = try await BettingService.shared.getResolutionClaim(betId: currentBet.betId)
             self.pendingClaim = claimResponse.claim
             self.pendingClaimViewer = claimResponse.viewer
+
+            if currentBet.lifecycleStatus != .resolving {
+                hasSubmittedConsensusVote = false
+                consensusVoteCounts = nil
+                lockedProofReactionIds = []
+            }
+
+            if shouldShowResolvedSummary {
+                await loadResolutionPayload()
+            } else {
+                resolutionPayload = nil
+                isLoadingResolutionPayload = false
+            }
 
             let participantUserIds = participants.map { $0.userId }
             let proofUserIds = proofs.map { $0.userId }
@@ -814,6 +1349,10 @@ struct BetDetailView: View {
 
             if let targetUserId = currentBet.targetUserId {
                 combinedUserIds.append(targetUserId)
+            }
+
+            if let declaredBy = currentBet.observableDeclaredBy {
+                combinedUserIds.append(declaredBy)
             }
 
             if let claim = pendingClaim {
@@ -826,6 +1365,112 @@ struct BetDetailView: View {
         } catch {
             print("BetDetailView Error: \(error)")
         }
+    }
+
+    private func loadResolutionPayload() async {
+        isLoadingResolutionPayload = true
+        defer { isLoadingResolutionPayload = false }
+
+        do {
+            resolutionPayload = try await BettingService.shared.getResolution(betId: currentBet.betId)
+        } catch {
+            resolutionPayload = nil
+        }
+    }
+
+    private func canCurrentUserReactToProof(
+        proof: BetProof,
+        status: BetProofStatus?,
+        disputeDeadline: Date?
+    ) -> Bool {
+        guard currentBet.lifecycleStatus == .resolving else { return false }
+        guard isCurrentUserStaker else { return false }
+        guard proof.userId != appState.userId else { return false }
+        guard !lockedProofReactionIds.contains(proof.proofId) else { return false }
+
+        if let status, status != .pending {
+            return false
+        }
+
+        if let disputeDeadline, disputeDeadline <= Date() {
+            return false
+        }
+
+        return true
+    }
+
+    private func reactToProof(proof: BetProof, reaction: String) async {
+        guard isReactingToProofId == nil else { return }
+
+        isReactingToProofId = proof.proofId
+        resolutionError = nil
+
+        do {
+            let response: BettingService.ProofReactionCounts
+            if reaction == "confirm" {
+                response = try await appState.confirmBetProof(betId: currentBet.betId, proofId: proof.proofId)
+            } else {
+                response = try await appState.disputeBetProof(betId: currentBet.betId, proofId: proof.proofId)
+            }
+
+            proofReactionStateById[proof.proofId] = response.proof
+            lockedProofReactionIds.insert(proof.proofId)
+            VibeHaptic.success()
+            await loadBetDetails()
+        } catch {
+            let message = error.localizedDescription
+            resolutionError = message
+            if message.lowercased().contains("already reacted") {
+                lockedProofReactionIds.insert(proof.proofId)
+            }
+            VibeHaptic.error()
+        }
+
+        isReactingToProofId = nil
+    }
+
+    private func castConsensusVote(_ vote: BetSide) async {
+        guard !isVoting else { return }
+
+        isVoting = true
+        resolutionError = nil
+
+        do {
+            let response = try await appState.voteOnBet(betId: currentBet.betId, vote: vote)
+            consensusVoteCounts = response.counts
+            hasSubmittedConsensusVote = true
+            VibeHaptic.success()
+            await loadBetDetails()
+        } catch {
+            let message = error.localizedDescription
+            resolutionError = message
+            if message.lowercased().contains("already voted") {
+                hasSubmittedConsensusVote = true
+            }
+            VibeHaptic.error()
+        }
+
+        isVoting = false
+    }
+
+    private func declareObservableOutcome(_ outcome: BetOutcome) async {
+        guard !isVoting else { return }
+
+        isVoting = true
+        resolutionError = nil
+
+        do {
+            try await appState.resolveBet(betId: currentBet.betId, outcome: outcome)
+            hasSubmittedConsensusVote = false
+            consensusVoteCounts = nil
+            VibeHaptic.success()
+            await loadBetDetails()
+        } catch {
+            resolutionError = error.localizedDescription
+            VibeHaptic.error()
+        }
+
+        isVoting = false
     }
 
     private func placeStake(side: BetSide) async {

@@ -272,6 +272,10 @@ struct CreateChallengeSheet: View {
     @State private var targetUserId: String? = nil
     @State private var stakeAmount: Int = 25
     @State private var deadlineHours: Double = 24
+    @State private var selectedResolutionType: BetResolutionType = .proof
+    @State private var thresholdEnabled = false
+    @State private var thresholdValue: Double = 0.5
+    @State private var anonymousStakeEnabled = false
 
     // Tea-specific fields
     @State private var teaMode: TeaCreationMode = .quick
@@ -290,6 +294,9 @@ struct CreateChallengeSheet: View {
     private let deadlineChips: [(String, Double)] = [
         ("1h", 1), ("4h", 4), ("12h", 12), ("24h", 24), ("48h", 48)
     ]
+    private let thresholdChips: [(String, Double)] = [
+        ("25%", 0.25), ("50%", 0.5), ("75%", 0.75), ("90%", 0.9)
+    ]
 
     private var targetUsers: [(id: String, name: String)] {
         eligibleTargets.filter { $0.id != appState.userId }
@@ -303,7 +310,7 @@ struct CreateChallengeSheet: View {
         starterChoices.first(where: { $0.id == selectedStarterId })
     }
 
-    private let betCreationFee = 2
+    private let betCreationFee = 0
     private let teaCreationFee = 10
 
     private var isQuickTeaMode: Bool {
@@ -315,7 +322,7 @@ struct CreateChallengeSheet: View {
             .sorted { $0.createdAt > $1.createdAt }
         var seen = Set<String>()
         return merged.filter { bet in
-            guard bet.status == .active, !bet.isExpired else { return false }
+            guard bet.supportsStaking, !bet.isExpired else { return false }
             if seen.contains(bet.betId) { return false }
             seen.insert(bet.betId)
             return true
@@ -352,6 +359,17 @@ struct CreateChallengeSheet: View {
             if validOptions.count < 2 { return false }
         }
         return true
+    }
+
+    private var selectedResolutionSubtitle: String {
+        switch selectedResolutionType {
+        case .proof:
+            return "Proof is reviewed before payout."
+        case .observable:
+            return "Creator declares outcome, stakers can dispute."
+        case .consensus:
+            return "Stakers vote to settle outcome."
+        }
     }
 
     var body: some View {
@@ -407,6 +425,12 @@ struct CreateChallengeSheet: View {
                     // Target user (callout / dare only)
                     if selectedKind.needsTarget {
                         targetSelector
+                    }
+
+                    if selectedKind.needsStake {
+                        resolutionTypeSelector
+                        activationThresholdSelector
+                        anonymousStakeToggle
                     }
 
                     // Tea-specific fields
@@ -476,6 +500,10 @@ struct CreateChallengeSheet: View {
             } else {
                 teaMode = .quick
             }
+            selectedResolutionType = .proof
+            thresholdEnabled = false
+            thresholdValue = 0.5
+            anonymousStakeEnabled = false
         }
         .onChange(of: selectedSpice) { _, _ in
             VibeHaptic.selection()
@@ -786,6 +814,165 @@ struct CreateChallengeSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Bet Loop Settings
+
+    private var resolutionTypeSelector: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.xs) {
+            Text("Resolution mode")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(VibeTheme.textSecondary)
+
+            VStack(spacing: VibeSpacing.xs) {
+                ForEach([BetResolutionType.proof, .observable, .consensus], id: \.rawValue) { mode in
+                    Button {
+                        VibeHaptic.selection()
+                        withAnimation(VibeAnimation.snappy) {
+                            selectedResolutionType = mode
+                        }
+                    } label: {
+                        HStack(spacing: VibeSpacing.sm) {
+                            Image(systemName: resolutionIcon(for: mode))
+                                .font(.system(size: 14, weight: .semibold))
+                                .frame(width: 20)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(resolutionTitle(for: mode))
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text(resolutionDescription(for: mode))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(
+                                        selectedResolutionType == mode
+                                        ? .white.opacity(0.82)
+                                        : VibeTheme.textSecondary
+                                    )
+                            }
+
+                            Spacer()
+
+                            Image(systemName: selectedResolutionType == mode ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(selectedResolutionType == mode ? .white : VibeTheme.textTertiary)
+                        }
+                        .foregroundColor(selectedResolutionType == mode ? .white : VibeTheme.textPrimary)
+                        .padding(VibeSpacing.sm)
+                        .background(selectedResolutionType == mode ? VibeTheme.betAccent : VibeTheme.surfaceOverlay)
+                        .continuousCorner(VibeTheme.radiusMedium)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text(selectedResolutionSubtitle)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(VibeTheme.textTertiary)
+        }
+    }
+
+    private var activationThresholdSelector: some View {
+        VStack(alignment: .leading, spacing: VibeSpacing.sm) {
+            Toggle(isOn: $thresholdEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Require participation threshold")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(VibeTheme.textPrimary)
+                    Text("Bet starts when enough people join.")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(VibeTheme.textSecondary)
+                }
+            }
+            .tint(VibeTheme.betAccent)
+
+            if thresholdEnabled {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: VibeSpacing.xs) {
+                        ForEach(thresholdChips, id: \.1) { chip in
+                            Button {
+                                VibeHaptic.selection()
+                                withAnimation(VibeAnimation.snappy) {
+                                    thresholdValue = chip.1
+                                }
+                            } label: {
+                                Text(chip.0)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(thresholdValue == chip.1 ? .white : VibeTheme.textPrimary)
+                                    .padding(.horizontal, VibeSpacing.sm)
+                                    .padding(.vertical, VibeSpacing.xs)
+                                    .background(thresholdValue == chip.1 ? VibeTheme.betAccent : VibeTheme.surfaceOverlay)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                Text("Starts at \(Int((thresholdValue * 100).rounded()))% chat participation.")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(VibeTheme.textTertiary)
+            }
+        }
+        .padding(VibeSpacing.sm)
+        .background(VibeTheme.cardBackground)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .overlay(
+            RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                .stroke(VibeTheme.divider, lineWidth: 1)
+        )
+    }
+
+    private var anonymousStakeToggle: some View {
+        Toggle(isOn: $anonymousStakeEnabled) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Anonymous initial stake")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(VibeTheme.textPrimary)
+                Text("Hide your identity in payout summaries.")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(VibeTheme.textSecondary)
+            }
+        }
+        .tint(VibeTheme.betAccent)
+        .padding(VibeSpacing.sm)
+        .background(VibeTheme.cardBackground)
+        .continuousCorner(VibeTheme.radiusMedium)
+        .overlay(
+            RoundedRectangle(cornerRadius: VibeTheme.radiusMedium, style: .continuous)
+                .stroke(VibeTheme.divider, lineWidth: 1)
+        )
+    }
+
+    private func resolutionTitle(for type: BetResolutionType) -> String {
+        switch type {
+        case .proof:
+            return "Proof Review"
+        case .observable:
+            return "Observable Claim"
+        case .consensus:
+            return "Consensus Vote"
+        }
+    }
+
+    private func resolutionDescription(for type: BetResolutionType) -> String {
+        switch type {
+        case .proof:
+            return "Uploader submits proof; stakers can confirm or dispute."
+        case .observable:
+            return "Creator declares the result; stakers can challenge it."
+        case .consensus:
+            return "All stakers vote on outcome after deadline."
+        }
+    }
+
+    private func resolutionIcon(for type: BetResolutionType) -> String {
+        switch type {
+        case .proof:
+            return "camera.fill"
+        case .observable:
+            return "eye.fill"
+        case .consensus:
+            return "person.3.fill"
         }
     }
 
@@ -1179,7 +1366,10 @@ struct CreateChallengeSheet: View {
                         deadline: deadline,
                         initialStake: stakeAmount,
                         initialSide: .yes,
-                        targetUserId: selectedKind.needsTarget ? targetUserId : nil
+                        targetUserId: selectedKind.needsTarget ? targetUserId : nil,
+                        participationThreshold: thresholdEnabled ? thresholdValue : nil,
+                        resolutionType: selectedResolutionType,
+                        isAnonymous: anonymousStakeEnabled
                     )
 
                     // Keep challenge creation resilient: challenge should still succeed even if bubble send fails.

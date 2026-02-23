@@ -1,0 +1,65 @@
+{
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/Bet.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Bet.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Bet.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Bet.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Bet.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Bet.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/GroupStreak.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/GroupStreak.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/GroupStreak.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/GroupStreak.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/GroupStreak.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/GroupStreak.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/NetworkModels.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NetworkModels.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NetworkModels.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NetworkModels.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NetworkModels.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NetworkModels.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/NewsItem.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NewsItem.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NewsItem.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NewsItem.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NewsItem.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/NewsItem.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/Reminder.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Reminder.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Reminder.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Reminder.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Reminder.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Reminder.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/StoryBubble.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/StoryBubble.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/StoryBubble.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/StoryBubble.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/StoryBubble.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/StoryBubble.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/TeaSpill.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/TeaSpill.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/TeaSpill.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/TeaSpill.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/TeaSpill.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/TeaSpill.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/Vibe.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Vibe.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Vibe.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Vibe.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Vibe.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/Vibe.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Models/VibeType.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/VibeType.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/VibeType.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/VibeType.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/VibeType.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/VibeType.swiftdeps"
+  }
+}

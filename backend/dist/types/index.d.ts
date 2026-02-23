@@ -200,6 +200,9 @@ export interface IBet {
     thresholdMemberCount?: number;
     activatedAt?: Date;
     originalDeadlineDuration?: number;
+    observableDeclaredOutcome?: BetSide;
+    observableDeclaredBy?: string;
+    observableDeclaredAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 }

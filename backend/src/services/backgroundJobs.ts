@@ -59,6 +59,9 @@ export async function checkDeadlines(): Promise<void> {
     }
 
     if (resolutionType === 'observable') {
+      bet.observableDeclaredOutcome = undefined;
+      bet.observableDeclaredBy = undefined;
+      bet.observableDeclaredAt = undefined;
       bet.deadline = new Date(Date.now() + AURA_CONSTANTS.CREATOR_DECLARE_WINDOW_MS);
       await bet.save();
     }
@@ -77,13 +80,46 @@ export async function checkDeadlines(): Promise<void> {
   });
 
   for (const bet of staleObservableBets) {
+    if (!bet.observableDeclaredOutcome) {
+      await resolveBet({
+        betId: bet.betId,
+        outcome: 'expired',
+        resolvedBy: 'system',
+        notes: 'Creator declaration window expired',
+        allowedStatuses: ['resolving'],
+      });
+      continue;
+    }
+
+    const [totalStakers, yesVotes, noVotes] = await Promise.all([
+      BetParticipant.countDocuments({ betId: bet.betId }),
+      ConsensusVote.countDocuments({ betId: bet.betId, vote: 'yes' }),
+      ConsensusVote.countDocuments({ betId: bet.betId, vote: 'no' }),
+    ]);
+
+    const disputes = bet.observableDeclaredOutcome === 'yes' ? noVotes : yesVotes;
+    const hasMajorityDispute = totalStakers > 0 && disputes > totalStakers * 0.5;
+
+    if (hasMajorityDispute) {
+      await ConsensusVote.deleteMany({ betId: bet.betId });
+      bet.resolutionType = 'consensus';
+      bet.observableDeclaredOutcome = undefined;
+      bet.observableDeclaredBy = undefined;
+      bet.observableDeclaredAt = undefined;
+      bet.deadline = new Date(Date.now() + AURA_CONSTANTS.CONSENSUS_VOTE_WINDOW_MS);
+      await bet.save();
+      continue;
+    }
+
     await resolveBet({
       betId: bet.betId,
-      outcome: 'expired',
-      resolvedBy: 'system',
-      notes: 'Creator declaration window expired',
+      outcome: bet.observableDeclaredOutcome,
+      resolvedBy: bet.observableDeclaredBy ?? bet.creatorId,
+      notes: 'Observable declaration accepted after dispute window',
       allowedStatuses: ['resolving'],
     });
+
+    await ConsensusVote.deleteMany({ betId: bet.betId });
   }
 
   await autoConfirmPendingResolutionClaims();
@@ -104,7 +140,8 @@ export async function checkDisputeWindows(): Promise<void> {
       continue;
     }
 
-    if (bet.status !== 'active' && bet.status !== 'resolving') {
+    // Proofs should only finalize after the bet has entered the resolving phase.
+    if (bet.status !== 'resolving') {
       continue;
     }
 

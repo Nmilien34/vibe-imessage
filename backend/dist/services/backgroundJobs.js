@@ -57,6 +57,9 @@ async function checkDeadlines() {
             }
         }
         if (resolutionType === 'observable') {
+            bet.observableDeclaredOutcome = undefined;
+            bet.observableDeclaredBy = undefined;
+            bet.observableDeclaredAt = undefined;
             bet.deadline = new Date(Date.now() + auraConstants_1.AURA_CONSTANTS.CREATOR_DECLARE_WINDOW_MS);
             await bet.save();
         }
@@ -72,13 +75,41 @@ async function checkDeadlines() {
         deadline: { $lt: now },
     });
     for (const bet of staleObservableBets) {
+        if (!bet.observableDeclaredOutcome) {
+            await (0, betService_1.resolveBet)({
+                betId: bet.betId,
+                outcome: 'expired',
+                resolvedBy: 'system',
+                notes: 'Creator declaration window expired',
+                allowedStatuses: ['resolving'],
+            });
+            continue;
+        }
+        const [totalStakers, yesVotes, noVotes] = await Promise.all([
+            BetParticipant_1.default.countDocuments({ betId: bet.betId }),
+            ConsensusVote_1.default.countDocuments({ betId: bet.betId, vote: 'yes' }),
+            ConsensusVote_1.default.countDocuments({ betId: bet.betId, vote: 'no' }),
+        ]);
+        const disputes = bet.observableDeclaredOutcome === 'yes' ? noVotes : yesVotes;
+        const hasMajorityDispute = totalStakers > 0 && disputes > totalStakers * 0.5;
+        if (hasMajorityDispute) {
+            await ConsensusVote_1.default.deleteMany({ betId: bet.betId });
+            bet.resolutionType = 'consensus';
+            bet.observableDeclaredOutcome = undefined;
+            bet.observableDeclaredBy = undefined;
+            bet.observableDeclaredAt = undefined;
+            bet.deadline = new Date(Date.now() + auraConstants_1.AURA_CONSTANTS.CONSENSUS_VOTE_WINDOW_MS);
+            await bet.save();
+            continue;
+        }
         await (0, betService_1.resolveBet)({
             betId: bet.betId,
-            outcome: 'expired',
-            resolvedBy: 'system',
-            notes: 'Creator declaration window expired',
+            outcome: bet.observableDeclaredOutcome,
+            resolvedBy: bet.observableDeclaredBy ?? bet.creatorId,
+            notes: 'Observable declaration accepted after dispute window',
             allowedStatuses: ['resolving'],
         });
+        await ConsensusVote_1.default.deleteMany({ betId: bet.betId });
     }
     await (0, betService_1.autoConfirmPendingResolutionClaims)();
 }
@@ -94,7 +125,8 @@ async function checkDisputeWindows() {
         if (!bet) {
             continue;
         }
-        if (bet.status !== 'active' && bet.status !== 'resolving') {
+        // Proofs should only finalize after the bet has entered the resolving phase.
+        if (bet.status !== 'resolving') {
             continue;
         }
         const totalStakers = await BetParticipant_1.default.countDocuments({ betId: proof.betId });

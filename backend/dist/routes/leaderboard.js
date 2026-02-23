@@ -54,7 +54,9 @@ router.get('/', auth_1.authMiddleware, async (req, res) => {
             const wins = user.wins ?? user.betsCompleted ?? 0;
             const losses = user.losses ?? user.betsFailed ?? 0;
             const ducks = user.ducks ?? user.calloutsIgnored ?? 0;
-            const displayName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || 'Unknown';
+            const displayName = user.firstName?.trim()
+                || `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim()
+                || 'Unknown';
             return {
                 userId: user._id,
                 displayName,

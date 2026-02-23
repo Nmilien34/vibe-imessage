@@ -15,6 +15,7 @@ export declare const AURA_CONSTANTS: {
     readonly CREATION_COST: 0;
     readonly DISPUTE_WINDOW_MS: number;
     readonly CONSENSUS_VOTE_WINDOW_MS: number;
+    readonly OBSERVABLE_DISPUTE_WINDOW_MS: number;
     readonly THRESHOLD_EXPIRY_MS: number;
     readonly CREATOR_DECLARE_WINDOW_MS: number;
     readonly HOUSE_RAKE: 0;

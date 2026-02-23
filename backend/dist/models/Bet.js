@@ -64,6 +64,12 @@ const betSchema = new mongoose_1.Schema({
     thresholdMemberCount: { type: Number },
     activatedAt: { type: Date },
     originalDeadlineDuration: { type: Number },
+    observableDeclaredOutcome: {
+        type: String,
+        enum: ['yes', 'no'],
+    },
+    observableDeclaredBy: { type: String },
+    observableDeclaredAt: { type: Date },
 }, { timestamps: true });
 const Bet = mongoose_1.default.model('Bet', betSchema);
 exports.default = Bet;

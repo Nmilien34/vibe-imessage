@@ -1,0 +1,65 @@
+{
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/ComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ComposerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/CreatorCameraView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/CreatorCameraView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/CreatorCameraView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/CreatorCameraView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/CreatorCameraView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/CreatorCameraView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/DailyDropComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/DailyDropComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/DailyDropComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/DailyDropComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/DailyDropComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/DailyDropComposerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/ETAComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ETAComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ETAComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ETAComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ETAComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ETAComposerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/LeakComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/LeakComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/LeakComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/LeakComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/LeakComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/LeakComposerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/MediaEditorView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MediaEditorView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MediaEditorView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MediaEditorView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MediaEditorView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MediaEditorView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/MoodComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MoodComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MoodComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MoodComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MoodComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MoodComposerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/MusicPickerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MusicPickerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MusicPickerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MusicPickerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MusicPickerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/MusicPickerView.swiftdeps"
+  },
+  "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/ParlayComposerView.swift" : {
+    "const-values" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ParlayComposerView.swiftconstvalues",
+    "dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ParlayComposerView.d",
+    "diagnostics" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ParlayComposerView.dia",
+    "object" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ParlayComposerView.o",
+    "swift-dependencies" : "/Users/roadto1million/Desktop/Programing/Repos/Vibe/.derivedData/Build/Intermediates.noindex/Vibe.build/Debug-iphonesimulator/Vibe MessagesExtension.build/Objects-normal/x86_64/ParlayComposerView.swiftdeps"
+  }
+}

@@ -129,6 +129,10 @@ class AppState: ObservableObject {
         return bet.status
     }
 
+    private func shouldAppearInCompactBetRail(_ bet: Bet) -> Bool {
+        bet.lifecycleStatus == .active || bet.lifecycleStatus == .pending || bet.lifecycleStatus == .resolving
+    }
+
     // MARK: - Detail View State
     @Published var selectedBet: Bet?
     @Published var selectedTea: TeaSpill?
@@ -428,15 +432,68 @@ class AppState: ObservableObject {
     /// Reference to the current MSConversation for message packing
     var currentConversation: MSConversation?
 
+    private func makeChatIdResolutionTask(
+        for conversation: MSConversation,
+        refreshDataOnLateResolution: Bool
+    ) -> Task<String, Error> {
+        Task {
+            let timeouts: [Double] = [3, 20, 45]
+
+            for (index, timeout) in timeouts.enumerated() {
+                let resolvedChatId = await withTimeout(seconds: timeout) {
+                    await ConversationManager.shared.resolveChatID(
+                        conversation: conversation,
+                        userId: self.userId
+                    )
+                }
+
+                if let chatId = resolvedChatId, !chatId.hasPrefix("fallback_") {
+                    let wasDifferent = self.currentChatId != chatId
+                    self.currentChatId = chatId
+
+                    if index == 0 {
+                        print("AppState Debug: Resolved Chat ID to: \(chatId)")
+                    } else {
+                        print("AppState Debug: Resolved Chat ID on retry attempt \(index + 1): \(chatId)")
+                    }
+
+                    if refreshDataOnLateResolution && wasDifferent && index > 0 {
+                        async let reminders: () = loadReminders()
+                        async let bets: () = loadBets()
+                        async let tea: () = loadTeaSpills()
+                        _ = await (reminders, bets, tea)
+                    }
+
+                    return chatId
+                }
+
+                if Task.isCancelled {
+                    throw CancellationError()
+                }
+                print("AppState Debug: Chat ID resolution attempt \(index + 1) failed, retrying...")
+            }
+
+            throw APIError.networkError(
+                NSError(
+                    domain: "Vibe",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to connect to chat. Please try again."]
+                )
+            )
+        }
+    }
+
     func setConversation(_ conversation: MSConversation?) {
         guard let conversation = conversation else {
             conversationId = nil
             currentChatId = nil
+            chatIdResolutionTask?.cancel()
             chatIdResolutionTask = nil
             currentConversation = nil
             return
         }
 
+        chatIdResolutionTask?.cancel()
         currentConversation = conversation
 
         // Legacy: Use localParticipantIdentifier
@@ -461,45 +518,10 @@ class AppState: ObservableObject {
         // Store the resolution task so write operations (createBet, createTeaSpill, createVibe)
         // can await the real chat ID instead of sending a fallback ID.
         if isAuthenticated && userId != "anonymous" {
-            chatIdResolutionTask = Task {
-                // Step 1: Resolve real chat ID with a SHORT timeout (3s).
-                let resolvedChatId = await withTimeout(seconds: 3) {
-                    await ConversationManager.shared.resolveChatID(
-                        conversation: conversation,
-                        userId: self.userId
-                    )
-                }
-
-                if let chatId = resolvedChatId, !chatId.hasPrefix("fallback_") {
-                    self.currentChatId = chatId
-                    print("AppState Debug: Resolved Chat ID to: \(chatId)")
-                    return chatId
-                }
-
-                // First attempt timed out — retry with longer timeout
-                print("AppState Debug: Chat ID resolution timed out, retrying...")
-                let retryId = await withTimeout(seconds: 20) {
-                    await ConversationManager.shared.resolveChatID(
-                        conversation: conversation,
-                        userId: self.userId
-                    )
-                }
-                if let retryId = retryId, !retryId.hasPrefix("fallback_") {
-                    self.currentChatId = retryId
-                    print("AppState Debug: Late-resolved Chat ID to: \(retryId)")
-                    // Reload chat-specific data with correct ID
-                    async let reminders: () = loadReminders()
-                    async let bets: () = loadBets()
-                    async let tea: () = loadTeaSpills()
-                    _ = await (reminders, bets, tea)
-                    return retryId
-                }
-
-                throw APIError.networkError(
-                    NSError(domain: "Vibe", code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "Unable to connect to chat. Please try again."])
-                )
-            }
+            chatIdResolutionTask = makeChatIdResolutionTask(
+                for: conversation,
+                refreshDataOnLateResolution: true
+            )
         } else {
             chatIdResolutionTask = nil
             print("AppState Debug: Skipping chat resolution until authenticated")
@@ -550,7 +572,17 @@ class AppState: ObservableObject {
         guard isAuthenticated else {
             throw APIError.httpError(statusCode: 401, message: "Please sign in to continue.")
         }
-        // Await the background resolution task
+        // If conversation became available after auth, lazily bootstrap resolution.
+        if chatIdResolutionTask == nil,
+           let conversation = currentConversation,
+           isAuthenticated,
+           userId != "anonymous" {
+            chatIdResolutionTask = makeChatIdResolutionTask(
+                for: conversation,
+                refreshDataOnLateResolution: false
+            )
+        }
+
         guard let task = chatIdResolutionTask else {
             throw APIError.networkError(
                 NSError(
@@ -560,7 +592,24 @@ class AppState: ObservableObject {
                 )
             )
         }
-        return try await task.value
+
+        do {
+            return try await task.value
+        } catch {
+            guard let conversation = currentConversation, isAuthenticated, userId != "anonymous" else {
+                throw error
+            }
+
+            // A failed resolution task should not permanently block write operations.
+            print("AppState Debug: Chat ID resolution failed, retrying on demand: \(error)")
+            chatIdResolutionTask?.cancel()
+            let retryTask = makeChatIdResolutionTask(
+                for: conversation,
+                refreshDataOnLateResolution: false
+            )
+            chatIdResolutionTask = retryTask
+            return try await retryTask.value
+        }
     }
 
     private func resolvedChatIdForRead() async -> String? {
@@ -1036,7 +1085,7 @@ class AppState: ObservableObject {
     private func cacheDiscoverBetItems(_ items: [DiscoverBetFeedItem]) {
         for item in items {
             betTotalsById[item.bet.betId] = item.totals
-            betCanStakeById[item.bet.betId] = item.canBet && item.bet.status == .active
+            betCanStakeById[item.bet.betId] = item.canBet && item.bet.supportsStaking && !item.bet.isExpired
             betSourceById[item.bet.betId] = item.source
         }
     }
@@ -1074,10 +1123,10 @@ class AppState: ObservableObject {
 
             do {
                 let myStake = try await BettingService.shared.getMyStake(betId: bet.betId)
-                betCanStakeById[bet.betId] = !myStake.hasStake && bet.status == .active && !bet.isExpired
+                betCanStakeById[bet.betId] = !myStake.hasStake && bet.supportsStaking && !bet.isExpired
             } catch {
                 // Default to enabled for active cards if stake lookup fails
-                betCanStakeById[bet.betId] = bet.status == .active && !bet.isExpired
+                betCanStakeById[bet.betId] = bet.supportsStaking && !bet.isExpired
             }
         }
     }
@@ -1089,14 +1138,16 @@ class AppState: ObservableObject {
         defer { isLoadingBets = false }
 
         do {
-            async let active = BettingService.shared.getBetsForChat(chatId: chatId, status: .active)
-            async let pending = BettingService.shared.getBetsForChat(chatId: chatId, status: .pendingResolution)
+            async let active = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .active)
+            async let pending = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .pending)
+            async let resolving = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .resolving)
 
             let activeResponse = try await active
             let pendingResponse = try await pending
+            let resolvingResponse = try await resolving
 
             let compactBets = deduplicateBets(
-                (activeResponse.bets + pendingResponse.bets)
+                (activeResponse.bets + pendingResponse.bets + resolvingResponse.bets)
                     .sorted { $0.createdAt > $1.createdAt }
             )
 
@@ -1113,18 +1164,20 @@ class AppState: ObservableObject {
         defer { isLoadingBets = false }
 
         do {
-            async let active = BettingService.shared.getDiscoverBets(status: .active)
-            async let pending = BettingService.shared.getDiscoverBets(status: .pendingResolution)
-            async let completed = BettingService.shared.getDiscoverBets(status: .completed)
-            async let expired = BettingService.shared.getDiscoverBets(status: .expired)
-            async let ducked = BettingService.shared.getDiscoverBets(status: .ducked)
+            async let active = BettingService.shared.getDiscoverBets(statusRaw: .active)
+            async let pending = BettingService.shared.getDiscoverBets(statusRaw: .pending)
+            async let resolving = BettingService.shared.getDiscoverBets(statusRaw: .resolving)
+            async let completed = BettingService.shared.getDiscoverBets(statusRaw: .completed)
+            async let expired = BettingService.shared.getDiscoverBets(statusRaw: .expired)
+            async let ducked = BettingService.shared.getDiscoverBets(statusRaw: .ducked)
 
             let activeResponse = try await active
             let pendingResponse = try await pending
+            let resolvingResponse = try await resolving
             let completedResponse = try await completed
             let expiredResponse = try await expired
             let duckedResponse = try await ducked
-            let combinedItems = activeResponse.bets + pendingResponse.bets
+            let combinedItems = activeResponse.bets + pendingResponse.bets + resolvingResponse.bets
                 + completedResponse.bets + expiredResponse.bets + duckedResponse.bets
 
             cacheDiscoverBetItems(combinedItems)
@@ -1149,7 +1202,10 @@ class AppState: ObservableObject {
         deadline: Date,
         initialStake: Int,
         initialSide: BetSide = .yes,
-        targetUserId: String? = nil
+        targetUserId: String? = nil,
+        participationThreshold: Double? = nil,
+        resolutionType: BetResolutionType? = nil,
+        isAnonymous: Bool = false
     ) async throws -> Bet {
         let chatId = try await awaitResolvedChatId()
         let bet = try await BettingService.shared.createBet(
@@ -1159,7 +1215,10 @@ class AppState: ObservableObject {
             deadline: deadline,
             initialStake: initialStake,
             initialSide: initialSide,
-            targetUserId: targetUserId
+            targetUserId: targetUserId,
+            participationThreshold: participationThreshold,
+            resolutionType: resolutionType,
+            isAnonymous: isAnonymous
         )
         activeBets.insert(bet, at: 0)
         expandedBets.insert(bet, at: 0)
@@ -1238,13 +1297,12 @@ class AppState: ObservableObject {
     }
 
     func resolveBet(betId: String, outcome: BetOutcome, notes: String? = nil) async throws {
-        _ = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
-        // Remove from active bets
-        activeBets.removeAll { $0.betId == betId }
-        expandedBets.removeAll { $0.betId == betId }
+        let response = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
+        await refreshBetResolutionCaches()
         betCanStakeById[betId] = false
-        // Refresh aura after resolution
-        await loadAuraStats()
+        if response.resolution != nil {
+            await loadAuraStats()
+        }
     }
 
     @discardableResult
@@ -1361,6 +1419,27 @@ class AppState: ObservableObject {
     @discardableResult
     func disputeBetResolutionClaim(betId: String, notes: String? = nil) async throws -> ResolutionClaimActionResponse {
         let response = try await BettingService.shared.disputeResolutionClaim(betId: betId, notes: notes)
+        await refreshBetResolutionCaches()
+        return response
+    }
+
+    @discardableResult
+    func voteOnBet(betId: String, vote: BetSide) async throws -> BettingService.ConsensusVoteCounts {
+        let response = try await BettingService.shared.voteOnBet(betId: betId, vote: vote)
+        await refreshBetResolutionCaches()
+        return response
+    }
+
+    @discardableResult
+    func confirmBetProof(betId: String, proofId: String) async throws -> BettingService.ProofReactionCounts {
+        let response = try await BettingService.shared.confirmProof(betId: betId, proofId: proofId)
+        await refreshBetResolutionCaches()
+        return response
+    }
+
+    @discardableResult
+    func disputeBetProof(betId: String, proofId: String) async throws -> BettingService.ProofReactionCounts {
+        let response = try await BettingService.shared.disputeProof(betId: betId, proofId: proofId)
         await refreshBetResolutionCaches()
         return response
     }
@@ -2056,10 +2135,10 @@ class AppState: ObservableObject {
             let bet = detail.bet
 
             betTotalsById[bet.betId] = detail.totals
-            betCanStakeById[bet.betId] = detail.userStake == nil && bet.status == .active && !bet.isExpired
+            betCanStakeById[bet.betId] = detail.userStake == nil && bet.supportsStaking && !bet.isExpired
 
             expandedBets = deduplicateBets([bet] + expandedBets)
-            if bet.status == .active || bet.status == .pendingResolution {
+            if shouldAppearInCompactBetRail(bet) {
                 activeBets = deduplicateBets([bet] + activeBets)
             }
 
@@ -2124,10 +2203,10 @@ class AppState: ObservableObject {
             let bet = detail.bet
 
             betTotalsById[bet.betId] = detail.totals
-            betCanStakeById[bet.betId] = detail.userStake == nil && bet.status == .active && !bet.isExpired
+            betCanStakeById[bet.betId] = detail.userStake == nil && bet.supportsStaking && !bet.isExpired
 
             expandedBets = deduplicateBets([bet] + expandedBets)
-            if bet.status == .active || bet.status == .pendingResolution {
+            if shouldAppearInCompactBetRail(bet) {
                 activeBets = deduplicateBets([bet] + activeBets)
             }
 
@@ -2242,20 +2321,20 @@ class AppState: ObservableObject {
 
         // Prefer active + not expired + user can still stake.
         if let candidate = merged.first(where: { bet in
-            bet.status == .active
+            bet.supportsStaking
                 && !bet.isExpired
                 && (betCanStakeById[bet.betId] ?? true)
         }) {
             return candidate
         }
 
-        // Fallback to any active/non-expired bet detail.
-        return merged.first(where: { $0.status == .active && !$0.isExpired })
+        // Fallback to any stake-open/non-expired bet detail.
+        return merged.first(where: { $0.supportsStaking && !$0.isExpired })
     }
 
     private func matchBetForVibe(_ vibe: Vibe, in candidates: [Bet]) -> Bet? {
         let merged = deduplicateBets(candidates)
-        let scoped = merged.filter { $0.status == .active && !$0.isExpired }
+        let scoped = merged.filter { $0.supportsStaking && !$0.isExpired }
 
         let rawQuery = (vibe.parlay?.title ?? vibe.parlay?.question ?? vibe.textStatus ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
