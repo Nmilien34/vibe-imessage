@@ -14,6 +14,10 @@ class MessagesViewController: MSMessagesAppViewController {
 
     private var appState = AppState()
     private var hostingController: UIViewController?
+    private var pendingAutoSendMessage: MSMessage?
+    private var pendingAutoSendVibeId: String?
+    private var pendingAutoSendRetryCount: Int = 0
+    private let maxPendingAutoSendRetries = 3
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -89,6 +93,12 @@ class MessagesViewController: MSMessagesAppViewController {
         ])
 
         hosting.didMove(toParent: self)
+
+        let interactionProbe = UITapGestureRecognizer(target: self, action: #selector(handleUserInteractionForPendingSend))
+        interactionProbe.cancelsTouchesInView = false
+        interactionProbe.delaysTouchesBegan = false
+        interactionProbe.delaysTouchesEnded = false
+        view.addGestureRecognizer(interactionProbe)
     }
 
     // MARK: - Conversation Handling
@@ -465,12 +475,91 @@ class MessagesViewController: MSMessagesAppViewController {
 
         print("MVC sendStory: url=\(message.url?.absoluteString ?? "nil") chatId=\(appState.currentChatId ?? "nil")")
 
-        // 5. Insert into Conversation
-        conversation.insert(message) { error in
-            if let error = error {
-                print("Error inserting message: \(error)")
+        // 5. Always attempt direct send first.
+        conversation.send(message) { [weak self] error in
+            if let nsError = error as NSError? {
+                if self?.shouldQueuePendingAutoSend(for: nsError) == true {
+                    self?.pendingAutoSendMessage = message
+                    self?.pendingAutoSendVibeId = vibeId
+                    self?.pendingAutoSendRetryCount = 0
+                    print("Auto-send blocked by iMessage policy (\(nsError.domain) code=\(nsError.code)); queued retry on next user interaction.")
+                    return
+                }
+
+                print("Error sending message directly (\(nsError.domain) code=\(nsError.code)): \(nsError.localizedDescription). Falling back to staged insert.")
+                conversation.insert(message) { fallbackError in
+                    if let fallbackError = fallbackError {
+                        print("Error inserting fallback message: \(fallbackError)")
+                    } else {
+                        print("MessagesViewController: Inserted fallback vibe message \(vibeId)")
+                    }
+                }
             } else {
-                print("MessagesViewController: Inserted vibe message \(vibeId)")
+                print("MessagesViewController: Sent vibe message \(vibeId)")
+                self?.clearPendingAutoSend()
+                Task { @MainActor in
+                    self?.requestPresentationStyle(.compact)
+                }
+            }
+        }
+    }
+
+    private func clearPendingAutoSend() {
+        pendingAutoSendMessage = nil
+        pendingAutoSendVibeId = nil
+        pendingAutoSendRetryCount = 0
+    }
+
+    private func shouldQueuePendingAutoSend(for error: NSError) -> Bool {
+        guard error.domain == MSMessagesErrorDomain else { return false }
+
+        // MSMessageErrorCodeSendWithoutRecentInteraction = 9
+        // MSMessageErrorCodeSendWhileNotVisible = 10
+        return error.code == 9 || error.code == 10
+    }
+
+    @objc private func handleUserInteractionForPendingSend() {
+        guard let pendingMessage = pendingAutoSendMessage,
+              let pendingVibeId = pendingAutoSendVibeId,
+              let conversation = activeConversation ?? appState.currentConversation else { return }
+
+        conversation.send(pendingMessage) { [weak self] error in
+            guard let self else { return }
+            if let nsError = error as NSError? {
+                if self.shouldQueuePendingAutoSend(for: nsError) {
+                    self.pendingAutoSendRetryCount += 1
+                    print("Pending auto-send retry \(self.pendingAutoSendRetryCount) blocked (\(nsError.domain) code=\(nsError.code)).")
+
+                    if self.pendingAutoSendRetryCount >= self.maxPendingAutoSendRetries {
+                        print("Pending auto-send retry limit reached; staging message in compose field.")
+                        conversation.insert(pendingMessage) { fallbackError in
+                            if let fallbackError = fallbackError {
+                                print("Error inserting pending fallback message: \(fallbackError)")
+                            } else {
+                                print("MessagesViewController: Inserted pending fallback vibe message \(pendingVibeId)")
+                            }
+                        }
+                        self.clearPendingAutoSend()
+                    }
+                    return
+                }
+
+                print("Pending auto-send failed (\(nsError.domain) code=\(nsError.code)); staging message in compose field.")
+                conversation.insert(pendingMessage) { fallbackError in
+                    if let fallbackError = fallbackError {
+                        print("Error inserting pending fallback message: \(fallbackError)")
+                    } else {
+                        print("MessagesViewController: Inserted pending fallback vibe message \(pendingVibeId)")
+                    }
+                }
+                self.clearPendingAutoSend()
+                return
+            }
+
+            print("MessagesViewController: Sent pending vibe message \(pendingVibeId)")
+            self.clearPendingAutoSend()
+            Task { @MainActor in
+                self.requestPresentationStyle(.compact)
             }
         }
     }
