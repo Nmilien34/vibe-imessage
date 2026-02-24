@@ -1,0 +1,24 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Betting/BetResolutionComposerView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Uploading receipts...",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 89
+        }
+      },
+      {
+        "comment": "",
+        "key": "Finalizing result...",
+        "location": {
+          "startingColumn": 71,
+          "startingLine": 89
+        }
+      }
+    ]
+  },
+  "version": 1
+}

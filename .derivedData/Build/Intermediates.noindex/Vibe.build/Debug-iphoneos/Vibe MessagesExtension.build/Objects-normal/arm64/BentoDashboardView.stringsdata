@@ -1,0 +1,200 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Feed/BentoDashboardView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Vibes",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 67
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 79
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge status",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 275
+        }
+      },
+      {
+        "comment": "",
+        "key": "No challenges yet",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 295
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap + to create the first one",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 298
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tea Spills",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 318
+        }
+      },
+      {
+        "comment": "",
+        "key": "No tea yet",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 334
+        }
+      },
+      {
+        "comment": "",
+        "key": "Spill some tea to get started",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 337
+        }
+      },
+      {
+        "comment": "",
+        "key": "Leaderboard",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 370
+        }
+      },
+      {
+        "comment": "",
+        "key": "Leaderboard loading...",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 382
+        }
+      },
+      {
+        "comment": "",
+        "key": "Couldn't load leaderboard",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 393
+        }
+      },
+      {
+        "comment": "",
+        "key": "Retry",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 404
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld%% win rate",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 476
+        }
+      },
+      {
+        "comment": "",
+        "key": "Upload failed",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 631
+        }
+      },
+      {
+        "comment": "",
+        "key": "Aura Balance",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 542
+        }
+      },
+      {
+        "comment": "",
+        "key": "Daily Bonus",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 569
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap to claim your Aura",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 571
+        }
+      },
+      {
+        "comment": "",
+        "key": "OK",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 632
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 892
+        }
+      },
+      {
+        "comment": "",
+        "key": "UPCOMING",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1017
+        }
+      },
+      {
+        "comment": "",
+        "key": "Nothing coming up",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1036
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tap + to add one",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1039
+        }
+      },
+      {
+        "comment": "",
+        "key": "Expired",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1136
+        }
+      },
+      {
+        "comment": "",
+        "key": "Choose a Vibe",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1198
+        }
+      }
+    ]
+  },
+  "version": 1
+}

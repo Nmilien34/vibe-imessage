@@ -233,7 +233,9 @@ struct FeedTabView: View {
                             if let firstVibe = userVibes.first {
                                 let hasUnseen = userVibes.contains { !$0.hasViewed(appState.userId) }
                                 CompactStoryDot(
-                                    thumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                                    thumbnailUrl: profileThumbnailURL(for: firstVibe.userId),
+                                    fallbackThumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                                    fallbackInitial: "V",
                                     hasUnseen: hasUnseen && firstVibe.userId != appState.userId,
                                     color: firstVibe.type.color
                                 ) {
@@ -245,8 +247,26 @@ struct FeedTabView: View {
                     }
                 }
                 .padding(.top, VibeSpacing.xs)
+                .task(id: storyUserCacheTaskKey(for: groupedVibes)) {
+                    await appState.loadBatchUsers(ids: storyUserIds(for: groupedVibes))
+                }
             }
         }
+    }
+
+    private func profileThumbnailURL(for userId: String) -> String? {
+        if userId == appState.userId {
+            return appState.userProfilePictureURL
+        }
+        return appState.userCache[userId]?.profilePicture
+    }
+
+    private func storyUserIds(for groups: [[Vibe]]) -> [String] {
+        Array(Set(groups.compactMap { $0.first?.userId }))
+    }
+
+    private func storyUserCacheTaskKey(for groups: [[Vibe]]) -> String {
+        storyUserIds(for: groups).sorted().joined(separator: "|")
     }
 
     // MARK: - Filter Chips

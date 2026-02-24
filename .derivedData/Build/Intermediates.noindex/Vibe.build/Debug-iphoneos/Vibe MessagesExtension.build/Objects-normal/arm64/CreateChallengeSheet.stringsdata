@@ -1,0 +1,320 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Components/CreateChallengeSheet.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "New Challenge",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 406
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge type",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 489
+        }
+      },
+      {
+        "comment": "",
+        "key": "Fast post",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 545
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick take",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 546
+        }
+      },
+      {
+        "comment": "",
+        "key": "Link challenge",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 547
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick a prompt",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 550
+        }
+      },
+      {
+        "comment": "",
+        "key": "Lock your stake",
+        "location": {
+          "startingColumn": 31,
+          "startingLine": 552
+        }
+      },
+      {
+        "comment": "",
+        "key": "Set time window",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 554
+        }
+      },
+      {
+        "comment": "",
+        "key": "Spice level",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 581
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick a %@ starter",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 617
+        }
+      },
+      {
+        "comment": "",
+        "key": "Creator fee right now: %lld Aura (caps at 5).",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 688
+        }
+      },
+      {
+        "comment": "",
+        "key": "Other",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 630
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge details",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 699
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld/500",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 733
+        }
+      },
+      {
+        "comment": "",
+        "key": "Target",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 784
+        }
+      },
+      {
+        "comment": "",
+        "key": "No eligible targets in this chat yet.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 789
+        }
+      },
+      {
+        "comment": "",
+        "key": "@%@",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 813
+        }
+      },
+      {
+        "comment": "",
+        "key": "How this settles",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 834
+        }
+      },
+      {
+        "comment": "",
+        "key": "Goes live at %lld%% chat participation.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 921
+        }
+      },
+      {
+        "comment": "",
+        "key": "Wait for enough people",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 888
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge goes live when enough people lock in.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 891
+        }
+      },
+      {
+        "comment": "",
+        "key": "Anonymous first stake",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 938
+        }
+      },
+      {
+        "comment": "",
+        "key": "Hide your name in payout recaps.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 941
+        }
+      },
+      {
+        "comment": "",
+        "key": "Tea mode",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 993
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your take",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1029
+        }
+      },
+      {
+        "comment": "",
+        "key": "Link challenge (optional)",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1059
+        }
+      },
+      {
+        "comment": "",
+        "key": "No linked challenge",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 1064
+        }
+      },
+      {
+        "comment": "",
+        "key": "Answer (secret)",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1106
+        }
+      },
+      {
+        "comment": "",
+        "key": "The real answer...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 1110
+        }
+      },
+      {
+        "comment": "",
+        "key": "Options (2-4)",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1124
+        }
+      },
+      {
+        "comment": "",
+        "key": "Option %lld",
+        "location": {
+          "startingColumn": 35,
+          "startingLine": 1130
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add Option",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 1167
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your stake",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1182
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 1198
+        }
+      },
+      {
+        "comment": "",
+        "key": "Time window",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1218
+        }
+      },
+      {
+        "comment": "",
+        "key": "Creator Fee",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1251
+        }
+      },
+      {
+        "comment": "",
+        "key": "Stake",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1260
+        }
+      },
+      {
+        "comment": "",
+        "key": "Entry Fee",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1268
+        }
+      },
+      {
+        "comment": "",
+        "key": "Total",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1279
+        }
+      }
+    ]
+  },
+  "version": 1
+}

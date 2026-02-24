@@ -1,0 +1,120 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/ParlayComposerView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "New Challenge",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 88
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 99
+        }
+      },
+      {
+        "comment": "",
+        "key": "WHAT'S THE CHALLENGE?",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 116
+        }
+      },
+      {
+        "comment": "",
+        "key": "E.g., I can beat you in 1v1...",
+        "location": {
+          "startingColumn": 39,
+          "startingLine": 119
+        }
+      },
+      {
+        "comment": "",
+        "key": "YOUR STAKE",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 153
+        }
+      },
+      {
+        "comment": "",
+        "key": "Amount",
+        "location": {
+          "startingColumn": 40,
+          "startingLine": 168
+        }
+      },
+      {
+        "comment": "",
+        "key": "TIME WINDOW",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 190
+        }
+      },
+      {
+        "comment": "",
+        "key": "Creator fee: %lld Aura (max 5) • Total to start: %lld Aura",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 215
+        }
+      },
+      {
+        "comment": "",
+        "key": "WHO'S IN?",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 223
+        }
+      },
+      {
+        "comment": "",
+        "key": "Send Challenge",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 274
+        }
+      },
+      {
+        "comment": "",
+        "key": "Enter Amount",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 421
+        }
+      },
+      {
+        "comment": "",
+        "key": "$",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 426
+        }
+      },
+      {
+        "comment": "",
+        "key": "0",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 429
+        }
+      },
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 443
+        }
+      }
+    ]
+  },
+  "version": 1
+}

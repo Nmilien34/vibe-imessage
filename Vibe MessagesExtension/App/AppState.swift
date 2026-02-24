@@ -50,6 +50,8 @@ struct LockedMessageParams: Equatable {
 @MainActor
 class AppState: ObservableObject {
     private let auraBalanceStorageKey = "vibeAuraBalance"
+    private let seenTeamTutorialIdsStorageKey = "vibeSeenTeamTutorialIds"
+    private var seenTeamTutorialVibeIds: Set<String> = []
     // MARK: - Conversation Context
     @Published var conversationId: String?
     @Published var userId: String
@@ -208,6 +210,7 @@ class AppState: ObservableObject {
 
         return slides.enumerated().map { index, slide in
             let createdAt = Date(timeIntervalSince1970: Double(index + 1))
+            let viewedBy = seenTeamTutorialVibeIds.contains(slide.id) ? [userId] : []
             return Vibe(
                 id: slide.id,
                 oderId: nil,
@@ -228,7 +231,7 @@ class AppState: ObservableObject {
                 isLocked: false,
                 unlockedBy: [],
                 reactions: [],
-                viewedBy: [],
+                viewedBy: viewedBy,
                 expiresAt: Date.distantFuture,
                 createdAt: createdAt,
                 updatedAt: createdAt
@@ -326,6 +329,7 @@ class AppState: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "vibeAuthToken")
             UserDefaults.standard.removeObject(forKey: "vibeUserProfilePicture")
             UserDefaults.standard.removeObject(forKey: "vibeAuraBalance")
+            UserDefaults.standard.removeObject(forKey: seenTeamTutorialIdsStorageKey)
             print("AppState: Reset onboarding state via launch argument")
             
             // Force reset of Published properties
@@ -359,6 +363,9 @@ class AppState: ObservableObject {
         self.userProfilePictureURL = UserDefaults.standard.string(forKey: "vibeUserProfilePicture")
         self.auraBalance = max(0, UserDefaults.standard.integer(forKey: auraBalanceStorageKey))
         self.hasRequiredPermissions = UserDefaults.standard.bool(forKey: "vibePermissionsGranted")
+        if let storedTutorialIds = UserDefaults.standard.array(forKey: seenTeamTutorialIdsStorageKey) as? [String] {
+            self.seenTeamTutorialVibeIds = Set(storedTutorialIds)
+        }
 
         // Check for existing session.
         // Require both user id and token to avoid "authenticated but no token" state.
@@ -2003,6 +2010,11 @@ class AppState: ObservableObject {
     }
 
     func markAsViewed(_ vibe: Vibe) async {
+        if vibe.userId == "vibe_team" {
+            markTeamTutorialAsSeen()
+            return
+        }
+
         guard !vibe.hasViewed(userId) else { return }
 
         do {
@@ -2017,6 +2029,32 @@ class AppState: ObservableObject {
         
         // Also mark as seen locally (for aggregation badge)
         markVibeAsSeen(vibe.id)
+    }
+
+    private func markTeamTutorialAsSeen() {
+        let tutorialIds = teamTutorialVibeIds
+        let previousCount = seenTeamTutorialVibeIds.count
+        seenTeamTutorialVibeIds.formUnion(tutorialIds)
+
+        if seenTeamTutorialVibeIds.count != previousCount {
+            UserDefaults.standard.set(Array(seenTeamTutorialVibeIds).sorted(), forKey: seenTeamTutorialIdsStorageKey)
+        }
+
+        for tutorialId in tutorialIds {
+            seenVibeIds.insert(tutorialId)
+        }
+
+        for index in vibes.indices where vibes[index].userId == "vibe_team" {
+            if !vibes[index].viewedBy.contains(userId) {
+                vibes[index].viewedBy.append(userId)
+            }
+        }
+
+        for index in viewerVibes.indices where viewerVibes[index].userId == "vibe_team" {
+            if !viewerVibes[index].viewedBy.contains(userId) {
+                viewerVibes[index].viewedBy.append(userId)
+            }
+        }
     }
     
     /// Mark a vibe as "seen" locally (for "New Updates" badge tracking)
@@ -2588,8 +2626,8 @@ class AppState: ObservableObject {
     }
 
     /// Story groups shown in feed UIs (compact + expanded).
+    /// Team tutorial is always pinned first.
     /// Filters out known seeded/mock identities to avoid confusing "ghost" bubbles.
-    /// Falls back to one team tutorial bubble when no real stories remain.
     func storyGroupsForFeed() -> [[Vibe]] {
         let active = vibes.filter { !$0.isExpired }
 
@@ -2602,11 +2640,12 @@ class AppState: ObservableObject {
             return true
         }
 
-        if filtered.isEmpty {
+        let realGroups = vibesGroupedByUser(filtered, includeMe: true, includeTeam: false)
+        if realGroups.isEmpty {
             return [teamTutorialVibes]
         }
 
-        return vibesGroupedByUser(filtered, includeMe: true, includeTeam: false)
+        return [teamTutorialVibes] + realGroups
     }
 
     private func isSeededUserId(_ value: String) -> Bool {

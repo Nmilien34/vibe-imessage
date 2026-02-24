@@ -1,0 +1,112 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Components/ChallengeComponents.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 49
+        }
+      },
+      {
+        "comment": "",
+        "key": "@%@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 339
+        }
+      },
+      {
+        "comment": "",
+        "key": "pool",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 356
+        }
+      },
+      {
+        "comment": "",
+        "key": "•",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld locked in so far",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 364
+        }
+      },
+      {
+        "comment": "",
+        "key": "You're already in this challenge",
+        "location": {
+          "startingColumn": 16,
+          "startingLine": 438
+        }
+      },
+      {
+        "comment": "",
+        "key": "Boost Stake",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 439
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 442
+        }
+      },
+      {
+        "comment": "",
+        "key": "Want to add more to your stake?",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 444
+        }
+      },
+      {
+        "comment": "",
+        "key": "TEA",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 489
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld options",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 514
+        }
+      },
+      {
+        "comment": "",
+        "key": "Revealed",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 525
+        }
+      },
+      {
+        "comment": "",
+        "key": "Guess",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 534
+        }
+      }
+    ]
+  },
+  "version": 1
+}

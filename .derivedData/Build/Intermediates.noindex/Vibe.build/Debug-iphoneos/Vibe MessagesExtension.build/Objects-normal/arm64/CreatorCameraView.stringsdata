@@ -1,0 +1,112 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Composer/CreatorCameraView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 163
+        }
+      },
+      {
+        "comment": "",
+        "key": "Camera access required",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 233
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick a song",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 279
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ - %@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 274
+        }
+      },
+      {
+        "comment": "",
+        "key": "Aa",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 313
+        }
+      },
+      {
+        "comment": "",
+        "key": "Self Timer",
+        "location": {
+          "startingColumn": 33,
+          "startingLine": 360
+        }
+      },
+      {
+        "comment": "",
+        "key": "Off",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 361
+        }
+      },
+      {
+        "comment": "",
+        "key": "3 seconds",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 362
+        }
+      },
+      {
+        "comment": "",
+        "key": "10 seconds",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 363
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 364
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add text...",
+        "location": {
+          "startingColumn": 27,
+          "startingLine": 517
+        }
+      },
+      {
+        "comment": "",
+        "key": "Filters",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 596
+        }
+      },
+      {
+        "comment": "",
+        "key": "Done",
+        "location": {
+          "startingColumn": 28,
+          "startingLine": 600
+        }
+      }
+    ]
+  },
+  "version": 1
+}

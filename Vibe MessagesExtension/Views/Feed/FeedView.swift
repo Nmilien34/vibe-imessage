@@ -116,7 +116,9 @@ struct CompactFeedView: View {
                                         if let firstVibe = userVibes.first {
                                             let hasUnseen = userVibes.contains { !$0.hasViewed(appState.userId) }
                                             CompactStoryDot(
-                                                thumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                                                thumbnailUrl: profileThumbnailURL(for: firstVibe.userId),
+                                                fallbackThumbnailUrl: firstVibe.thumbnailUrl ?? firstVibe.mediaUrl,
+                                                fallbackInitial: "V",
                                                 hasUnseen: hasUnseen && firstVibe.userId != appState.userId,
                                                 color: firstVibe.type.color
                                             ) {
@@ -131,6 +133,9 @@ struct CompactFeedView: View {
                         }
                     }
                     .padding(.top, VibeSpacing.sm)
+                    .task(id: storyUserCacheTaskKey(for: groupedVibes)) {
+                        await appState.loadBatchUsers(ids: storyUserIds(for: groupedVibes))
+                    }
                 }
 
                 // 3. CHALLENGES FEED
@@ -203,12 +208,29 @@ struct CompactFeedView: View {
                 .environmentObject(appState)
         }
     }
+
+    private func profileThumbnailURL(for userId: String) -> String? {
+        if userId == appState.userId {
+            return appState.userProfilePictureURL
+        }
+        return appState.userCache[userId]?.profilePicture
+    }
+
+    private func storyUserIds(for groups: [[Vibe]]) -> [String] {
+        Array(Set(groups.compactMap { $0.first?.userId }))
+    }
+
+    private func storyUserCacheTaskKey(for groups: [[Vibe]]) -> String {
+        storyUserIds(for: groups).sorted().joined(separator: "|")
+    }
 }
 
 // MARK: - Compact Story Dot (small circle for compact story row)
 
 struct CompactStoryDot: View {
     var thumbnailUrl: String? = nil
+    var fallbackThumbnailUrl: String? = nil
+    var fallbackInitial: String = "V"
     var hasUnseen: Bool = false
     var color: Color = .gray
     var size: CGFloat = 52
@@ -218,6 +240,48 @@ struct CompactStoryDot: View {
         size - 6
     }
 
+    private var resolvedThumbnailUrl: String? {
+        let candidates: [String?] = [thumbnailUrl, fallbackThumbnailUrl]
+        for candidate in candidates {
+            guard let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+                continue
+            }
+            return trimmed
+        }
+        return nil
+    }
+
+    private var fallbackGlyph: String {
+        let trimmed = fallbackInitial.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return "V" }
+        return String(first).uppercased()
+    }
+
+    private var unreadRingGradient: LinearGradient {
+        LinearGradient(
+            colors: [VibeTheme.warm, VibeTheme.accentSecondary, VibeTheme.accentCyan],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private var fallbackAvatar: some View {
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: [VibeTheme.warm.opacity(0.95), VibeTheme.accentSecondary.opacity(0.95)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay {
+                Text(fallbackGlyph)
+                    .font(.system(size: max(14, innerSize * 0.42), weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            .frame(width: innerSize, height: innerSize)
+    }
+
     var body: some View {
         Button {
             onTap?()
@@ -225,7 +289,14 @@ struct CompactStoryDot: View {
             ZStack {
                 if hasUnseen {
                     Circle()
-                        .strokeBorder(VibeTheme.brandGradient, lineWidth: 2)
+                        .strokeBorder(unreadRingGradient, lineWidth: 2.5)
+                        .frame(width: size, height: size)
+                        .shadow(color: VibeTheme.warm.opacity(0.45), radius: 6)
+                        .shadow(color: VibeTheme.accentSecondary.opacity(0.25), radius: 10)
+
+                    Circle()
+                        .stroke(unreadRingGradient.opacity(0.65), lineWidth: 4)
+                        .blur(radius: 3.5)
                         .frame(width: size, height: size)
                 } else {
                     Circle()
@@ -233,18 +304,16 @@ struct CompactStoryDot: View {
                         .frame(width: size, height: size)
                 }
 
-                if let urlString = thumbnailUrl, let url = URL.httpURL(from: urlString) {
+                if let urlString = resolvedThumbnailUrl, let url = URL.httpURL(from: urlString) {
                     AsyncImage(url: url) { image in
                         image.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        Circle().fill(color.opacity(0.2))
+                        fallbackAvatar
                     }
                     .frame(width: innerSize, height: innerSize)
                     .clipShape(Circle())
                 } else {
-                    Circle()
-                        .fill(VibeTheme.surfaceOverlay)
-                        .frame(width: innerSize, height: innerSize)
+                    fallbackAvatar
                 }
             }
         }

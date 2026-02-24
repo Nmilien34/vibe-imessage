@@ -1,0 +1,744 @@
+{
+  "source": "/Users/roadto1million/Desktop/Programing/Repos/Vibe/Vibe MessagesExtension/Views/Betting/BetDetailView.swift",
+  "tables": {
+    "Localizable": [
+      {
+        "comment": "",
+        "key": "Share Challenge",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 157
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pick the Winner",
+        "location": {
+          "startingColumn": 29,
+          "startingLine": 183
+        }
+      },
+      {
+        "comment": "",
+        "key": "Send in This iMessage Chat",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 158
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share Link Anywhere",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 162
+        }
+      },
+      {
+        "comment": "",
+        "key": "Copy Link",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 166
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 170
+        }
+      },
+      {
+        "comment": "",
+        "key": "Share this challenge in iMessage or copy a public link for Instagram, WhatsApp, or SMS.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 172
+        }
+      },
+      {
+        "comment": "",
+        "key": "YES Wins",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 184
+        }
+      },
+      {
+        "comment": "",
+        "key": "NO Wins",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 188
+        }
+      },
+      {
+        "comment": "",
+        "key": "Mark as Ducked",
+        "location": {
+          "startingColumn": 24,
+          "startingLine": 193
+        }
+      },
+      {
+        "comment": "",
+        "key": "Cancel",
+        "location": {
+          "startingColumn": 20,
+          "startingLine": 198
+        }
+      },
+      {
+        "comment": "",
+        "key": "Created by %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 289
+        }
+      },
+      {
+        "comment": "",
+        "key": "Resolved %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 266
+        }
+      },
+      {
+        "comment": "",
+        "key": "Call window %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 269
+        }
+      },
+      {
+        "comment": "",
+        "key": "Warm-up window %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 272
+        }
+      },
+      {
+        "comment": "",
+        "key": "Expired",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 275
+        }
+      },
+      {
+        "comment": "",
+        "key": "Closes %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 278
+        }
+      },
+      {
+        "comment": "",
+        "key": "LOOP STATUS",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 300
+        }
+      },
+      {
+        "comment": "",
+        "key": "POT",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 325
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 331
+        }
+      },
+      {
+        "comment": "",
+        "key": "YES (%lld)",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 359
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 362
+        }
+      },
+      {
+        "comment": "",
+        "key": "NO (%lld)",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 370
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 373
+        }
+      },
+      {
+        "comment": "",
+        "key": "You're in for %lld Aura on %@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 393
+        }
+      },
+      {
+        "comment": "",
+        "key": "BOOST YOUR %@ SIDE",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 407
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 411
+        }
+      },
+      {
+        "comment": "",
+        "key": "Balance: %lld",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 419
+        }
+      },
+      {
+        "comment": "",
+        "key": "Adding...",
+        "location": {
+          "startingColumn": 54,
+          "startingLine": 432
+        }
+      },
+      {
+        "comment": "",
+        "key": "Add %lld Aura",
+        "location": {
+          "startingColumn": 68,
+          "startingLine": 432
+        }
+      },
+      {
+        "comment": "",
+        "key": "LOCK YOUR SIDE",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 452
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 463
+        }
+      },
+      {
+        "comment": "",
+        "key": "Balance: %lld • +1 entry fee",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 471
+        }
+      },
+      {
+        "comment": "",
+        "key": "Locking in...",
+        "location": {
+          "startingColumn": 46,
+          "startingLine": 485
+        }
+      },
+      {
+        "comment": "",
+        "key": "Lock %lld Aura",
+        "location": {
+          "startingColumn": 64,
+          "startingLine": 485
+        }
+      },
+      {
+        "comment": "",
+        "key": "YOUR STAKE MOVES",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 506
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld Aura",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 524
+        }
+      },
+      {
+        "comment": "",
+        "key": "PARTICIPANTS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 577
+        }
+      },
+      {
+        "comment": "",
+        "key": "No one has locked in yet",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 581
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 613
+        }
+      },
+      {
+        "comment": "",
+        "key": "RECEIPTS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 634
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge window %@ %@",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 682
+        }
+      },
+      {
+        "comment": "",
+        "key": "You already voted on this proof.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 720
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld legit • %lld challenge",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 662
+        }
+      },
+      {
+        "comment": "",
+        "key": "Looks Legit",
+        "location": {
+          "startingColumn": 42,
+          "startingLine": 702
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge It",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 713
+        }
+      },
+      {
+        "comment": "",
+        "key": "POST RECEIPTS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 735
+        }
+      },
+      {
+        "comment": "",
+        "key": "Capture or upload photo/video proof, then submit it for payout.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 738
+        }
+      },
+      {
+        "comment": "",
+        "key": "Submit Proof",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 747
+        }
+      },
+      {
+        "comment": "",
+        "key": "WAITING FOR LOCK-INS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 772
+        }
+      },
+      {
+        "comment": "",
+        "key": "This challenge is waiting for more people to lock in before it goes live.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 789
+        }
+      },
+      {
+        "comment": "",
+        "key": "%lld of %lld people locked in.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 776
+        }
+      },
+      {
+        "comment": "",
+        "key": "Launch threshold: %lld%% of the chat.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 784
+        }
+      },
+      {
+        "comment": "",
+        "key": "SETTLEMENT PHASE",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 800
+        }
+      },
+      {
+        "comment": "",
+        "key": "Proof is being reviewed. Stakers can back it or challenge it during the window.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 805
+        }
+      },
+      {
+        "comment": "",
+        "key": "People who staked vote YES or NO before time is up.",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 826
+        }
+      },
+      {
+        "comment": "",
+        "key": "Voting closes %@",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 830
+        }
+      },
+      {
+        "comment": "",
+        "key": "Votes: %lld yes • %lld no",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 835
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your vote is locked.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 842
+        }
+      },
+      {
+        "comment": "",
+        "key": "Only people who staked can vote here.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 869
+        }
+      },
+      {
+        "comment": "",
+        "key": "Submitting...",
+        "location": {
+          "startingColumn": 45,
+          "startingLine": 851
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote YES",
+        "location": {
+          "startingColumn": 63,
+          "startingLine": 851
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote NO",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 861
+        }
+      },
+      {
+        "comment": "",
+        "key": "Creator called %@.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 879
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge window closes %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 883
+        }
+      },
+      {
+        "comment": "",
+        "key": "Votes: %lld yes • %lld no",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 888
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your vote is locked.",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 895
+        }
+      },
+      {
+        "comment": "",
+        "key": "Only people who staked can back or challenge this call.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 922
+        }
+      },
+      {
+        "comment": "",
+        "key": "Make your call to open the challenge window.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 927
+        }
+      },
+      {
+        "comment": "",
+        "key": "Waiting on the creator's call.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 953
+        }
+      },
+      {
+        "comment": "",
+        "key": "Submitting...",
+        "location": {
+          "startingColumn": 49,
+          "startingLine": 904
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote YES",
+        "location": {
+          "startingColumn": 67,
+          "startingLine": 904
+        }
+      },
+      {
+        "comment": "",
+        "key": "Vote NO",
+        "location": {
+          "startingColumn": 38,
+          "startingLine": 914
+        }
+      },
+      {
+        "comment": "",
+        "key": "Submitting...",
+        "location": {
+          "startingColumn": 41,
+          "startingLine": 936
+        }
+      },
+      {
+        "comment": "",
+        "key": "Call YES",
+        "location": {
+          "startingColumn": 59,
+          "startingLine": 936
+        }
+      },
+      {
+        "comment": "",
+        "key": "Call NO",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 946
+        }
+      },
+      {
+        "comment": "",
+        "key": "RESULTS",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 962
+        }
+      },
+      {
+        "comment": "",
+        "key": "Result details are unavailable right now.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1027
+        }
+      },
+      {
+        "comment": "",
+        "key": "Total pot: %lld Aura • %lld participants",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 978
+        }
+      },
+      {
+        "comment": "",
+        "key": "Loading payout details...",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 969
+        }
+      },
+      {
+        "comment": "",
+        "key": "Winners",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 984
+        }
+      },
+      {
+        "comment": "",
+        "key": "Losers",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 999
+        }
+      },
+      {
+        "comment": "",
+        "key": "Ducked",
+        "location": {
+          "startingColumn": 30,
+          "startingLine": 1014
+        }
+      },
+      {
+        "comment": "",
+        "key": "PENDING REVIEW",
+        "location": {
+          "startingColumn": 18,
+          "startingLine": 1056
+        }
+      },
+      {
+        "comment": "",
+        "key": "%@ called %@.",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1060
+        }
+      },
+      {
+        "comment": "",
+        "key": "Auto-locks %@",
+        "location": {
+          "startingColumn": 22,
+          "startingLine": 1064
+        }
+      },
+      {
+        "comment": "",
+        "key": "Reviewers: %@",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1070
+        }
+      },
+      {
+        "comment": "",
+        "key": "Your review is locked in.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1098
+        }
+      },
+      {
+        "comment": "",
+        "key": "Waiting on reviewer votes.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1102
+        }
+      },
+      {
+        "comment": "",
+        "key": "Approve",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 1081
+        }
+      },
+      {
+        "comment": "",
+        "key": "Challenge",
+        "location": {
+          "startingColumn": 34,
+          "startingLine": 1091
+        }
+      },
+      {
+        "comment": "",
+        "key": "Pending review details are unavailable. Pull to refresh.",
+        "location": {
+          "startingColumn": 26,
+          "startingLine": 1116
+        }
+      }
+    ]
+  },
+  "version": 1
+}
