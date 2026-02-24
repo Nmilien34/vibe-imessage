@@ -776,6 +776,7 @@ struct VibeViewerView: View {
                 showStakeSheet = false
                 stakeResolutionSession = UUID()
                 VibeHaptic.success()
+                appState.navigateToBetDetail(bet: bet)
             } catch {
                 isSubmittingStake = false
                 if isChatAccessError(error), !targetChatId.isEmpty {
@@ -828,6 +829,7 @@ struct VibeViewerView: View {
             showStakeSheet = false
             stakeResolutionSession = UUID()
             VibeHaptic.success()
+            appState.navigateToBetDetail(bet: createdBet)
         } catch {
             isSubmittingStake = false
             if isChatAccessError(error) {
