@@ -401,13 +401,27 @@ class MessagesViewController: MSMessagesAppViewController {
         // 2. Create Layout with type-specific text
         let layout = MSMessageTemplateLayout()
         layout.image = styledThumbnail
-        let parlayDetails = (vibeType == .parlay)
+        let resolvedDetails = (vibeType == .parlay) ? parseResolvedBubbleContext(contextText: contextText) : nil
+        let stakeDetails = (vibeType == .parlay && resolvedDetails == nil) ? parseStakeBubbleContext(contextText: contextText) : nil
+        let parlayDetails = (vibeType == .parlay && resolvedDetails == nil && stakeDetails == nil)
             ? parseParlayBubbleContext(contextText: contextText, fallbackSenderName: senderName)
             : nil
 
         if isLocked {
             layout.caption = "🔒 \(senderName) posted a locked Vibe"
             layout.subcaption = "Post yours to unlock"
+        } else if let resolvedDetails {
+            let outcomeLabel = resolvedDetails.outcome.uppercased()
+            layout.caption = "⚖️ \(resolvedDetails.callerName) called \(outcomeLabel)"
+            let title = truncated(resolvedDetails.title, maxLength: 60)
+            layout.subcaption = title
+            layout.trailingSubcaption = "Tap for results"
+        } else if let stakeDetails {
+            let sideLabel = stakeDetails.side.uppercased()
+            layout.caption = "🔥 \(stakeDetails.stakerName) just locked in \(sideLabel)"
+            let title = truncated(stakeDetails.title, maxLength: 60)
+            layout.subcaption = title
+            layout.trailingSubcaption = "Tap to join"
         } else if let parlayDetails {
             layout.caption = "🎯 \(parlayDetails.creatorName) went on record"
             if let deadline = parlayDetails.deadline {
@@ -426,6 +440,14 @@ class MessagesViewController: MSMessagesAppViewController {
         message.layout = layout
         if isLocked {
             message.summaryText = "\(senderName) posted a locked vibe 🔒"
+        } else if let resolvedDetails {
+            let outcomeLabel = resolvedDetails.outcome.uppercased()
+            let title = truncated(resolvedDetails.title, maxLength: 72)
+            message.summaryText = "\(resolvedDetails.callerName) called \(outcomeLabel) on \(title). Tap for results."
+        } else if let stakeDetails {
+            let sideLabel = stakeDetails.side.uppercased()
+            let title = truncated(stakeDetails.title, maxLength: 72)
+            message.summaryText = "\(stakeDetails.stakerName) just staked \(sideLabel) on \(title). Tap to join."
         } else if let parlayDetails {
             let title = truncated(parlayDetails.title, maxLength: 72)
             if let deadline = parlayDetails.deadline {
@@ -586,6 +608,19 @@ class MessagesViewController: MSMessagesAppViewController {
         let creatorName: String
     }
 
+    private struct StakeBubbleContext {
+        let title: String
+        let stakerName: String
+        let side: String
+        let deadline: Date?
+    }
+
+    private struct ResolvedBubbleContext {
+        let title: String
+        let callerName: String
+        let outcome: String
+    }
+
     private func parseParlayBubbleContext(contextText: String?, fallbackSenderName: String) -> ParlayBubbleContext? {
         guard let raw = contextText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
             return nil
@@ -619,6 +654,45 @@ class MessagesViewController: MSMessagesAppViewController {
         }
 
         return nil
+    }
+
+    private func parseStakeBubbleContext(contextText: String?) -> StakeBubbleContext? {
+        guard let raw = contextText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.hasPrefix("stake_v1?") else {
+            return nil
+        }
+        let query = String(raw.dropFirst("stake_v1?".count))
+        guard let components = URLComponents(string: "https://getvibe.app/open?\(query)") else {
+            return nil
+        }
+        let queryItems = components.queryItems ?? []
+        guard let title = queryItems.first(where: { $0.name == "title" })?.value,
+              let stakerName = queryItems.first(where: { $0.name == "staker" })?.value,
+              let side = queryItems.first(where: { $0.name == "side" })?.value else {
+            return nil
+        }
+        let deadline = queryItems.first(where: { $0.name == "deadline" })?.value
+            .flatMap(TimeInterval.init)
+            .map { Date(timeIntervalSince1970: $0) }
+        return StakeBubbleContext(title: title, stakerName: stakerName, side: side, deadline: deadline)
+    }
+
+    private func parseResolvedBubbleContext(contextText: String?) -> ResolvedBubbleContext? {
+        guard let raw = contextText?.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.hasPrefix("resolved_v1?") else {
+            return nil
+        }
+        let query = String(raw.dropFirst("resolved_v1?".count))
+        guard let components = URLComponents(string: "https://getvibe.app/open?\(query)") else {
+            return nil
+        }
+        let queryItems = components.queryItems ?? []
+        guard let title = queryItems.first(where: { $0.name == "title" })?.value,
+              let callerName = queryItems.first(where: { $0.name == "caller" })?.value,
+              let outcome = queryItems.first(where: { $0.name == "outcome" })?.value else {
+            return nil
+        }
+        return ResolvedBubbleContext(title: title, callerName: callerName, outcome: outcome)
     }
 
     private func formatCompactDeadline(_ deadline: Date) -> String {

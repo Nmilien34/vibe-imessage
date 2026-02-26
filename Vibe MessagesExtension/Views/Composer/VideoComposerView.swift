@@ -23,6 +23,7 @@ struct VideoComposerView: View {
     @State private var showUploadError = false
     @State private var pendingOverlayText: String?
     @State private var pendingSong: SongData?
+    @State private var cameraText: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +34,7 @@ struct VideoComposerView: View {
                     mediaData: data,
                     thumbnail: thumbnailImage,
                     isLocked: isLocked,
+                    initialOverlayText: cameraText,
                     onShare: { overlayText, songData in
                         await shareMedia(overlayText: overlayText, song: songData)
                     },
@@ -40,10 +42,20 @@ struct VideoComposerView: View {
                         mediaData = nil
                         thumbnailImage = nil
                         selectedItem = nil
+                        cameraText = ""
                     }
                 )
             } else {
-                CreatorCameraView(initialLocked: isLocked, selectedItem: $selectedItem, mediaData: $mediaData, thumbnail: $thumbnailImage, mediaType: $mediaType)
+                CreatorCameraView(
+                    initialLocked: isLocked,
+                    selectedItem: $selectedItem,
+                    mediaData: $mediaData,
+                    thumbnail: $thumbnailImage,
+                    mediaType: $mediaType,
+                    onTextCommitted: { text in
+                        cameraText = text
+                    }
+                )
             }
             
             if isUploading {

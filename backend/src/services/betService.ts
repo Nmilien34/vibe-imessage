@@ -1703,8 +1703,14 @@ export async function claimBetResolution(params: {
     throw new Error(`Cannot claim resolution for ${bet.status} bet`);
   }
 
-  if (userId !== bet.creatorId) {
-    throw new Error('Only the bet creator can claim resolution');
+  const isCreator = userId === bet.creatorId;
+  const isTarget = (bet.betType === 'callout' || bet.betType === 'dare') && userId === bet.targetUserId;
+  if (!isCreator && !isTarget) {
+    throw new Error('Only the bet creator or called-out user can claim resolution');
+  }
+
+  if (outcome === 'ducked' && !isCreator) {
+    throw new Error('Only the bet creator can mark a callout as ducked');
   }
 
   if (!['yes', 'no', 'ducked'].includes(outcome)) {

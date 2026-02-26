@@ -1349,6 +1349,13 @@ class AppState: ObservableObject {
         let totalDebited = stakeResponse.totalDebited ?? amount
         updateAuraBalance(auraBalance - totalDebited)
         betCanStakeById[betId] = false
+
+        // Send stake notification bubble to the iMessage chat.
+        if let bet = expandedBets.first(where: { $0.betId == betId })
+            ?? activeBets.first(where: { $0.betId == betId }) {
+            sendStakeMessage(bet: bet, side: side)
+        }
+
         async let compactBetsTask: () = loadBets()
         async let expandedBetsTask: () = loadExpandedBets()
         async let auraTask: () = loadAuraStats()
@@ -1359,6 +1366,13 @@ class AppState: ObservableObject {
 
     func resolveBet(betId: String, outcome: BetOutcome, notes: String? = nil) async throws {
         let response = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
+
+        // Notify the chat that the result was called.
+        if let bet = expandedBets.first(where: { $0.betId == betId })
+            ?? activeBets.first(where: { $0.betId == betId }) {
+            sendResolutionMessage(bet: bet, outcome: outcome)
+        }
+
         await refreshBetResolutionCaches()
         betCanStakeById[betId] = false
         if response.resolution != nil {
@@ -1404,6 +1418,9 @@ class AppState: ObservableObject {
             // Claim has already succeeded at this point; keep the betting state consistent.
             print("AppState Warning: Resolution claim succeeded but story creation failed: \(error)")
         }
+
+        // Notify the chat that a resolution was claimed.
+        sendResolutionMessage(bet: bet, outcome: outcome)
 
         await refreshBetResolutionCaches()
         betCanStakeById[bet.betId] = false
@@ -1992,6 +2009,49 @@ class AppState: ObservableObject {
                 deadline: bet.deadline,
                 creatorName: creatorName
             ),
+            linkedBetId: bet.betId
+        )
+    }
+
+    /// Sends a stake notification bubble so the chat knows someone locked in.
+    func sendStakeMessage(bet: Bet, side: BetSide) {
+        let stakerName = userFirstName ?? "Someone"
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "title", value: bet.description.trimmingCharacters(in: .whitespacesAndNewlines)),
+            URLQueryItem(name: "staker", value: stakerName),
+            URLQueryItem(name: "side", value: side.rawValue),
+        ]
+        if let deadline = bet.deadline as Date? {
+            components.queryItems?.append(URLQueryItem(name: "deadline", value: String(Int(deadline.timeIntervalSince1970))))
+        }
+        let contextText = "stake_v1?\(components.percentEncodedQuery ?? "")"
+
+        sendVibeMessage(
+            vibeId: bet.betId,
+            isLocked: false,
+            vibeType: .parlay,
+            contextText: contextText,
+            linkedBetId: bet.betId
+        )
+    }
+
+    /// Sends a resolution notification bubble so the chat knows a bet result was called.
+    func sendResolutionMessage(bet: Bet, outcome: BetOutcome) {
+        let callerName = userFirstName ?? "Someone"
+        var components = URLComponents()
+        components.queryItems = [
+            URLQueryItem(name: "title", value: bet.description.trimmingCharacters(in: .whitespacesAndNewlines)),
+            URLQueryItem(name: "caller", value: callerName),
+            URLQueryItem(name: "outcome", value: outcome.rawValue),
+        ]
+        let contextText = "resolved_v1?\(components.percentEncodedQuery ?? "")"
+
+        sendVibeMessage(
+            vibeId: bet.betId,
+            isLocked: false,
+            vibeType: .parlay,
+            contextText: contextText,
             linkedBetId: bet.betId
         )
     }

@@ -189,7 +189,8 @@ struct BetDetailView: View {
                 selectedResolutionOutcome = .no
                 showResolutionComposer = true
             }
-            if currentBet.betType == .callout || currentBet.betType == .dare {
+            if (currentBet.betType == .callout || currentBet.betType == .dare)
+                && currentBet.creatorId == appState.userId {
                 Button("Mark as Ducked", role: .destructive) {
                     selectedResolutionOutcome = .ducked
                     showResolutionComposer = true
@@ -1151,9 +1152,13 @@ struct BetDetailView: View {
 
     private var canCurrentUserClaimProofOutcome: Bool {
         guard effectiveResolutionType == .proof else { return false }
-        guard currentBet.creatorId == appState.userId else { return false }
         guard pendingClaim == nil else { return false }
-        return currentBet.lifecycleStatus == .active || currentBet.lifecycleStatus == .resolving
+        guard currentBet.lifecycleStatus == .active || currentBet.lifecycleStatus == .resolving else { return false }
+
+        let isCreator = currentBet.creatorId == appState.userId
+        let isCalloutTarget = (currentBet.betType == .callout || currentBet.betType == .dare)
+            && currentBet.targetUserId == appState.userId
+        return isCreator || isCalloutTarget
     }
 
     private var shouldShowPendingClaimSection: Bool {

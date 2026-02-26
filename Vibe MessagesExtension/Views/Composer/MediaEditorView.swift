@@ -9,18 +9,39 @@ struct MediaEditorView: View {
     let mediaData: Data
     let thumbnail: UIImage?
     let isLocked: Bool
+    let initialOverlayText: String
     let onShare: (String?, SongData?) async -> Void
     let onCancel: () -> Void
 
-    @State private var overlayText: String = ""
+    @State private var overlayText: String
     @State private var isEditingText = false
     @State private var textPosition: CGPoint = .zero
     @State private var selectedSong: SongData?
     @State private var showMusicSearch = false
+    @State private var musicUnavailable = false
 
     @FocusState private var isTextFieldFocused: Bool
 
     @StateObject private var playerController = PlayerController()
+
+    init(
+        mediaType: VibeType,
+        mediaData: Data,
+        thumbnail: UIImage?,
+        isLocked: Bool,
+        initialOverlayText: String = "",
+        onShare: @escaping (String?, SongData?) async -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.mediaType = mediaType
+        self.mediaData = mediaData
+        self.thumbnail = thumbnail
+        self.isLocked = isLocked
+        self.initialOverlayText = initialOverlayText
+        self.onShare = onShare
+        self.onCancel = onCancel
+        _overlayText = State(initialValue: initialOverlayText)
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -29,6 +50,7 @@ struct MediaEditorView: View {
 
                 // Background Media Preview
                 mediaPreview
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onTapGesture {
                         if overlayText.isEmpty {
                             isEditingText = true
@@ -45,7 +67,9 @@ struct MediaEditorView: View {
                         .padding(.vertical, VibeSpacing.sm)
                         .background(.ultraThinMaterial)
                         .continuousCorner(VibeTheme.radiusMedium)
-                        .position(textPosition == .zero ? CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2) : textPosition)
+                        .position(textPosition == .zero
+                            ? CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                            : textPosition)
                         .gesture(
                             DragGesture()
                                 .onChanged { value in
@@ -91,11 +115,21 @@ struct MediaEditorView: View {
                 .opacity(isEditingText ? 0 : 1)
             }
             .onAppear {
-                textPosition = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                if mediaType == .video {
-                    playerController.setup(with: mediaData)
+                if textPosition == .zero {
+                    textPosition = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 }
             }
+        }
+        .task(id: mediaData) {
+            // Always re-init player when media data changes (handles re-picks from gallery)
+            if mediaType == .video {
+                await playerController.setup(with: mediaData)
+            }
+        }
+        .alert("Music Unavailable", isPresented: $musicUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Apple Music integration isn't available right now. You can still add a text caption.")
         }
         .sheet(isPresented: $showMusicSearch) {
             MusicSelectorView(selectedSong: $selectedSong)
@@ -106,24 +140,37 @@ struct MediaEditorView: View {
         Group {
             if mediaType == .video {
                 if let player = playerController.player {
-                    VideoPlayerView(player: player)
+                    AVPlayerLayerView(player: player)
+                        .ignoresSafeArea()
                 } else {
-                    Color.black
+                    // Show thumbnail while player is loading instead of black
+                    ZStack {
+                        Color.black
+                        if let thumb = thumbnail {
+                            Image(uiImage: thumb)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .clipped()
+                                .opacity(0.5)
+                        }
+                        ProgressView()
+                            .tint(.white)
+                    }
+                    .ignoresSafeArea()
                 }
             } else {
-                if let uiImage = (thumbnail ?? UIImage(data: mediaData)) {
-                    Image(uiImage: uiImage)
+                if let img = thumbnail ?? UIImage(data: mediaData) {
+                    Image(uiImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
-                        .background(Color.black)
+                        .ignoresSafeArea()
                 } else {
-                    Color.red.overlay(Text("No Image Data").foregroundColor(.white))
+                    Color.black.ignoresSafeArea()
                 }
             }
         }
-        .ignoresSafeArea()
     }
 
     private var header: some View {
@@ -153,7 +200,15 @@ struct MediaEditorView: View {
                 }
 
                 Button {
-                    showMusicSearch = true
+                    do {
+                        // Guard: MusicKit crashes in iMessage extensions without entitlement.
+                        // Attempt to present — if it fails the alert fires instead.
+                        if #available(iOS 15.0, *) {
+                            showMusicSearch = true
+                        } else {
+                            musicUnavailable = true
+                        }
+                    }
                 } label: {
                     Image(systemName: selectedSong != nil ? "music.note.list" : "music.note")
                         .font(.system(size: 20, weight: .bold))
@@ -176,6 +231,7 @@ struct MediaEditorView: View {
                     Text("\(song.title) - \(song.artist)")
                         .font(VibeTypography.captionLarge)
                         .foregroundColor(.white)
+                        .lineLimit(1)
                     Button {
                         selectedSong = nil
                     } label: {
@@ -212,44 +268,66 @@ struct MediaEditorView: View {
         }
         .padding(.bottom, VibeSpacing.xxl)
     }
-
-
 }
+
+// MARK: - PlayerController
 
 class PlayerController: ObservableObject {
     @Published var player: AVPlayer?
     private var observer: Any?
     private var tempURL: URL?
 
-    func setup(with data: Data) {
-        if player != nil { return }
-        print("MediaEditor: Setting up player with data (\(data.count) bytes)")
+    /// Sets up (or replaces) the player with the given media data.
+    /// File I/O runs on a background thread; all published updates happen on the main actor.
+    @MainActor
+    func setup(with data: Data) async {
+        // Tear down existing player first.
+        player?.pause()
+        if let obs = observer {
+            NotificationCenter.default.removeObserver(obs)
+            observer = nil
+        }
+        if let old = tempURL {
+            try? FileManager.default.removeItem(at: old)
+            tempURL = nil
+        }
+        player = nil
 
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".mov")
         self.tempURL = url
 
         do {
-            try data.write(to: url)
-            let player = AVPlayer(url: url)
-            player.actionAtItemEnd = .none
+            // Write file on a background thread so we don't block the main actor.
+            let dataToWrite = data
+            let targetURL = url
+            try await Task.detached(priority: .userInitiated) {
+                try dataToWrite.write(to: targetURL)
+            }.value
 
-            self.observer = NotificationCenter.default.addObserver(
+            let item = AVPlayerItem(url: url)
+            let newPlayer = AVPlayer(playerItem: item)
+            newPlayer.actionAtItemEnd = .none
+
+            let obs = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: player.currentItem,
+                object: item,
                 queue: .main
-            ) { [weak player] _ in
-                player?.seek(to: .zero)
-                player?.play()
+            ) { [weak newPlayer] _ in
+                newPlayer?.seek(to: .zero)
+                newPlayer?.play()
             }
+            self.observer = obs
 
-            self.player = player
-            player.play()
+            self.player = newPlayer
+            newPlayer.play()
         } catch {
             print("PlayerController Error: \(error)")
         }
     }
 
     deinit {
+        // AVPlayer and NotificationCenter are thread-safe to call from deinit.
         player?.pause()
         if let observer = observer {
             NotificationCenter.default.removeObserver(observer)
@@ -260,29 +338,41 @@ class PlayerController: ObservableObject {
     }
 }
 
-struct VideoPlayerView: UIViewRepresentable {
-    let player: AVPlayer
+// MARK: - AVPlayerLayerView
+// A UIView subclass that owns an AVPlayerLayer and resizes it properly via layoutSubviews.
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.backgroundColor = .black
-        let layer = AVPlayerLayer(player: player)
-        layer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(layer)
-        return view
+final class PlayerUIView: UIView {
+    private let playerLayer = AVPlayerLayer()
+
+    init(player: AVPlayer) {
+        super.init(frame: .zero)
+        backgroundColor = .black
+        playerLayer.player = player
+        playerLayer.videoGravity = .resizeAspectFill
+        layer.addSublayer(playerLayer)
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        uiView.layer.sublayers?.forEach { layer in
-            if let playerLayer = layer as? AVPlayerLayer {
-                playerLayer.frame = uiView.bounds
-            }
-        }
-        CATransaction.commit()
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer.frame = bounds
     }
 }
+
+struct AVPlayerLayerView: UIViewRepresentable {
+    let player: AVPlayer
+
+    func makeUIView(context: Context) -> PlayerUIView {
+        PlayerUIView(player: player)
+    }
+
+    func updateUIView(_ uiView: PlayerUIView, context: Context) {
+        // Player is owned by PlayerUIView; layout handled in layoutSubviews.
+    }
+}
+
+// MARK: - MusicSelectorView
 
 struct MusicSelectorView: View {
     @Environment(\.dismiss) var dismiss

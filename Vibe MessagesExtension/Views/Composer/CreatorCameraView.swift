@@ -59,6 +59,8 @@ struct CreatorCameraView: View {
     // Pass song selection back to parent
     var onSongSelected: ((SongData?) -> Void)?
     var onClose: (() -> Void)?
+    // Called when user finishes entering pre-record overlay text
+    var onTextCommitted: ((String) -> Void)?
 
     init(
         initialLocked: Bool = false,
@@ -66,7 +68,8 @@ struct CreatorCameraView: View {
         mediaData: Binding<Data?>,
         thumbnail: Binding<UIImage?>,
         mediaType: Binding<VibeType>,
-        onClose: (() -> Void)? = nil
+        onClose: (() -> Void)? = nil,
+        onTextCommitted: ((String) -> Void)? = nil
     ) {
         _selectedMode = State(initialValue: initialLocked ? .locked : .normal)
         _selectedItem = selectedItem
@@ -74,6 +77,7 @@ struct CreatorCameraView: View {
         _thumbnail = thumbnail
         _mediaType = mediaType
         self.onClose = onClose
+        self.onTextCommitted = onTextCommitted
     }
 
     var body: some View {
@@ -508,8 +512,7 @@ struct CreatorCameraView: View {
             Color.black.opacity(0.7)
                 .edgesIgnoringSafeArea(.all)
                 .onTapGesture {
-                    showTextInput = false
-                    isTextFocused = false
+                    commitText()
                 }
 
             VStack {
@@ -521,8 +524,7 @@ struct CreatorCameraView: View {
                     .multilineTextAlignment(.center)
                     .padding()
                     .onSubmit {
-                        showTextInput = false
-                        isTextFocused = false
+                        commitText()
                     }
                 Spacer()
             }
@@ -530,6 +532,12 @@ struct CreatorCameraView: View {
         .onAppear {
             isTextFocused = true
         }
+    }
+
+    private func commitText() {
+        showTextInput = false
+        isTextFocused = false
+        onTextCommitted?(pendingOverlayText)
     }
 
     // MARK: - Filter Overlay

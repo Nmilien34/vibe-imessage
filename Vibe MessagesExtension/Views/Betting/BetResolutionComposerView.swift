@@ -19,6 +19,7 @@ struct BetResolutionComposerView: View {
     @State private var errorMessage: String?
     @State private var showError = false
     @State private var pendingOverlayText: String?
+    @State private var cameraText: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +29,7 @@ struct BetResolutionComposerView: View {
                     mediaData: data,
                     thumbnail: thumbnailImage,
                     isLocked: false,
+                    initialOverlayText: cameraText,
                     onShare: { overlayText, _ in
                         await submitProofClaim(overlayText: overlayText)
                     },
@@ -35,6 +37,7 @@ struct BetResolutionComposerView: View {
                         mediaData = nil
                         thumbnailImage = nil
                         selectedItem = nil
+                        cameraText = ""
                     }
                 )
             } else {
@@ -44,7 +47,10 @@ struct BetResolutionComposerView: View {
                     mediaData: $mediaData,
                     thumbnail: $thumbnailImage,
                     mediaType: $mediaType,
-                    onClose: onCancel
+                    onClose: onCancel,
+                    onTextCommitted: { text in
+                        cameraText = text
+                    }
                 )
             }
 
