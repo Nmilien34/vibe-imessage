@@ -103,7 +103,7 @@ class AppState: ObservableObject {
     // MARK: - Dashboard Tabs
     @Published var activeTab: DashboardTab = .feed
     @Published var showCreateSheet = false
-    @Published var betFilter: BetStatusFilter = .all
+    @Published var betFilter: BetStatusFilter = .active
 
     // MARK: - User Cache & Network
     @Published var userCache: [String: CachedUser] = [:]
@@ -115,10 +115,7 @@ class AppState: ObservableObject {
     var filteredBets: [Bet] {
         let source = expandedBets
         switch betFilter {
-        case .all: return source.filter {
-            let s = displayStatus(for: $0)
-            return s == .active || s == .pendingResolution
-        }
+        case .all: return source
         case .active: return source.filter { displayStatus(for: $0) == .active }
         case .pending: return source.filter { displayStatus(for: $0) == .pendingResolution }
         case .completed: return source.filter { displayStatus(for: $0) == .completed }

@@ -14,7 +14,8 @@ struct VideoComposerView: View {
     let isLocked: Bool
 
     @State private var selectedItem: PhotosPickerItem?
-    @State private var mediaData: Data?
+    @State private var mediaData: Data?     // photos only (JPEG)
+    @State private var videoURL: URL?       // videos only (URL avoids loading into memory)
     @State private var thumbnailImage: UIImage?
     @State private var mediaType: VibeType = .video
     @State private var isUploading = false
@@ -27,11 +28,12 @@ struct VideoComposerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let data = mediaData {
+            if mediaData != nil || videoURL != nil {
                 // Media Editor replaces static preview
                 MediaEditorView(
                     mediaType: mediaType,
-                    mediaData: data,
+                    mediaData: mediaData,
+                    videoURL: videoURL,
                     thumbnail: thumbnailImage,
                     isLocked: isLocked,
                     initialOverlayText: cameraText,
@@ -40,6 +42,7 @@ struct VideoComposerView: View {
                     },
                     onCancel: {
                         mediaData = nil
+                        videoURL = nil
                         thumbnailImage = nil
                         selectedItem = nil
                         cameraText = ""
@@ -50,6 +53,7 @@ struct VideoComposerView: View {
                     initialLocked: isLocked,
                     selectedItem: $selectedItem,
                     mediaData: $mediaData,
+                    videoURL: $videoURL,
                     thumbnail: $thumbnailImage,
                     mediaType: $mediaType,
                     onTextCommitted: { text in
@@ -111,13 +115,17 @@ struct VideoComposerView: View {
             // Check if it's a video or image
             if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
                 if let data = try await item.loadTransferable(type: Data.self) {
-                    mediaData = data
-                    thumbnailImage = await generateThumbnail(from: data)
+                    // Write to temp file immediately so data can be freed from memory.
+                    let tempURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString + ".mov")
+                    try data.write(to: tempURL)
+                    videoURL = tempURL
+                    thumbnailImage = await generateThumbnail(from: tempURL)
                     mediaType = .video
                     return
                 }
             }
-            
+
             if item.supportedContentTypes.contains(where: { $0.conforms(to: .image) }) {
                 if let data = try await item.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
@@ -132,26 +140,20 @@ struct VideoComposerView: View {
         }
     }
 
-    private func generateThumbnail(from data: Data) async -> UIImage? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
-        try? data.write(to: tempURL)
-
-        let asset = AVURLAsset(url: tempURL)
+    private func generateThumbnail(from url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
 
         do {
             let (cgImage, _) = try await imageGenerator.image(at: .zero)
-            try? FileManager.default.removeItem(at: tempURL)
             return UIImage(cgImage: cgImage)
         } catch {
-            try? FileManager.default.removeItem(at: tempURL)
             return nil
         }
     }
 
     private func shareMedia(overlayText: String? = nil, song: SongData? = nil) async {
-        guard let data = mediaData else { return }
         // Use currentChatId (our distributed ID system) instead of conversationId
         guard let chatId = appState.currentChatId ?? appState.conversationId else {
             self.error = "No active conversation"
@@ -168,16 +170,41 @@ struct VideoComposerView: View {
         showUploadError = false
 
         do {
-            // 1. Upload Video (Multipart)
+            // 1. Determine upload source URL — video uses URL directly, photo writes to temp file
             uploadProgress = 0.2
 
+            let isVideoUpload = mediaType == .video
+            let uploadSourceURL: URL
+
+            if isVideoUpload {
+                guard let url = videoURL else {
+                    throw NSError(domain: "VideoComposerView", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "No video to upload."])
+                }
+                uploadSourceURL = url
+            } else {
+                guard let data = mediaData else {
+                    throw NSError(domain: "VideoComposerView", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "No photo to upload."])
+                }
+                let photoTempURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString + ".jpg")
+                try data.write(to: photoTempURL)
+                uploadSourceURL = photoTempURL
+            }
+
             let result = try await APIService.shared.uploadMedia(
-                mediaData: data,
+                mediaURL: uploadSourceURL,
                 userId: appState.userId,
                 chatId: chatId,
                 isLocked: isLocked,
-                isVideo: mediaType == .video
+                isVideo: isVideoUpload
             )
+
+            // Clean up photo temp file if we created one
+            if !isVideoUpload {
+                try? FileManager.default.removeItem(at: uploadSourceURL)
+            }
 
             uploadProgress = 0.6
 

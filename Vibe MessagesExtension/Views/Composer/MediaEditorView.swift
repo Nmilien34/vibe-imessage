@@ -6,7 +6,8 @@ struct MediaEditorView: View {
     @EnvironmentObject var appState: AppState
 
     let mediaType: VibeType
-    let mediaData: Data
+    let mediaData: Data?    // nil for videos; contains JPEG data for photos
+    let videoURL: URL?      // set for videos; nil for photos — AVPlayer uses URL directly
     let thumbnail: UIImage?
     let isLocked: Bool
     let initialOverlayText: String
@@ -26,7 +27,8 @@ struct MediaEditorView: View {
 
     init(
         mediaType: VibeType,
-        mediaData: Data,
+        mediaData: Data? = nil,
+        videoURL: URL? = nil,
         thumbnail: UIImage?,
         isLocked: Bool,
         initialOverlayText: String = "",
@@ -35,6 +37,7 @@ struct MediaEditorView: View {
     ) {
         self.mediaType = mediaType
         self.mediaData = mediaData
+        self.videoURL = videoURL
         self.thumbnail = thumbnail
         self.isLocked = isLocked
         self.initialOverlayText = initialOverlayText
@@ -120,10 +123,10 @@ struct MediaEditorView: View {
                 }
             }
         }
-        .task(id: mediaData) {
-            // Always re-init player when media data changes (handles re-picks from gallery)
-            if mediaType == .video {
-                await playerController.setup(with: mediaData)
+        .task(id: videoURL?.path ?? "") {
+            // Re-init player when video URL changes (handles re-picks from gallery)
+            if mediaType == .video, let url = videoURL {
+                await playerController.setup(with: url)
             }
         }
         .alert("Music Unavailable", isPresented: $musicUnavailable) {
@@ -159,7 +162,8 @@ struct MediaEditorView: View {
                     .ignoresSafeArea()
                 }
             } else {
-                if let img = thumbnail ?? UIImage(data: mediaData) {
+                let photoImage = thumbnail ?? mediaData.flatMap { UIImage(data: $0) }
+                if let img = photoImage {
                     Image(uiImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
@@ -277,53 +281,39 @@ class PlayerController: ObservableObject {
     private var observer: Any?
     private var tempURL: URL?
 
-    /// Sets up (or replaces) the player with the given media data.
-    /// File I/O runs on a background thread; all published updates happen on the main actor.
+    /// Sets up (or replaces) the player with the given video URL.
+    /// Uses the URL directly for AVPlayer — no temp file write needed.
     @MainActor
-    func setup(with data: Data) async {
+    func setup(with videoURL: URL) async {
         // Tear down existing player first.
         player?.pause()
         if let obs = observer {
             NotificationCenter.default.removeObserver(obs)
             observer = nil
         }
+        // tempURL is no longer used (URL-based approach), but clean up if it exists from an old session.
         if let old = tempURL {
             try? FileManager.default.removeItem(at: old)
             tempURL = nil
         }
         player = nil
 
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString + ".mov")
-        self.tempURL = url
+        let item = AVPlayerItem(url: videoURL)
+        let newPlayer = AVPlayer(playerItem: item)
+        newPlayer.actionAtItemEnd = .none
 
-        do {
-            // Write file on a background thread so we don't block the main actor.
-            let dataToWrite = data
-            let targetURL = url
-            try await Task.detached(priority: .userInitiated) {
-                try dataToWrite.write(to: targetURL)
-            }.value
-
-            let item = AVPlayerItem(url: url)
-            let newPlayer = AVPlayer(playerItem: item)
-            newPlayer.actionAtItemEnd = .none
-
-            let obs = NotificationCenter.default.addObserver(
-                forName: .AVPlayerItemDidPlayToEndTime,
-                object: item,
-                queue: .main
-            ) { [weak newPlayer] _ in
-                newPlayer?.seek(to: .zero)
-                newPlayer?.play()
-            }
-            self.observer = obs
-
-            self.player = newPlayer
-            newPlayer.play()
-        } catch {
-            print("PlayerController Error: \(error)")
+        let obs = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak newPlayer] _ in
+            newPlayer?.seek(to: .zero)
+            newPlayer?.play()
         }
+        self.observer = obs
+
+        self.player = newPlayer
+        newPlayer.play()
     }
 
     deinit {

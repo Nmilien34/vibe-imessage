@@ -160,9 +160,10 @@ class APIService {
 
     /**
      * Uploads media (video or photo) using multipart/form-data.
-     * Returns the public media URL and S3 key for cleanup tracking.
+     * Streams the source file in 64 KB chunks — never loads full video into memory.
+     * iMessage extensions have a ~60 MB memory limit, so this is critical for video.
      */
-    func uploadMedia(mediaData: Data, userId: String, chatId: String, isLocked: Bool, isVideo: Bool) async throws -> VideoUploadResult {
+    func uploadMedia(mediaURL: URL, userId: String, chatId: String, isLocked: Bool, isVideo: Bool) async throws -> VideoUploadResult {
         if useMockData {
             try await Task.sleep(nanoseconds: 1_000_000_000) // 1s delay to simulate upload
             let mockId = UUID().uuidString
@@ -179,8 +180,8 @@ class APIService {
 
         let boundary = "Boundary-\(UUID().uuidString)"
 
-        // Build multipart body into a temp file so we never hold two copies of the
-        // video in memory at once (iMessage extensions have a ~60 MB memory limit).
+        // Build multipart body into a temp file by streaming the source in 64 KB chunks.
+        // This ensures the full video is never held in memory (iMessage ~60 MB limit).
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString + ".multipart")
 
@@ -208,7 +209,16 @@ class APIService {
             FileManager.default.createFile(atPath: tempURL.path, contents: nil)
             let handle = try FileHandle(forWritingTo: tempURL)
             handle.write(preamble)
-            handle.write(mediaData)
+
+            // Stream source file in 64 KB chunks — never loads the whole video into memory
+            let sourceHandle = try FileHandle(forReadingFrom: mediaURL)
+            while true {
+                let chunk = sourceHandle.readData(ofLength: 65_536)
+                if chunk.isEmpty { break }
+                handle.write(chunk)
+            }
+            sourceHandle.closeFile()
+
             handle.write(epilogue)
             handle.closeFile()
         } catch {

@@ -53,7 +53,8 @@ struct CreatorCameraView: View {
 
     // Bindings to parent (VideoComposerView)
     @Binding var selectedItem: PhotosPickerItem?
-    @Binding var mediaData: Data?
+    @Binding var mediaData: Data?       // used for photos only (small JPEG)
+    @Binding var videoURL: URL?         // used for videos — avoids loading full Data into memory
     @Binding var thumbnail: UIImage?
     @Binding var mediaType: VibeType
 
@@ -67,6 +68,7 @@ struct CreatorCameraView: View {
         initialLocked: Bool = false,
         selectedItem: Binding<PhotosPickerItem?>,
         mediaData: Binding<Data?>,
+        videoURL: Binding<URL?>,
         thumbnail: Binding<UIImage?>,
         mediaType: Binding<VibeType>,
         onClose: (() -> Void)? = nil,
@@ -75,6 +77,7 @@ struct CreatorCameraView: View {
         _selectedMode = State(initialValue: initialLocked ? .locked : .normal)
         _selectedItem = selectedItem
         _mediaData = mediaData
+        _videoURL = videoURL
         _thumbnail = thumbnail
         _mediaType = mediaType
         self.onClose = onClose
@@ -228,21 +231,19 @@ struct CreatorCameraView: View {
             if let video = newValue {
                 Task {
                     if selectedMode == .boomerang {
-                        // Process into a forward+reverse loop
+                        // Process into a forward+reverse loop.
+                        // Store the URL directly — do NOT load into Data (crashes iMessage ext).
                         if let boomerangURL = await viewModel.processBoomerang(from: video.url) {
-                            if let data = try? Data(contentsOf: boomerangURL) {
-                                self.mediaData = data
-                                self.thumbnail = await MessageService.shared.generateThumbnail(from: boomerangURL)
-                                self.mediaType = .video
-                            }
-                            try? FileManager.default.removeItem(at: boomerangURL)
+                            self.videoURL = boomerangURL
+                            self.thumbnail = await MessageService.shared.generateThumbnail(from: boomerangURL)
+                            self.mediaType = .video
+                            // boomerangURL lifecycle: parent clears videoURL on reset → iOS temp cleanup
                         }
                     } else {
-                        if let data = try? Data(contentsOf: video.url) {
-                            self.mediaData = data
-                            self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
-                            self.mediaType = .video
-                        }
+                        // Store URL directly — no Data(contentsOf:) which loads 30-80 MB into memory
+                        self.videoURL = video.url
+                        self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
+                        self.mediaType = .video
                     }
                 }
             }
@@ -813,6 +814,6 @@ private class VideoPreviewUIView: UIView {
 }
 
 #Preview {
-    CreatorCameraView(selectedItem: .constant(nil), mediaData: .constant(nil), thumbnail: .constant(nil), mediaType: .constant(.video))
+    CreatorCameraView(selectedItem: .constant(nil), mediaData: .constant(nil), videoURL: .constant(nil), thumbnail: .constant(nil), mediaType: .constant(.video))
         .environmentObject(AppState())
 }

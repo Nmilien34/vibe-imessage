@@ -10,7 +10,8 @@ struct BetResolutionComposerView: View {
     let onCancel: () -> Void
 
     @State private var selectedItem: PhotosPickerItem?
-    @State private var mediaData: Data?
+    @State private var mediaData: Data?     // photos only (JPEG)
+    @State private var videoURL: URL?       // videos only (URL avoids loading into memory)
     @State private var thumbnailImage: UIImage?
     @State private var mediaType: VibeType = .video
     @State private var selectedOutcome: BetOutcome? = nil
@@ -28,13 +29,14 @@ struct BetResolutionComposerView: View {
 
     var body: some View {
         ZStack {
-            if let data = mediaData {
+            if mediaData != nil || videoURL != nil {
                 if selectedOutcome == nil {
                     outcomePicker
                 } else {
                     MediaEditorView(
                         mediaType: mediaType,
-                        mediaData: data,
+                        mediaData: mediaData,
+                        videoURL: videoURL,
                         thumbnail: thumbnailImage,
                         isLocked: false,
                         initialOverlayText: cameraText,
@@ -52,6 +54,7 @@ struct BetResolutionComposerView: View {
                     initialLocked: false,
                     selectedItem: $selectedItem,
                     mediaData: $mediaData,
+                    videoURL: $videoURL,
                     thumbnail: $thumbnailImage,
                     mediaType: $mediaType,
                     onClose: onCancel,
@@ -102,6 +105,7 @@ struct BetResolutionComposerView: View {
                     Button {
                         VibeHaptic.light()
                         mediaData = nil
+                        videoURL = nil
                         thumbnailImage = nil
                         selectedItem = nil
                         cameraText = ""
@@ -257,8 +261,13 @@ struct BetResolutionComposerView: View {
         do {
             if item.supportedContentTypes.contains(where: { $0.conforms(to: .movie) }) {
                 if let data = try await item.loadTransferable(type: Data.self) {
-                    mediaData = data
-                    thumbnailImage = await generateThumbnail(from: data)
+                    // Write to temp file immediately so we can release the Data from memory.
+                    // This still briefly loads the video for the write, but then data is freed.
+                    let tempURL = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString + ".mov")
+                    try data.write(to: tempURL)
+                    videoURL = tempURL
+                    thumbnailImage = await generateThumbnail(from: tempURL)
                     mediaType = .video
                     return
                 }
@@ -279,20 +288,15 @@ struct BetResolutionComposerView: View {
         }
     }
 
-    private func generateThumbnail(from data: Data) async -> UIImage? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".mov")
-        try? data.write(to: tempURL)
-
-        let asset = AVURLAsset(url: tempURL)
+    private func generateThumbnail(from url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true
 
         do {
             let (cgImage, _) = try await imageGenerator.image(at: .zero)
-            try? FileManager.default.removeItem(at: tempURL)
             return UIImage(cgImage: cgImage)
         } catch {
-            try? FileManager.default.removeItem(at: tempURL)
             return nil
         }
     }
@@ -300,7 +304,7 @@ struct BetResolutionComposerView: View {
     // MARK: - Submission
 
     private func submitProofClaim(overlayText: String?) async {
-        guard let data = mediaData, let outcome = selectedOutcome else { return }
+        guard let outcome = selectedOutcome else { return }
 
         pendingOverlayText = overlayText
         isSubmitting = true
@@ -311,13 +315,29 @@ struct BetResolutionComposerView: View {
         do {
             let proofMediaType: ProofMediaType
             let isVideoUpload: Bool
+            let uploadSourceURL: URL
+
             switch mediaType {
             case .video:
+                guard let url = videoURL else {
+                    throw NSError(domain: "BetResolutionComposerView", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "No video to upload."])
+                }
                 proofMediaType = .video
                 isVideoUpload = true
+                uploadSourceURL = url
             case .photo:
+                guard let data = mediaData else {
+                    throw NSError(domain: "BetResolutionComposerView", code: 1,
+                                  userInfo: [NSLocalizedDescriptionKey: "No photo to upload."])
+                }
                 proofMediaType = .photo
                 isVideoUpload = false
+                // Write JPEG to temp file so upload function always works with URL
+                let photoTempURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent(UUID().uuidString + ".jpg")
+                try data.write(to: photoTempURL)
+                uploadSourceURL = photoTempURL
             default:
                 throw NSError(
                     domain: "BetResolutionComposerView",
@@ -327,12 +347,17 @@ struct BetResolutionComposerView: View {
             }
 
             let upload = try await APIService.shared.uploadMedia(
-                mediaData: data,
+                mediaURL: uploadSourceURL,
                 userId: appState.userId,
                 chatId: bet.chatId,
                 isLocked: false,
                 isVideo: isVideoUpload
             )
+
+            // Clean up photo temp file if we created one
+            if !isVideoUpload {
+                try? FileManager.default.removeItem(at: uploadSourceURL)
+            }
 
             guard let mediaKey = upload.videoKey else {
                 throw NSError(
