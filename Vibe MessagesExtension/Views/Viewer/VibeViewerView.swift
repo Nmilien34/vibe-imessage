@@ -770,7 +770,8 @@ struct VibeViewerView: View {
                 _ = try await appState.placeBetStake(
                     betId: bet.betId,
                     side: selectedStakeSide,
-                    amount: clampedAmount
+                    amount: clampedAmount,
+                    bet: bet
                 )
                 isSubmittingStake = false
                 showStakeSheet = false

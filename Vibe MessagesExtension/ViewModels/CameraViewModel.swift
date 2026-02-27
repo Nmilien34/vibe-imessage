@@ -21,7 +21,16 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var isMuted = false
     @Published var isUploading = false
     @Published var uploadError: String?
-    
+    @Published var isProcessingBoomerang = false
+    @Published var realCapturePhase: RealCapturePhase = .idle
+
+    enum RealCapturePhase {
+        case idle
+        case capturingBack
+        case capturedBack   // back photo done, flipping to front
+        case capturingFront
+    }
+
     // ...
     
     func uploadVideo(userId: String, chatId: String, isLocked: Bool) async -> APIService.VideoUploadResult? {
@@ -64,11 +73,13 @@ class CameraViewModel: NSObject, ObservableObject {
     private var timer: Timer?
     private var startTime: Date?
 
+    private var realBackPhoto: UIImage?
+
     // Race condition flags: tracks recording lifecycle between startRecording() and delegate callbacks
     private var isStartingRecording = false
     private var pendingStopRecording = false
 
-    private let maxDuration: TimeInterval = 15.0
+    var maxDuration: TimeInterval = 15.0
     
     var isSimulator: Bool {
         #if targetEnvironment(simulator)
@@ -229,6 +240,9 @@ class CameraViewModel: NSObject, ObservableObject {
         self.isStartingRecording = false
         self.pendingStopRecording = false
         self.recordingTime = 0
+        self.realCapturePhase = .idle
+        self.realBackPhoto = nil
+        self.isProcessingBoomerang = false
     }
 
     func stopSession() {
@@ -400,6 +414,217 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
 
+    // MARK: - REAL Mode (BeReal-style dual capture)
+
+    func startRealCapture() {
+        guard realCapturePhase == .idle, !isRecording else { return }
+        realCapturePhase = .capturingBack
+        takePhoto()
+    }
+
+    private func finishRealCapture(frontPhoto: UIImage) {
+        guard let back = realBackPhoto else {
+            realCapturePhase = .idle
+            return
+        }
+        capturedPhoto = compositeRealPhotos(back: back, front: frontPhoto)
+        realBackPhoto = nil
+        realCapturePhase = .idle
+        // Return to back camera for next capture
+        flipCamera()
+    }
+
+    private func compositeRealPhotos(back: UIImage, front: UIImage) -> UIImage {
+        let size = back.size
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { ctx in
+            // Full-frame back camera
+            back.draw(in: CGRect(origin: .zero, size: size))
+
+            // Front camera as ~30% rounded overlay in the top-right corner
+            let overlayW = size.width * 0.30
+            let overlayH = overlayW * (front.size.height / max(front.size.width, 1))
+            let margin: CGFloat = 18
+            let overlayRect = CGRect(
+                x: size.width - overlayW - margin,
+                y: margin,
+                width: overlayW,
+                height: overlayH
+            )
+
+            // Clip front photo to rounded rect
+            let borderInset: CGFloat = 3
+            let innerRect = overlayRect.insetBy(dx: borderInset, dy: borderInset)
+            let clipPath = UIBezierPath(roundedRect: innerRect, cornerRadius: 14)
+            ctx.cgContext.saveGState()
+            ctx.cgContext.addPath(clipPath.cgPath)
+            ctx.cgContext.clip()
+            front.draw(in: innerRect)
+            ctx.cgContext.restoreGState()
+
+            // White border
+            let borderPath = UIBezierPath(roundedRect: overlayRect, cornerRadius: 14 + borderInset)
+            UIColor.white.setFill()
+            borderPath.fill()
+            // Re-draw front on top (border is around it, not over it)
+            ctx.cgContext.saveGState()
+            ctx.cgContext.addPath(clipPath.cgPath)
+            ctx.cgContext.clip()
+            front.draw(in: innerRect)
+            ctx.cgContext.restoreGState()
+        }
+    }
+
+    // MARK: - BOOMERANG Processing
+
+    /// Records at normal quality; caller should cap recording to ~2 s.
+    /// Returns a URL to a forward+reverse looping MP4, or nil on failure.
+    func processBoomerang(from sourceURL: URL) async -> URL? {
+        await MainActor.run { isProcessingBoomerang = true }
+        defer { Task { @MainActor in self.isProcessingBoomerang = false } }
+
+        let asset = AVURLAsset(url: sourceURL)
+
+        let durationSeconds: Double
+        if #available(iOS 15.0, *) {
+            durationSeconds = CMTimeGetSeconds((try? await asset.load(.duration)) ?? asset.duration)
+        } else {
+            durationSeconds = CMTimeGetSeconds(asset.duration)
+        }
+        guard durationSeconds > 0.05 else { return nil }
+
+        let fps: Double = 30
+        let frameCount = min(Int(durationSeconds * fps), 90) // cap at 3 s worth of frames
+
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 480, height: 480)
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = CMTime(value: 1, timescale: CMTimeScale(fps))
+
+        let times: [CMTime] = (0..<frameCount).map {
+            CMTime(value: CMTimeValue($0), timescale: CMTimeScale(fps))
+        }
+
+        var frames: [CGImage] = []
+
+        if #available(iOS 16.0, *) {
+            do {
+                for try await result in generator.images(for: times) {
+                    frames.append(try result.image)
+                }
+            } catch {
+                print("Boomerang frame extraction error: \(error)")
+            }
+        } else {
+            frames = await extractFramesLegacy(generator: generator, times: times)
+        }
+
+        guard !frames.isEmpty else { return nil }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + "_boomerang.mp4")
+
+        guard let writer = try? AVAssetWriter(outputURL: outputURL, fileType: .mp4) else { return nil }
+
+        let frameW = frames[0].width
+        let frameH = frames[0].height
+
+        let writerInput = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: frameW,
+            AVVideoHeightKey: frameH,
+            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 2_000_000]
+        ])
+        writerInput.expectsMediaDataInRealTime = false
+
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: writerInput,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: frameW,
+                kCVPixelBufferHeightKey as String: frameH
+            ]
+        )
+
+        writer.add(writerInput)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        let writeFPS: Int32 = 30
+        // Forward then reversed = boomerang
+        let allFrames = frames + frames.reversed()
+
+        for (idx, cgImage) in allFrames.enumerated() {
+            while !writerInput.isReadyForMoreMediaData {
+                try? await Task.sleep(nanoseconds: 5_000_000)
+            }
+            let time = CMTime(value: CMTimeValue(idx), timescale: writeFPS)
+            if let buffer = cgImageToPixelBuffer(cgImage) {
+                adaptor.append(buffer, withPresentationTime: time)
+            }
+        }
+
+        writerInput.markAsFinished()
+        await writer.finishWriting()
+
+        if writer.status != .completed {
+            print("Boomerang write failed: \(writer.error?.localizedDescription ?? "unknown")")
+            return nil
+        }
+        return outputURL
+    }
+
+    private func extractFramesLegacy(generator: AVAssetImageGenerator, times: [CMTime]) async -> [CGImage] {
+        await withCheckedContinuation { continuation in
+            let nsValueTimes = times.map { NSValue(time: $0) }
+            var collected: [(Int, CGImage)] = []
+            var completedCount = 0
+            let total = nsValueTimes.count
+
+            generator.generateCGImagesAsynchronously(forTimes: nsValueTimes) { requested, image, _, result, _ in
+                if result == .succeeded, let img = image {
+                    let idx = Int(CMTimeGetSeconds(requested) * 30)
+                    collected.append((idx, img))
+                }
+                completedCount += 1
+                if completedCount >= total {
+                    let sorted = collected.sorted { $0.0 < $1.0 }.map { $0.1 }
+                    continuation.resume(returning: sorted)
+                }
+            }
+        }
+    }
+
+    private func cgImageToPixelBuffer(_ cgImage: CGImage) -> CVPixelBuffer? {
+        let w = cgImage.width, h = cgImage.height
+        var buf: CVPixelBuffer?
+        let attrs: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: w,
+            kCVPixelBufferHeightKey as String: h,
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        ]
+        guard CVPixelBufferCreate(kCFAllocatorDefault, w, h, kCVPixelFormatType_32BGRA, attrs as CFDictionary, &buf) == kCVReturnSuccess,
+              let buffer = buf else { return nil }
+
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+
+        guard let ctx = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer),
+            width: w, height: h,
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        ) else { return nil }
+
+        ctx.draw(cgImage, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return buffer
+    }
+
     private func startTimer() {
         startTime = Date()
         recordingTime = 0
@@ -487,12 +712,32 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         if let error = error {
             print("Photo capture error: \(error.localizedDescription)")
+            DispatchQueue.main.async {
+                self.realCapturePhase = .idle
+                self.realBackPhoto = nil
+            }
             return
         }
-        
-        guard let imageData = photo.fileDataRepresentation() else { return }
-        if let image = UIImage(data: imageData) {
-            DispatchQueue.main.async {
+
+        guard let imageData = photo.fileDataRepresentation(),
+              let image = UIImage(data: imageData) else { return }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            switch self.realCapturePhase {
+            case .capturingBack:
+                // Store back photo, flip to front, then auto-capture
+                self.realBackPhoto = image
+                self.realCapturePhase = .capturedBack
+                self.flipCamera()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                    guard self.realCapturePhase == .capturedBack else { return }
+                    self.realCapturePhase = .capturingFront
+                    self.takePhoto()
+                }
+            case .capturingFront:
+                self.finishRealCapture(frontPhoto: image)
+            default:
                 self.capturedPhoto = image
             }
         }

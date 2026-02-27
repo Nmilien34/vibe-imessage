@@ -11,10 +11,11 @@ import AVFoundation
 import UIKit
 
 enum CameraMode: String, CaseIterable, Identifiable {
-    case locked = "LOCKED"
     case normal = "NORMAL"
-    case loop = "LOOP"
-    case pov = "POV"
+    case photo = "PHOTO"
+    case boomerang = "BOOMERANG"
+    case real = "REAL"
+    case locked = "LOCKED"
 
     var id: String { self.rawValue }
 }
@@ -143,11 +144,14 @@ struct CreatorCameraView: View {
             }
 
             // Layer 4: Recording timer (top center)
-            if viewModel.isRecording {
+            if viewModel.isRecording || viewModel.isProcessingBoomerang {
                 VStack {
-                    Text(String(format: "%02d:%02d / 00:15",
-                                Int(viewModel.recordingTime) / 60,
-                                Int(viewModel.recordingTime) % 60))
+                    Text(viewModel.isProcessingBoomerang
+                         ? "Creating boomerang…"
+                         : String(format: "%02d:%02d / 00:%02d",
+                                  Int(viewModel.recordingTime) / 60,
+                                  Int(viewModel.recordingTime) % 60,
+                                  selectedMode == .boomerang ? 2 : 15))
                         .font(VibeTypography.bodyMedium)
                         .monospacedDigit()
                         .foregroundColor(.white)
@@ -158,6 +162,39 @@ struct CreatorCameraView: View {
                         .padding(.top, 60)
                     Spacer()
                 }
+            }
+
+            // Layer 5a: REAL mode camera-switch / front-capture hint
+            if viewModel.realCapturePhase == .capturedBack || viewModel.realCapturePhase == .capturingFront {
+                VStack {
+                    Text(viewModel.realCapturePhase == .capturingFront ? "📸 Smile!" : "📱 Switching cameras…")
+                        .font(VibeTypography.titleMedium)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .padding(.top, 70)
+                    Spacer()
+                }
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: viewModel.realCapturePhase == .capturingFront)
+            }
+
+            // Layer 5b: Boomerang processing overlay
+            if viewModel.isProcessingBoomerang {
+                ZStack {
+                    Color.black.opacity(0.65).ignoresSafeArea()
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(1.4)
+                        Text("Creating boomerang…")
+                            .foregroundColor(.white)
+                            .font(VibeTypography.titleSmall)
+                    }
+                }
+                .transition(.opacity)
             }
 
             // Layer 5: Countdown overlay
@@ -190,10 +227,22 @@ struct CreatorCameraView: View {
         .onChange(of: viewModel.recordedVideo) { _, newValue in
             if let video = newValue {
                 Task {
-                    if let data = try? Data(contentsOf: video.url) {
-                        self.mediaData = data
-                        self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
-                        self.mediaType = .video
+                    if selectedMode == .boomerang {
+                        // Process into a forward+reverse loop
+                        if let boomerangURL = await viewModel.processBoomerang(from: video.url) {
+                            if let data = try? Data(contentsOf: boomerangURL) {
+                                self.mediaData = data
+                                self.thumbnail = await MessageService.shared.generateThumbnail(from: boomerangURL)
+                                self.mediaType = .video
+                            }
+                            try? FileManager.default.removeItem(at: boomerangURL)
+                        }
+                    } else {
+                        if let data = try? Data(contentsOf: video.url) {
+                            self.mediaData = data
+                            self.thumbnail = await MessageService.shared.generateThumbnail(from: video.url)
+                            self.mediaType = .video
+                        }
                     }
                 }
             }
@@ -431,44 +480,71 @@ struct CreatorCameraView: View {
                     .frame(width: 80, height: 80)
                     .shadow(color: .black.opacity(0.2), radius: 4)
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: viewModel.isRecording
-                                ? [.red, .orange]
-                                : [Color(red: 1.0, green: 0.2, blue: 0.6), .orange],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(
-                        width: viewModel.isRecording ? 70 : 66,
-                        height: viewModel.isRecording ? 70 : 66
-                    )
-                    .scaleEffect(viewModel.isRecording ? 1.0 : pulseScale)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.isRecording)
-                    .onAppear {
-                        if !viewModel.isRecording {
+                if selectedMode == .photo || selectedMode == .real {
+                    // Photo shutter: solid white circle, no recording ring
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 66, height: 66)
+                        .scaleEffect(pulseScale)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: pulseScale)
+                        .onAppear {
                             withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                                pulseScale = 1.1
+                                pulseScale = 1.05
                             }
                         }
-                    }
-                    .onTapGesture {
-                        VibeHaptic.medium()
-                        if viewModel.isRecording {
-                            viewModel.stopRecording()
-                        } else {
-                            beginRecording()
+                        .onTapGesture {
+                            VibeHaptic.medium()
+                            if selectedMode == .photo {
+                                viewModel.takePhoto()
+                            } else {
+                                // REAL: start dual capture if idle
+                                guard viewModel.realCapturePhase == .idle else { return }
+                                viewModel.startRealCapture()
+                            }
                         }
-                    }
-
-                if viewModel.isRecording {
+                } else {
+                    // Video / boomerang shutter
                     Circle()
-                        .trim(from: 0, to: viewModel.recordingTime / 15.0)
-                        .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                        .frame(width: 80, height: 80)
-                        .rotationEffect(.degrees(-90))
+                        .fill(
+                            LinearGradient(
+                                colors: viewModel.isRecording
+                                    ? [.red, .orange]
+                                    : [Color(red: 1.0, green: 0.2, blue: 0.6), .orange],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(
+                            width: viewModel.isRecording ? 70 : 66,
+                            height: viewModel.isRecording ? 70 : 66
+                        )
+                        .scaleEffect(viewModel.isRecording ? 1.0 : pulseScale)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: viewModel.isRecording)
+                        .onAppear {
+                            if !viewModel.isRecording {
+                                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                                    pulseScale = 1.1
+                                }
+                            }
+                        }
+                        .onTapGesture {
+                            VibeHaptic.medium()
+                            if viewModel.isRecording {
+                                viewModel.stopRecording()
+                            } else {
+                                viewModel.maxDuration = selectedMode == .boomerang ? 2.0 : 15.0
+                                beginRecording()
+                            }
+                        }
+
+                    if viewModel.isRecording {
+                        let maxSec = selectedMode == .boomerang ? 2.0 : 15.0
+                        Circle()
+                            .trim(from: 0, to: viewModel.recordingTime / maxSec)
+                            .stroke(Color.white, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                            .frame(width: 80, height: 80)
+                            .rotationEffect(.degrees(-90))
+                    }
                 }
             }
 

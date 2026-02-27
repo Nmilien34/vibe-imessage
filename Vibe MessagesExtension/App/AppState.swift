@@ -115,7 +115,10 @@ class AppState: ObservableObject {
     var filteredBets: [Bet] {
         let source = expandedBets
         switch betFilter {
-        case .all: return source
+        case .all: return source.filter {
+            let s = displayStatus(for: $0)
+            return s == .active || s == .pendingResolution
+        }
         case .active: return source.filter { displayStatus(for: $0) == .active }
         case .pending: return source.filter { displayStatus(for: $0) == .pendingResolution }
         case .completed: return source.filter { displayStatus(for: $0) == .completed }
@@ -1342,7 +1345,7 @@ class AppState: ObservableObject {
         return challengeVibe
     }
 
-    func placeBetStake(betId: String, side: BetSide, amount: Int) async throws -> BetParticipant {
+    func placeBetStake(betId: String, side: BetSide, amount: Int, bet: Bet? = nil) async throws -> BetParticipant {
         let stakeResponse = try await BettingService.shared.placeStake(betId: betId, side: side, amount: amount)
         let participant = stakeResponse.participant
         // Reflect stake deduction immediately in UI, then reconcile from backend.
@@ -1351,9 +1354,13 @@ class AppState: ObservableObject {
         betCanStakeById[betId] = false
 
         // Send stake notification bubble to the iMessage chat.
-        if let bet = expandedBets.first(where: { $0.betId == betId })
-            ?? activeBets.first(where: { $0.betId == betId }) {
-            sendStakeMessage(bet: bet, side: side)
+        // Prefer the caller-supplied bet over a global-list lookup, which may not be populated
+        // when the user entered the extension by tapping a bet bubble directly.
+        let resolvedBet = bet
+            ?? expandedBets.first(where: { $0.betId == betId })
+            ?? activeBets.first(where: { $0.betId == betId })
+        if let resolvedBet {
+            sendStakeMessage(bet: resolvedBet, side: side)
         }
 
         async let compactBetsTask: () = loadBets()
@@ -1364,13 +1371,15 @@ class AppState: ObservableObject {
         return participant
     }
 
-    func resolveBet(betId: String, outcome: BetOutcome, notes: String? = nil) async throws {
+    func resolveBet(betId: String, outcome: BetOutcome, notes: String? = nil, bet: Bet? = nil) async throws {
         let response = try await BettingService.shared.resolveBet(betId: betId, outcome: outcome, notes: notes)
 
         // Notify the chat that the result was called.
-        if let bet = expandedBets.first(where: { $0.betId == betId })
-            ?? activeBets.first(where: { $0.betId == betId }) {
-            sendResolutionMessage(bet: bet, outcome: outcome)
+        let resolvedBet = bet
+            ?? expandedBets.first(where: { $0.betId == betId })
+            ?? activeBets.first(where: { $0.betId == betId })
+        if let resolvedBet {
+            sendResolutionMessage(bet: resolvedBet, outcome: outcome)
         }
 
         await refreshBetResolutionCaches()

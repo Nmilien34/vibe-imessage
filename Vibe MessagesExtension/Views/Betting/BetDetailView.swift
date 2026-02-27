@@ -1465,7 +1465,7 @@ struct BetDetailView: View {
         resolutionError = nil
 
         do {
-            try await appState.resolveBet(betId: currentBet.betId, outcome: outcome)
+            try await appState.resolveBet(betId: currentBet.betId, outcome: outcome, bet: currentBet)
             hasSubmittedConsensusVote = false
             consensusVoteCounts = nil
             VibeHaptic.success()
@@ -1482,7 +1482,7 @@ struct BetDetailView: View {
         isStaking = true
         stakeError = nil
         do {
-            _ = try await appState.placeBetStake(betId: currentBet.betId, side: side, amount: stakeAmount)
+            _ = try await appState.placeBetStake(betId: currentBet.betId, side: side, amount: stakeAmount, bet: currentBet)
             await loadBetDetails()
         } catch {
             stakeError = error.localizedDescription

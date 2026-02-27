@@ -177,42 +177,54 @@ class APIService {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 60 // 1 minute timeout for uploads
-
         let boundary = "Boundary-\(UUID().uuidString)"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        var body = Data()
+        // Build multipart body into a temp file so we never hold two copies of the
+        // video in memory at once (iMessage extensions have a ~60 MB memory limit).
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".multipart")
 
-        // Helper to append text fields
-        func appendTextField(name: String, value: String) {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
-            body.append("\(value)\r\n".data(using: .utf8)!)
+        do {
+            var preamble = Data()
+
+            func appendTextField(name: String, value: String) {
+                preamble.append("--\(boundary)\r\n".data(using: .utf8)!)
+                preamble.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+                preamble.append("\(value)\r\n".data(using: .utf8)!)
+            }
+
+            appendTextField(name: "userId", value: userId)
+            appendTextField(name: "chatId", value: chatId)
+            appendTextField(name: "isLocked", value: isLocked ? "true" : "false")
+
+            let filename = isVideo ? "video.mp4" : "photo.jpg"
+            let contentType = isVideo ? "video/mp4" : "image/jpeg"
+            preamble.append("--\(boundary)\r\n".data(using: .utf8)!)
+            preamble.append("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+            preamble.append("Content-Type: \(contentType)\r\n\r\n".data(using: .utf8)!)
+
+            let epilogue = "\r\n--\(boundary)--\r\n".data(using: .utf8)!
+
+            FileManager.default.createFile(atPath: tempURL.path, contents: nil)
+            let handle = try FileHandle(forWritingTo: tempURL)
+            handle.write(preamble)
+            handle.write(mediaData)
+            handle.write(epilogue)
+            handle.closeFile()
+        } catch {
+            try? FileManager.default.removeItem(at: tempURL)
+            throw error
         }
 
-        appendTextField(name: "userId", value: userId)
-        appendTextField(name: "chatId", value: chatId)
-        appendTextField(name: "isLocked", value: isLocked ? "true" : "false")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        // Media file
-        let filename = isVideo ? "video.mp4" : "photo.jpg"
-        let contentType = isVideo ? "video/mp4" : "image/jpeg"
-        
-        body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"video\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: \(contentType)\r\n\r\n".data(using: .utf8)!)
-        body.append(mediaData)
-        body.append("\r\n".data(using: .utf8)!)
-
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
-
-        request.httpBody = body
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 60
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         applyAuth(to: &request)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.upload(for: request, fromFile: tempURL)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse

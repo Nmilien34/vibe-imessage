@@ -272,16 +272,48 @@ struct FeedTabView: View {
     // MARK: - Filter Chips
 
     private var filterChips: some View {
-        Picker("Challenge status", selection: $appState.betFilter) {
-            ForEach(BetStatusFilter.allCases, id: \.self) { filter in
-                Text(filter.rawValue.capitalized)
-                    .tag(filter)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: VibeSpacing.xs) {
+                ForEach(BetStatusFilter.allCases, id: \.self) { filter in
+                    Button {
+                        VibeHaptic.selection()
+                        withAnimation(VibeAnimation.snappy) {
+                            appState.betFilter = filter
+                        }
+                    } label: {
+                        Text(filterLabel(filter))
+                            .font(VibeTypography.captionLarge)
+                            .foregroundColor(appState.betFilter == filter ? .white : VibeTheme.textSecondary)
+                            .padding(.horizontal, VibeSpacing.md)
+                            .padding(.vertical, VibeSpacing.xs)
+                            .background(appState.betFilter == filter ? filterColor(filter) : VibeTheme.surfaceOverlay)
+                            .continuousCorner(VibeTheme.radiusMedium)
+                    }
+                }
             }
+            .padding(.horizontal, VibeSpacing.screenHorizontal)
         }
-        .pickerStyle(.segmented)
-        .tint(VibeTheme.betAccent)
-        .onChange(of: appState.betFilter) { _, _ in
-            VibeHaptic.selection()
+    }
+
+    private func filterLabel(_ filter: BetStatusFilter) -> String {
+        switch filter {
+        case .all: return "All"
+        case .active: return "Active"
+        case .pending: return "Pending"
+        case .completed: return "Completed"
+        case .expired: return "Expired"
+        case .ducked: return "Ducked"
+        }
+    }
+
+    private func filterColor(_ filter: BetStatusFilter) -> Color {
+        switch filter {
+        case .all: return VibeTheme.betAccent
+        case .active: return .green
+        case .pending: return .purple
+        case .completed: return .blue
+        case .expired: return .orange
+        case .ducked: return .gray
         }
     }
 
