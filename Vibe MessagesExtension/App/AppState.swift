@@ -447,7 +447,7 @@ class AppState: ObservableObject {
         refreshDataOnLateResolution: Bool
     ) -> Task<String, Error> {
         Task {
-            let timeouts: [Double] = [3, 20, 45]
+            let timeouts: [Double] = [3, 8, 15]
 
             for (index, timeout) in timeouts.enumerated() {
                 let resolvedChatId = await withTimeout(seconds: timeout) {
@@ -1670,7 +1670,7 @@ class AppState: ObservableObject {
                 } catch let apiError as APIError {
                     attempts += 1
                     if case .httpError(let statusCode, _) = apiError, statusCode == 503, attempts < maxAttempts {
-                        try? await Task.sleep(nanoseconds: 700_000_000)
+                        try? await Task.sleep(nanoseconds: 300_000_000)
                         continue
                     }
                     throw apiError

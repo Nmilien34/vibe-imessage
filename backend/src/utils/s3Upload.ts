@@ -29,7 +29,7 @@ export const getUploadUrl = async (fileType: string, folder: string = 'vibes'): 
   });
 
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 
   return { uploadUrl, publicUrl, key };
 };
@@ -59,7 +59,7 @@ export const uploadToS3 = async (
   });
 
   await s3Client.send(command);
-  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-2'}.amazonaws.com/${key}`;
+  const publicUrl = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 
   return { publicUrl, key };
 };

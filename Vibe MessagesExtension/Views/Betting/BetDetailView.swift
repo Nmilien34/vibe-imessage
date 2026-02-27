@@ -24,8 +24,6 @@ struct BetDetailView: View {
     @State private var stakeError: String?
 
     @State private var isResolving = false
-    @State private var showOutcomePicker = false
-    @State private var selectedResolutionOutcome: BetOutcome = .yes
     @State private var showResolutionComposer = false
     @State private var pendingClaim: ResolutionClaim?
     @State private var pendingClaimViewer: ResolutionClaimViewer?
@@ -180,28 +178,9 @@ struct BetDetailView: View {
                 EmptyView()
             }
         }
-        .confirmationDialog("Pick the Winner", isPresented: $showOutcomePicker, titleVisibility: .visible) {
-            Button("YES Wins") {
-                selectedResolutionOutcome = .yes
-                showResolutionComposer = true
-            }
-            Button("NO Wins") {
-                selectedResolutionOutcome = .no
-                showResolutionComposer = true
-            }
-            if (currentBet.betType == .callout || currentBet.betType == .dare)
-                && currentBet.creatorId == appState.userId {
-                Button("Mark as Ducked", role: .destructive) {
-                    selectedResolutionOutcome = .ducked
-                    showResolutionComposer = true
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        }
         .fullScreenCover(isPresented: $showResolutionComposer) {
             BetResolutionComposerView(
                 bet: currentBet,
-                outcome: selectedResolutionOutcome,
                 onComplete: {
                     showResolutionComposer = false
                     Task {
@@ -743,7 +722,7 @@ struct BetDetailView: View {
             Button {
                 VibeHaptic.medium()
                 resolutionError = nil
-                showOutcomePicker = true
+                showResolutionComposer = true
             } label: {
                 Text("Submit Proof")
                     .vibeButton(.primary)

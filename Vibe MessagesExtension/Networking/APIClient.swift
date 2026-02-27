@@ -101,8 +101,8 @@ actor APIClient {
 
     private init() {
         let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30  // 30 seconds - accommodates Render cold starts
-        config.timeoutIntervalForResource = 60
+        config.timeoutIntervalForRequest = 12
+        config.timeoutIntervalForResource = 30
         // Private, auth-scoped data should always be fetched fresh (Aura balance, profile, bets).
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
         config.urlCache = nil

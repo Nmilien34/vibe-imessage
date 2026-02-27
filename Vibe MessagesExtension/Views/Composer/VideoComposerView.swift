@@ -179,15 +179,37 @@ struct VideoComposerView: View {
                 isVideo: mediaType == .video
             )
 
+            uploadProgress = 0.6
+
+            // 2. Upload thumbnail if we have one (non-blocking — failure is silent)
+            var thumbnailUrl: String? = nil
+            var thumbnailKey: String? = nil
+            if mediaType == .photo {
+                // Photo is its own thumbnail
+                thumbnailUrl = result.videoUrl
+                thumbnailKey = result.videoKey
+            } else if let thumbImage = thumbnailImage,
+                      let jpegData = thumbImage.jpegData(compressionQuality: 0.7) {
+                let thumbResult = try? await VibeService.shared.uploadMediaWithKey(
+                    data: jpegData,
+                    fileType: "jpg",
+                    folder: "thumbnails"
+                )
+                thumbnailUrl = thumbResult?.url
+                thumbnailKey = thumbResult?.key
+            }
+
             uploadProgress = 0.7
 
-            // 2. Create the Vibe Record for Feed
+            // 3. Create the Vibe Record for Feed
             // Note: The upload endpoint creates a basic vibe, but we create another
             // with full metadata (song, text overlay) for the feed
             let vibe = try await appState.createVibe(
                 type: mediaType,
                 mediaUrl: result.videoUrl,
                 mediaKey: result.videoKey,
+                thumbnailUrl: thumbnailUrl,
+                thumbnailKey: thumbnailKey,
                 songData: song,
                 textStatus: overlayText,
                 isLocked: isLocked
@@ -195,7 +217,7 @@ struct VideoComposerView: View {
 
             uploadProgress = 0.9
 
-            // 3. Send iMessage Bubble with the vibe ID
+            // 4. Send iMessage Bubble with the vibe ID
             appState.sendVibeMessage(
                 vibeId: vibe.id,
                 mediaUrl: result.videoUrl,
