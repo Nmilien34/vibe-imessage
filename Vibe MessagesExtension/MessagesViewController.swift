@@ -519,8 +519,9 @@ class MessagesViewController: MSMessagesAppViewController {
             } else {
                 print("MessagesViewController: Sent vibe message \(vibeId)")
                 self?.clearPendingAutoSend()
-                Task { @MainActor in
-                    self?.requestPresentationStyle(.compact)
+                guard let self else { return }
+                Task { @MainActor [self] in
+                    self.requestPresentationStyle(.compact)
                 }
             }
         }

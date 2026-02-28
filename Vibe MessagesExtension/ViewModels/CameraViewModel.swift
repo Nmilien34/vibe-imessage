@@ -42,9 +42,8 @@ class CameraViewModel: NSObject, ObservableObject {
         }
 
         do {
-            let data = try Data(contentsOf: video.url)
             let result = try await APIService.shared.uploadMedia(
-                mediaData: data,
+                mediaURL: video.url,
                 userId: userId,
                 chatId: chatId,
                 isLocked: isLocked,
@@ -487,7 +486,8 @@ class CameraViewModel: NSObject, ObservableObject {
 
         let durationSeconds: Double
         if #available(iOS 15.0, *) {
-            durationSeconds = CMTimeGetSeconds((try? await asset.load(.duration)) ?? asset.duration)
+            let loadedDuration = try? await asset.load(.duration)
+            durationSeconds = CMTimeGetSeconds(loadedDuration ?? .zero)
         } else {
             durationSeconds = CMTimeGetSeconds(asset.duration)
         }
