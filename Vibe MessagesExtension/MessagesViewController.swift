@@ -62,6 +62,13 @@ class MessagesViewController: MSMessagesAppViewController {
             }
         }
 
+        appState.presentChallengeAccessPrompt = { [weak self] chatId, betId in
+            Task { @MainActor in
+                guard let self else { return }
+                self.presentBetAccessPrompt(chatId: chatId, betId: betId)
+            }
+        }
+
         // Callback when unlock flow completes
         appState.onUnlockComplete = { [weak self] in
             // Refresh vibes to show the now-unlocked content
@@ -149,13 +156,15 @@ class MessagesViewController: MSMessagesAppViewController {
 
         let vibeId = parsed.vibeId ?? params["videoId"] ?? params["vibeId"] ?? params["id"] ?? ""
         let betId = params["bet_id"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let messageTypeRaw = params["type"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let chatId = parsed.chatId ?? params["chat_id"]
         let isLocked = parsed.isLocked || params["locked"] == "true"
         let senderId = params["userId"] ?? ""
         let senderName = parsed.sender ?? params["sender"] ?? "Friend"
         let videoUrl = params["url"]
+        let isChallengeTap = messageTypeRaw == VibeType.parlay.rawValue && !vibeId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
-        print("didSelect: betId=\(betId ?? "nil") vibeId=\(vibeId) chatId=\(chatId ?? "nil") isLocked=\(isLocked) auth=\(appState.isAuthenticated)")
+        print("didSelect: betId=\(betId ?? "nil") vibeId=\(vibeId) type=\(messageTypeRaw ?? "nil") chatId=\(chatId ?? "nil") isLocked=\(isLocked) auth=\(appState.isAuthenticated)")
 
         // If user isn't authenticated, save the deep link for after auth completes
         if !appState.isAuthenticated {
@@ -164,6 +173,7 @@ class MessagesViewController: MSMessagesAppViewController {
                 vibeId: vibeId.isEmpty ? nil : vibeId,
                 chatId: chatId,
                 isLocked: isLocked,
+                messageTypeRaw: messageTypeRaw,
                 senderName: senderName,
                 senderId: senderId
             )
@@ -176,6 +186,19 @@ class MessagesViewController: MSMessagesAppViewController {
             Task {
                 await handleSharedBetTap(
                     betId: betId,
+                    chatId: chatId,
+                    senderId: senderId,
+                    conversation: conversation
+                )
+            }
+            return
+        }
+
+        if isChallengeTap {
+            requestPresentationStyle(.expanded)
+            Task {
+                await handleSharedChallengeTap(
+                    vibeId: vibeId,
                     chatId: chatId,
                     senderId: senderId,
                     conversation: conversation
@@ -220,6 +243,69 @@ class MessagesViewController: MSMessagesAppViewController {
                 await appState.loadVibes()
                 appState.navigateToViewer(opening: vibeId)
             }
+        }
+    }
+
+    @MainActor
+    private func handleSharedChallengeTap(vibeId: String, chatId: String?, senderId: String, conversation: MSConversation) async {
+        let trimmedVibeId = vibeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedVibeId.isEmpty else {
+            presentSimpleAlert(
+                title: "Couldn't open challenge",
+                message: "This challenge link is missing the story reference."
+            )
+            appState.navigateToBetList()
+            return
+        }
+
+        guard let resolvedChallengeChatId = await appState.resolveSharedChallengeChatId(
+            vibeId: trimmedVibeId,
+            preferredChatId: chatId,
+            conversation: conversation
+        ), resolvedChallengeChatId.hasPrefix("chat_") else {
+            presentSimpleAlert(
+                title: "Couldn't open challenge",
+                message: "We couldn't verify this challenge chat. Open My Challenges and pull to refresh."
+            )
+            appState.navigateToBetList()
+            return
+        }
+
+        let hasAccess = await appState.hasAccessToChat(resolvedChallengeChatId)
+        if hasAccess == false {
+            presentBetAccessPrompt(chatId: resolvedChallengeChatId, betId: nil)
+            return
+        }
+        if hasAccess == nil {
+            presentSimpleAlert(
+                title: "Couldn't verify chat access",
+                message: "Check your connection and try again."
+            )
+            return
+        }
+        appState.currentChatId = resolvedChallengeChatId
+
+        let normalizedSenderId = senderId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !normalizedSenderId.isEmpty,
+           normalizedSenderId != appState.userId {
+            await appState.ensureNetworkConnection(
+                targetUserId: normalizedSenderId,
+                sourceChatId: resolvedChallengeChatId
+            )
+        }
+
+        await appState.loadVibes()
+
+        let opened = await appState.openExactSharedChallenge(
+            vibeId: trimmedVibeId,
+            preferredChatId: resolvedChallengeChatId
+        )
+        if !opened {
+            presentSimpleAlert(
+                title: "Couldn't open challenge",
+                message: "We couldn't find this exact challenge. Open My Challenges and pull to refresh."
+            )
+            appState.navigateToBetList()
         }
     }
 
@@ -299,10 +385,10 @@ class MessagesViewController: MSMessagesAppViewController {
     }
 
     @MainActor
-    private func presentBetAccessPrompt(chatId: String, betId: String) {
+    private func presentBetAccessPrompt(chatId: String, betId: String?) {
         let alert = UIAlertController(
             title: "You're not in this challenge chat",
-            message: "Do you want to request access to join this bet?",
+            message: "Do you want to request access to join this challenge?",
             preferredStyle: .alert
         )
 
@@ -318,10 +404,10 @@ class MessagesViewController: MSMessagesAppViewController {
     }
 
     @MainActor
-    private func submitBetAccessRequest(chatId: String, betId: String) async {
+    private func submitBetAccessRequest(chatId: String, betId: String?) async {
         let requester = appState.userFirstName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let requesterName = (requester?.isEmpty == false ? requester! : "A user")
-        let reason = "\(requesterName) wants to join this challenge from a shared bet link."
+        let reason = "\(requesterName) wants to join this challenge from a shared link."
 
         do {
             let message = try await appState.requestJoinChallengeChat(

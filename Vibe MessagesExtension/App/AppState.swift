@@ -111,6 +111,7 @@ class AppState: ObservableObject {
     @Published var networkUsers: [NetworkUser] = []
     @Published var contactDiscoveryEnabled: Bool = false
     @Published var betSourceById: [String: String] = [:]
+    @Published var betHasFullAccessById: [String: Bool] = [:]
 
     var filteredBets: [Bet] {
         let source = expandedBets
@@ -268,6 +269,7 @@ class AppState: ObservableObject {
     @Published var pendingDeepLinkVibeId: String?
     @Published var pendingDeepLinkChatId: String?
     @Published var pendingDeepLinkIsLocked: Bool = false
+    @Published var pendingDeepLinkTypeRaw: String?
     @Published var pendingDeepLinkSenderName: String?
     @Published var pendingDeepLinkSenderId: String?
 
@@ -275,6 +277,7 @@ class AppState: ObservableObject {
     var requestPresentationStyle: ((MSMessagesAppPresentationStyle) -> Void)?
     var sendStory: ((_ vibeId: String, _ mediaUrl: String, _ isLocked: Bool, _ rawThumbnail: UIImage?, _ vibeType: VibeType, _ contextText: String?, _ linkedBetId: String?) -> Void)?
     var onUnlockComplete: (() -> Void)?
+    var presentChallengeAccessPrompt: ((_ chatId: String, _ betId: String?) -> Void)?
     
     // MARK: - Usage Analytics (for Dynamic Dashboard)
     var topUserVibeTypes: [VibeType] {
@@ -1140,6 +1143,7 @@ class AppState: ObservableObject {
             betTotalsById[item.bet.betId] = item.totals
             betCanStakeById[item.bet.betId] = item.canBet && item.bet.supportsStaking && !item.bet.isExpired
             betSourceById[item.bet.betId] = item.source
+            betHasFullAccessById[item.bet.betId] = item.accessLevel == "full"
         }
     }
 
@@ -1205,6 +1209,9 @@ class AppState: ObservableObject {
             )
 
             self.activeBets = compactBets
+            for bet in compactBets {
+                betHasFullAccessById[bet.betId] = true
+            }
             await hydrateCompactBetMetrics(compactBets)
         } catch {
             print("AppState Error: Loading bets failed: \(error)")
@@ -1276,6 +1283,7 @@ class AppState: ObservableObject {
         activeBets.insert(bet, at: 0)
         expandedBets.insert(bet, at: 0)
         expandedBets = deduplicateBets(expandedBets)
+        betHasFullAccessById[bet.betId] = true
         betTotalsById[bet.betId] = BetTotals(
             totalYes: initialSide == .yes ? initialStake : 0,
             totalNo: initialSide == .no ? initialStake : 0,
@@ -1294,7 +1302,8 @@ class AppState: ObservableObject {
         bet: Bet,
         title: String,
         amount: Int,
-        targetUserId: String? = nil
+        targetUserId: String? = nil,
+        isLocked: Bool = false
     ) async throws -> Vibe {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayAmount = "\(amount) Aura"
@@ -1315,7 +1324,7 @@ class AppState: ObservableObject {
             type: .parlay,
             parlay: parlayRequest,
             textStatus: trimmedTitle,
-            isLocked: false
+            isLocked: isLocked
         )
 
         let contextText = buildParlayBubbleContext(
@@ -1327,7 +1336,7 @@ class AppState: ObservableObject {
         )
         sendVibeMessage(
             vibeId: challengeVibe.id,
-            isLocked: false,
+            isLocked: isLocked,
             vibeType: .parlay,
             contextText: contextText,
             linkedBetId: bet.betId
@@ -1786,6 +1795,8 @@ class AppState: ObservableObject {
         expandedBets = []
         betTotalsById = [:]
         betCanStakeById = [:]
+        betSourceById = [:]
+        betHasFullAccessById = [:]
         activeTeaSpills = []
         expandedTeaSpills = []
         selectedBet = nil
@@ -2062,6 +2073,210 @@ class AppState: ObservableObject {
         )
     }
 
+    private func upsertVibe(_ vibe: Vibe) {
+        if let index = vibes.firstIndex(where: { $0.id == vibe.id }) {
+            vibes[index] = vibe
+        } else {
+            vibes.insert(vibe, at: 0)
+        }
+    }
+
+    private func cacheBetSummary(_ bet: Bet, hasFullAccess: Bool) {
+        betHasFullAccessById[bet.betId] = hasFullAccess
+        expandedBets = deduplicateBets([bet] + expandedBets)
+        if shouldAppearInCompactBetRail(bet), bet.chatId == currentChatId {
+            activeBets = deduplicateBets([bet] + activeBets)
+        }
+    }
+
+    private func cacheBetSummaries(_ bets: [Bet], hasFullAccess: Bool) {
+        let deduplicated = deduplicateBets(bets)
+            .sorted { $0.createdAt > $1.createdAt }
+        for bet in deduplicated {
+            cacheBetSummary(bet, hasFullAccess: hasFullAccess)
+        }
+    }
+
+    @discardableResult
+    private func cacheBetDetail(_ detail: BetDetailResponse) -> Bet {
+        let bet = detail.bet
+        betTotalsById[bet.betId] = detail.totals
+        betCanStakeById[bet.betId] = detail.userStake == nil && bet.supportsStaking && !bet.isExpired
+        cacheBetSummary(bet, hasFullAccess: true)
+        return bet
+    }
+
+    private func isChallengeDeepLinkType(_ rawValue: String?) -> Bool {
+        normalizedNonEmpty(rawValue)?.lowercased() == VibeType.parlay.rawValue
+    }
+
+    private func normalizedSharedChallengeChatId(vibe: Vibe, preferredChatId: String?) -> String? {
+        normalizedNonEmpty(preferredChatId) ?? normalizedNonEmpty(vibe.chatId)
+    }
+
+    func fetchVibeById(_ vibeId: String) async -> Vibe? {
+        let trimmed = vibeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if let cached = vibes.first(where: { $0.id == trimmed }) {
+            return cached
+        }
+
+        do {
+            let fetched = try await APIService.shared.getStory(videoId: trimmed, userId: userId)
+            upsertVibe(fetched)
+            return fetched
+        } catch {
+            print("AppState Error: Failed to fetch vibe \(trimmed) for challenge deep link: \(error)")
+            return nil
+        }
+    }
+
+    func resolveSharedChallengeChatId(
+        vibeId: String,
+        preferredChatId: String?,
+        conversation: MSConversation?
+    ) async -> String? {
+        let trimmedVibeId = vibeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedVibeId.isEmpty else { return nil }
+
+        let effectiveChatId: String
+        if let preferredChatId = normalizedNonEmpty(preferredChatId) {
+            effectiveChatId = preferredChatId
+        } else {
+            guard let vibe = await fetchVibeById(trimmedVibeId),
+                  let derivedChatId = normalizedSharedChallengeChatId(vibe: vibe, preferredChatId: nil) else {
+                return nil
+            }
+            effectiveChatId = derivedChatId
+        }
+
+        guard effectiveChatId.hasPrefix("chat_"), let conversation else {
+            return effectiveChatId
+        }
+
+        let resolved = await ConversationManager.shared.resolveSharedChatID(
+            preferredChatId: effectiveChatId,
+            conversation: conversation,
+            userId: userId
+        )
+        return resolved ?? effectiveChatId
+    }
+
+    private func cachedFullAccessBets(for chatId: String) -> [Bet] {
+        deduplicateBets(activeBets + expandedBets)
+            .filter { bet in
+                guard bet.chatId == chatId else { return false }
+                if activeBets.contains(where: { $0.betId == bet.betId }) {
+                    return true
+                }
+                return betHasFullAccessById[bet.betId] == true
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    private func loadSharedChallengeCandidateBets(chatId: String) async -> [Bet] {
+        let cachedCandidates = cachedFullAccessBets(for: chatId)
+
+        do {
+            async let active = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .active)
+            async let pending = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .pending)
+            async let resolving = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .resolving)
+            async let completed = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .completed)
+            async let expired = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .expired)
+            async let ducked = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .ducked)
+            async let cancelled = BettingService.shared.getBetsForChat(chatId: chatId, statusRaw: .cancelled)
+
+            let activeResponse = try await active
+            let pendingResponse = try await pending
+            let resolvingResponse = try await resolving
+            let completedResponse = try await completed
+            let expiredResponse = try await expired
+            let duckedResponse = try await ducked
+            let cancelledResponse = try await cancelled
+
+            let fetchedBets = deduplicateBets(
+                activeResponse.bets
+                    + pendingResponse.bets
+                    + resolvingResponse.bets
+                    + completedResponse.bets
+                    + expiredResponse.bets
+                    + duckedResponse.bets
+                    + cancelledResponse.bets
+            ).sorted { $0.createdAt > $1.createdAt }
+
+            cacheBetSummaries(fetchedBets, hasFullAccess: true)
+            return deduplicateBets(fetchedBets + cachedCandidates)
+                .sorted { $0.createdAt > $1.createdAt }
+        } catch {
+            print("AppState Error: Failed to load shared challenge candidates for \(chatId): \(error)")
+            return cachedCandidates
+        }
+    }
+
+    private func exactMatchBetForChallengeText(_ rawText: String, in candidates: [Bet]) -> Bet? {
+        let normalizedQuery = normalizeMatchText(rawText)
+        guard !normalizedQuery.isEmpty else { return nil }
+
+        return deduplicateBets(candidates)
+            .sorted { $0.createdAt > $1.createdAt }
+            .first { normalizeMatchText($0.description) == normalizedQuery }
+    }
+
+    func resolveExactSharedChallengeBet(vibeId: String, preferredChatId: String? = nil) async -> Bet? {
+        let trimmedVibeId = vibeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedVibeId.isEmpty else { return nil }
+
+        guard let vibe = await fetchVibeById(trimmedVibeId) else {
+            return nil
+        }
+
+        guard let effectiveChatId = normalizedSharedChallengeChatId(vibe: vibe, preferredChatId: preferredChatId) else {
+            return nil
+        }
+
+        let explicitBetId = normalizedNonEmpty(vibe.parlay?.betId)
+        let challengeText = normalizedNonEmpty(vibe.parlay?.title ?? vibe.parlay?.question ?? vibe.textStatus)
+        let cachedCandidates = cachedFullAccessBets(for: effectiveChatId)
+
+        if let explicitBetId,
+           let cached = cachedCandidates.first(where: { $0.betId == explicitBetId }) {
+            return cached
+        }
+
+        if let explicitBetId {
+            do {
+                let detail = try await BettingService.shared.getBet(betId: explicitBetId)
+                if detail.bet.chatId == effectiveChatId {
+                    return cacheBetDetail(detail)
+                }
+                print("AppState Warning: Shared challenge bet \(explicitBetId) was in unexpected chat \(detail.bet.chatId)")
+            } catch {
+                print("AppState Error: Failed to load exact shared challenge \(explicitBetId): \(error)")
+            }
+        }
+
+        let candidates = await loadSharedChallengeCandidateBets(chatId: effectiveChatId)
+        if let explicitBetId,
+           let matchedExplicit = candidates.first(where: { $0.betId == explicitBetId }) {
+            return matchedExplicit
+        }
+
+        if let challengeText {
+            return exactMatchBetForChallengeText(challengeText, in: candidates)
+        }
+
+        return nil
+    }
+
+    func openExactSharedChallenge(vibeId: String, preferredChatId: String? = nil) async -> Bool {
+        guard let bet = await resolveExactSharedChallengeBet(vibeId: vibeId, preferredChatId: preferredChatId) else {
+            return false
+        }
+        navigateToBetDetail(bet: bet)
+        return true
+    }
+
     func addReaction(to vibe: Vibe, emoji: String) async {
         do {
             let updatedVibe = try await APIService.shared.addReaction(
@@ -2325,17 +2540,7 @@ class AppState: ObservableObject {
 
         do {
             let detail = try await BettingService.shared.getBet(betId: betId)
-            let bet = detail.bet
-
-            betTotalsById[bet.betId] = detail.totals
-            betCanStakeById[bet.betId] = detail.userStake == nil && bet.supportsStaking && !bet.isExpired
-
-            expandedBets = deduplicateBets([bet] + expandedBets)
-            if shouldAppearInCompactBetRail(bet) {
-                activeBets = deduplicateBets([bet] + activeBets)
-            }
-
-            return bet
+            return cacheBetDetail(detail)
         } catch {
             print("AppState Error: Failed to open bet \(betId) from story: \(error)")
             // Stale/missing deep-link IDs should still resolve through local + refreshed matching.
@@ -2393,16 +2598,7 @@ class AppState: ObservableObject {
 
         do {
             let detail = try await BettingService.shared.getBet(betId: trimmed)
-            let bet = detail.bet
-
-            betTotalsById[bet.betId] = detail.totals
-            betCanStakeById[bet.betId] = detail.userStake == nil && bet.supportsStaking && !bet.isExpired
-
-            expandedBets = deduplicateBets([bet] + expandedBets)
-            if shouldAppearInCompactBetRail(bet) {
-                activeBets = deduplicateBets([bet] + activeBets)
-            }
-
+            let bet = cacheBetDetail(detail)
             navigateToBetDetail(bet: bet)
         } catch {
             print("AppState Error: Failed to open shared bet \(trimmed): \(error)")
@@ -2424,6 +2620,7 @@ class AppState: ObservableObject {
         vibeId: String?,
         chatId: String?,
         isLocked: Bool,
+        messageTypeRaw: String?,
         senderName: String?,
         senderId: String?
     ) {
@@ -2431,9 +2628,10 @@ class AppState: ObservableObject {
         pendingDeepLinkVibeId = vibeId
         pendingDeepLinkChatId = chatId
         pendingDeepLinkIsLocked = isLocked
+        pendingDeepLinkTypeRaw = normalizedNonEmpty(messageTypeRaw)?.lowercased()
         pendingDeepLinkSenderName = senderName
         pendingDeepLinkSenderId = senderId
-        print("AppState: Saved pending deep link — bet=\(betId ?? "nil"), vibe=\(vibeId ?? "nil"), chat=\(chatId ?? "nil")")
+        print("AppState: Saved pending deep link — bet=\(betId ?? "nil"), vibe=\(vibeId ?? "nil"), type=\(pendingDeepLinkTypeRaw ?? "nil"), chat=\(chatId ?? "nil")")
     }
 
     /// Processes a saved deep link after auth + onboarding completes.
@@ -2480,10 +2678,56 @@ class AppState: ObservableObject {
         // Handle pending vibe deep link
         if let vibeId = pendingDeepLinkVibeId, !vibeId.isEmpty {
             let isLocked = pendingDeepLinkIsLocked
+            let messageTypeRaw = pendingDeepLinkTypeRaw
             let senderName = pendingDeepLinkSenderName
             let chatId = pendingDeepLinkChatId
             let senderId = pendingDeepLinkSenderId
             clearPendingDeepLink()
+
+            if isChallengeDeepLinkType(messageTypeRaw) {
+                guard let resolvedChallengeChatId = await resolveSharedChallengeChatId(
+                    vibeId: vibeId,
+                    preferredChatId: chatId,
+                    conversation: currentConversation
+                ), resolvedChallengeChatId.hasPrefix("chat_") else {
+                    error = "Couldn't verify this challenge chat. Open My Challenges and pull to refresh."
+                    navigateToBetList()
+                    return
+                }
+
+                let hasAccess = await hasAccessToChat(resolvedChallengeChatId)
+                if hasAccess == false {
+                    if let presentChallengeAccessPrompt {
+                        requestExpand()
+                        presentChallengeAccessPrompt(resolvedChallengeChatId, nil)
+                    } else {
+                        error = "You don't have access to this challenge chat."
+                        navigateToBetList()
+                    }
+                    return
+                }
+                if hasAccess == nil {
+                    error = "Couldn't verify challenge access. Check your connection and try again."
+                    navigateToBetList()
+                    return
+                }
+
+                currentChatId = resolvedChallengeChatId
+                if let senderId = senderId, !senderId.isEmpty, senderId != userId {
+                    await ensureNetworkConnection(targetUserId: senderId, sourceChatId: resolvedChallengeChatId)
+                }
+
+                await loadVibes()
+                let opened = await openExactSharedChallenge(
+                    vibeId: vibeId,
+                    preferredChatId: resolvedChallengeChatId
+                )
+                if !opened {
+                    error = "We couldn't open this exact challenge. Pull to refresh or check My Challenges."
+                    navigateToBetList()
+                }
+                return
+            }
 
             if let chatId = chatId, chatId.hasPrefix("chat_"), let conversation = currentConversation {
                 let resolvedSharedChatId = await ConversationManager.shared.resolveSharedChatID(
@@ -2525,6 +2769,7 @@ class AppState: ObservableObject {
         pendingDeepLinkVibeId = nil
         pendingDeepLinkChatId = nil
         pendingDeepLinkIsLocked = false
+        pendingDeepLinkTypeRaw = nil
         pendingDeepLinkSenderName = nil
         pendingDeepLinkSenderId = nil
     }

@@ -314,7 +314,6 @@ struct ParlayComposerView: View {
             // Create a real challenge record first so this parlay vibe deep-links to a specific bet.
             let initialStake = initialStakeAmount
             let betType: BetType = selectedTargetUserId == nil ? .self : .dare
-            let opponentName: String? = selectedTargetUserId == nil ? nil : selectedTargetName
             let linkedBet = try await appState.createBet(
                 betType: betType,
                 description: title,
@@ -324,35 +323,12 @@ struct ParlayComposerView: View {
                 targetUserId: selectedTargetUserId
             )
 
-            let parlayRequest = CreateParlayRequest(
+            _ = try await appState.publishChallengeMessage(
+                bet: linkedBet,
                 title: title,
-                question: nil,
-                options: nil,
-                betId: linkedBet.betId,
-                amount: finalDisplayAmount,
-                wager: nil,
-                opponentId: selectedTargetUserId,
-                opponentName: opponentName
-            )
-
-            let vibe = try await appState.createVibe(
-                type: .parlay,
-                parlay: parlayRequest,
+                amount: initialStake,
+                targetUserId: selectedTargetUserId,
                 isLocked: isLocked
-            )
-
-            let contextText = appState.buildParlayBubbleContext(
-                title: title,
-                stakeText: finalDisplayAmount,
-                targetName: selectedTargetUserId == nil ? nil : selectedTargetName,
-                deadline: linkedBet.deadline,
-                creatorName: appState.userFirstName
-            )
-            appState.sendVibeMessage(
-                vibeId: vibe.id,
-                isLocked: isLocked,
-                vibeType: .parlay,
-                contextText: contextText
             )
 
             appState.dismissComposer()
