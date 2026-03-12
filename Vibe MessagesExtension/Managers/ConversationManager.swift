@@ -71,19 +71,7 @@ class ConversationManager: ObservableObject {
             print("ConversationManager: Ignoring invalid/unresolvable selected chat_id: \(embeddedChatId)")
         }
 
-        // Step 2: Resolve a deterministic participant-scoped chat first.
-        if let deterministicChatId,
-           let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: deterministicChatId) {
-            saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
-            for key in lookupKeys where key != mappingKey {
-                saveChatIdMapping(mappingKey: key, chatId: resolved)
-            }
-            currentChatId = resolved
-            print("ConversationManager: Resolved deterministic chat_id: \(resolved)")
-            return resolved
-        }
-
-        // Step 3: Check UserDefaults for existing mapping.
+        // Step 2: Check UserDefaults for existing mapping.
         if let savedChatId = lookupKeys.compactMap({ getChatIdMapping(for: $0) }).first {
             if isValidBackendChatId(savedChatId),
                let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: savedChatId) {
@@ -100,6 +88,18 @@ class ConversationManager: ObservableObject {
             for key in lookupKeys {
                 removeChatIdMapping(for: key)
             }
+        }
+
+        // Step 3: Resolve a deterministic participant-scoped chat.
+        if let deterministicChatId,
+           let resolved = await resolveChatOnBackend(userId: userId, preferredChatId: deterministicChatId) {
+            saveChatIdMapping(mappingKey: mappingKey, chatId: resolved)
+            for key in lookupKeys where key != mappingKey {
+                saveChatIdMapping(mappingKey: key, chatId: resolved)
+            }
+            currentChatId = resolved
+            print("ConversationManager: Resolved deterministic chat_id: \(resolved)")
+            return resolved
         }
 
         // Step 4: Resolve/create a backend chat.

@@ -33,6 +33,25 @@ interface ChatParams {
   chatId: string;
 }
 
+function normalizedNonEmpty(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildChatLookup(chatKey?: string | null) {
+  const normalizedChatKey = normalizedNonEmpty(chatKey);
+  if (!normalizedChatKey) {
+    return {};
+  }
+
+  return {
+    $or: [
+      { chatId: normalizedChatKey },
+      { conversationId: normalizedChatKey },
+    ],
+  };
+}
+
 /**
  * @route   POST /api/vibe/upload
  * @desc    Upload vibe media (Multipart)
@@ -87,12 +106,15 @@ router.get('/:videoId', async (req: Request<VideoParams>, res: Response) => {
     }
 
     const vibeObj = vibe.toObject() as IVibe & { isLocked: boolean };
+    const vibeChatKey = normalizedNonEmpty(vibe.chatId) || normalizedNonEmpty(vibe.conversationId);
 
-    const userHasPosted = await Vibe.exists({
-      conversationId: vibe.conversationId,
-      userId: userId,
-      expiresAt: { $gt: new Date() },
-    });
+    const userHasPosted = vibeChatKey
+      ? await Vibe.exists({
+          ...buildChatLookup(vibeChatKey),
+          userId: userId,
+          expiresAt: { $gt: new Date() },
+        })
+      : null;
 
     if (vibe.isLocked && !userHasPosted && vibe.userId !== userId) {
       vibeObj.isLocked = true;
@@ -151,7 +173,7 @@ router.get('/feed/:chatId', async (req: Request<ChatParams>, res: Response) => {
     const { chatId } = req.params;
 
     const vibes = await Vibe.find({
-      conversationId: chatId,
+      ...buildChatLookup(chatId),
       expiresAt: { $gt: new Date() },
     }).sort({ createdAt: -1 });
 

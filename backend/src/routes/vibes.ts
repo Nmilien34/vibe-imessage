@@ -63,6 +63,25 @@ function extractS3Key(url?: string): string | null {
   }
 }
 
+function normalizedNonEmpty(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildChatLookup(chatKey?: string | null) {
+  const normalizedChatKey = normalizedNonEmpty(chatKey);
+  if (!normalizedChatKey) {
+    return {};
+  }
+
+  return {
+    $or: [
+      { chatId: normalizedChatKey },
+      { conversationId: normalizedChatKey },
+    ],
+  };
+}
+
 // Helper: Update streak when someone posts
 async function updateStreak(conversationId: string, userId: string): Promise<void> {
   const today = new Date();
@@ -114,7 +133,7 @@ router.get('/:conversationId', async (req: Request<VibeQueryParams>, res: Respon
     const userId = req.query.userId as string;
 
     const vibes = await Vibe.find({
-      conversationId,
+      ...buildChatLookup(conversationId),
       expiresAt: { $gt: new Date() },
     }).sort({ createdAt: -1 });
 
@@ -157,7 +176,7 @@ router.get('/:conversationId/history', async (req: Request<VibeQueryParams>, res
     }
 
     const vibes = await Vibe.find({
-      conversationId,
+      ...buildChatLookup(conversationId),
       userId,
       permanentDeleteAt: { $gt: new Date() },
     })
@@ -210,7 +229,7 @@ router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>,
       return res.status(403).json({ error: 'Cannot create vibe for another user' });
     }
 
-    const effectiveChatId = chatId || conversationId;
+    const effectiveChatId = normalizedNonEmpty(chatId) || normalizedNonEmpty(conversationId);
 
     if (!effectiveChatId) {
       return res.status(400).json({ error: 'chatId or conversationId is required' });
@@ -223,7 +242,7 @@ router.post('/', authMiddleware, async (req: Request<{}, {}, CreateVibeRequest>,
     const vibe = new Vibe({
       userId,
       chatId: effectiveChatId,
-      conversationId,
+      conversationId: effectiveChatId,
       type,
       mediaUrl,
       mediaKey: mediaKey || extractS3Key(mediaUrl),

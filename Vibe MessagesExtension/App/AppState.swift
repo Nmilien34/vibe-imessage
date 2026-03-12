@@ -458,7 +458,7 @@ class AppState: ObservableObject {
                 }
 
                 if let chatId = resolvedChatId, !chatId.hasPrefix("fallback_") {
-                    let wasDifferent = self.currentChatId != chatId
+                    let previousChatId = self.currentChatId
                     self.currentChatId = chatId
 
                     if index == 0 {
@@ -467,11 +467,11 @@ class AppState: ObservableObject {
                         print("AppState Debug: Resolved Chat ID on retry attempt \(index + 1): \(chatId)")
                     }
 
-                    if refreshDataOnLateResolution && wasDifferent && index > 0 {
-                        async let reminders: () = loadReminders()
-                        async let bets: () = loadBets()
-                        async let tea: () = loadTeaSpills()
-                        _ = await (reminders, bets, tea)
+                    if refreshDataOnLateResolution {
+                        await refreshDataAfterResolvedChatChange(
+                            previousChatId: previousChatId,
+                            newChatId: chatId
+                        )
                     }
 
                     return chatId
@@ -516,6 +516,27 @@ class AppState: ObservableObject {
                 )
             )
         }
+    }
+
+    func refreshDataAfterResolvedChatChange(previousChatId: String?, newChatId: String) async {
+        let trimmedNewChatId = newChatId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedNewChatId.isEmpty else { return }
+
+        let trimmedPreviousChatId = previousChatId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shouldRefresh: Bool
+        if let trimmedPreviousChatId, !trimmedPreviousChatId.isEmpty {
+            shouldRefresh = trimmedPreviousChatId.hasPrefix("fallback_") || trimmedPreviousChatId != trimmedNewChatId
+        } else {
+            shouldRefresh = true
+        }
+
+        guard shouldRefresh else { return }
+
+        async let vibesTask: () = loadVibes()
+        async let remindersTask: () = loadReminders()
+        async let betsTask: () = loadBets()
+        async let teaTask: () = loadTeaSpills()
+        _ = await (vibesTask, remindersTask, betsTask, teaTask)
     }
 
     func setConversation(_ conversation: MSConversation?) {

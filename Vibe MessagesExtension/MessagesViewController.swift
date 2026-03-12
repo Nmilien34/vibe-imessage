@@ -368,7 +368,12 @@ class MessagesViewController: MSMessagesAppViewController {
             conversation: conversation,
             userId: appState.userId
         ) {
+            let previousChatId = appState.currentChatId
             appState.currentChatId = sharedResolved
+            await appState.refreshDataAfterResolvedChatChange(
+                previousChatId: previousChatId,
+                newChatId: sharedResolved
+            )
             return sharedResolved
         }
 
@@ -380,7 +385,12 @@ class MessagesViewController: MSMessagesAppViewController {
             return nil
         }
 
+        let previousChatId = appState.currentChatId
         appState.currentChatId = resolvedChatId
+        await appState.refreshDataAfterResolvedChatChange(
+            previousChatId: previousChatId,
+            newChatId: resolvedChatId
+        )
         return resolvedChatId
     }
 
