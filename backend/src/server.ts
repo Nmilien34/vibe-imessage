@@ -38,7 +38,8 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
-  'https://vibe-imessage.onrender.com'
+  'https://vibe-imessage.onrender.com',
+  'https://vibe-imessage-jp3g.onrender.com'
 ];
 
 app.use(cors({

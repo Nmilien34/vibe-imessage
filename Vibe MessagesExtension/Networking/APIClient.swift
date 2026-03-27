@@ -77,7 +77,7 @@ actor APIClient {
     // Use 127.0.0.1 for Simulator compatibility
     private let baseURL = "http://127.0.0.1:3000/api"
     #else
-    private let baseURL = "https://vibe-imessage.onrender.com/api"
+    private let baseURL = "https://vibe-imessage-jp3g.onrender.com/api"
     #endif
 
     private let session: URLSession
