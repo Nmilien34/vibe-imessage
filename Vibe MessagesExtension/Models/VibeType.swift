@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 
+/// The `VibeType` enum defines the diverse types of interactions or content shared in the Vibe messaging extension.
 enum VibeType: String, Codable, CaseIterable {
     case photo
     case video
