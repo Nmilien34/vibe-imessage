@@ -1,5 +1,6 @@
 import express, { Request, Response, Router } from 'express';
 import { getUploadUrl } from '../utils/s3Upload';
+import { authMiddleware } from '../middleware/auth';
 
 const router: Router = express.Router();
 
@@ -10,7 +11,7 @@ interface PresignedUrlRequest {
 
 const validTypes = ['mp4', 'mov', 'jpg', 'jpeg', 'png', 'gif'];
 
-router.post('/presigned-url', async (req: Request<{}, {}, PresignedUrlRequest>, res: Response) => {
+router.post('/presigned-url', authMiddleware, async (req: Request<{}, {}, PresignedUrlRequest>, res: Response) => {
   try {
     const { fileType, folder } = req.body;
 

@@ -127,10 +127,10 @@ async function updateStreak(conversationId: string, userId: string): Promise<voi
  * @route   GET /api/vibes/:conversationId
  * @desc    Get all vibes for a conversation (non-expired - main feed)
  */
-router.get('/:conversationId', async (req: Request<VibeQueryParams>, res: Response) => {
+router.get('/:conversationId', authMiddleware, async (req: Request<any>, res: Response) => {
   try {
-    const { conversationId } = req.params;
-    const userId = req.query.userId as string;
+    const conversationId = req.params.conversationId as string;
+    const userId = req.userId!;
 
     const vibes = await Vibe.find({
       ...buildChatLookup(conversationId),

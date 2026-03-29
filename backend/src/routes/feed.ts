@@ -209,10 +209,10 @@ router.get('/my-feed', authMiddleware, async (req: Request<{}, {}, {}, FeedQuery
  * @route   GET /api/feed/chat/:chatId
  * @desc    Get vibes for a specific chat
  */
-router.get('/chat/:chatId', async (req: Request<ChatParams, {}, {}, { userId?: string }>, res: Response) => {
+router.get('/chat/:chatId', authMiddleware, async (req: Request<any>, res: Response) => {
   try {
-    const { chatId } = req.params;
-    const { userId } = req.query;
+    const chatId = req.params.chatId as string;
+    const userId = req.userId!;
 
     const vibes = await Vibe.find({
       chatId,
@@ -238,13 +238,10 @@ router.get('/chat/:chatId', async (req: Request<ChatParams, {}, {}, { userId?: s
  * @query   { userId, limit? }
  * @desc    Get user's vibe history across all chats (up to 15 days)
  */
-router.get('/history', async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
+router.get('/history', authMiddleware, async (req: Request<{}, {}, {}, FeedQuery>, res: Response) => {
   try {
-    const { userId, limit = '50' } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    const userId = req.userId!;
+    const { limit = '50' } = req.query;
 
     const vibes = await Vibe.find({
       userId,
@@ -372,14 +369,10 @@ router.get('/stories', optionalAuth, async (req: Request<{}, {}, {}, StoriesQuer
  * @query   { userId }
  * @desc    Get stories for a specific chat, grouped by user
  */
-router.get('/stories/:chatId', async (req: Request<ChatParams, {}, {}, { userId?: string }>, res: Response) => {
+router.get('/stories/:chatId', authMiddleware, async (req: Request<any>, res: Response) => {
   try {
-    const { chatId } = req.params;
-    const { userId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    const chatId = req.params.chatId as string;
+    const userId = req.userId!;
 
     // Fetch all non-expired vibes from this chat
     const vibes = await Vibe.find({
@@ -408,14 +401,11 @@ router.get('/stories/:chatId', async (req: Request<ChatParams, {}, {}, { userId?
  * @query   { userId, chatId? }
  * @desc    Get all vibes from a specific user (for viewing their story)
  */
-router.get('/user/:oderId/vibes', async (req: Request<{ oderId: string }, {}, {}, { userId?: string; chatId?: string }>, res: Response) => {
+router.get('/user/:oderId/vibes', authMiddleware, async (req: Request<{ oderId: string }, {}, {}, { userId?: string; chatId?: string }>, res: Response) => {
   try {
     const { oderId } = req.params;
-    const { userId, chatId } = req.query;
-
-    if (!userId) {
-      return res.status(400).json({ error: 'userId is required' });
-    }
+    const userId = req.userId!;
+    const { chatId } = req.query;
 
     // Build query
     const query: any = {

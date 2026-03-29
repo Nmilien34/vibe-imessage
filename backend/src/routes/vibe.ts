@@ -3,9 +3,11 @@ import multer from 'multer';
 import Vibe, { FEED_EXPIRATION_DAYS, HISTORY_RETENTION_DAYS } from '../models/Vibe';
 import { uploadToS3 } from '../utils/s3Upload';
 import { IVibe } from '../types';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, optionalAuth } from '../middleware/auth';
 
 const router: Router = express.Router();
+
+const ALLOWED_EXTENSIONS = new Set(['mp4', 'mov', 'jpg', 'jpeg', 'png', 'gif']);
 
 // Configure multer for memory storage
 const upload = multer({
@@ -75,7 +77,10 @@ router.post('/upload', authMiddleware, upload.single('video'), async (req: Reque
       return res.status(400).json({ error: 'userId and chatId are required' });
     }
 
-    const extension = file.originalname.split('.').pop() || 'mp4';
+    const extension = (file.originalname.split('.').pop() || '').toLowerCase();
+    if (!ALLOWED_EXTENSIONS.has(extension)) {
+      return res.status(400).json({ error: 'Invalid file type' });
+    }
     const { publicUrl, key } = await uploadToS3(file.buffer, extension, 'vibes');
 
     // RETURN ONLY S3 INFO - LET THE CLIENT CREATE THE VIBE WITH METADATA
@@ -95,10 +100,10 @@ router.post('/upload', authMiddleware, upload.single('video'), async (req: Reque
  * @route   GET /api/vibe/:videoId
  * @desc    Returns story metadata and checks lock status
  */
-router.get('/:videoId', async (req: Request<VideoParams>, res: Response) => {
+router.get('/:videoId', optionalAuth, async (req: Request<any>, res: Response) => {
   try {
-    const { videoId } = req.params;
-    const userId = req.query.userId as string;
+    const videoId = req.params.videoId as string;
+    const userId = req.userId || (req.query.userId as string | undefined) || '';
 
     const vibe = await Vibe.findById(videoId);
     if (!vibe) {
@@ -168,9 +173,9 @@ router.post('/:videoId/unlock', authMiddleware, async (req: Request, res: Respon
  * @route   GET /api/vibe/feed/:chatId
  * @desc    Returns all active stories for a group
  */
-router.get('/feed/:chatId', async (req: Request<ChatParams>, res: Response) => {
+router.get('/feed/:chatId', authMiddleware, async (req: Request<any>, res: Response) => {
   try {
-    const { chatId } = req.params;
+    const chatId = req.params.chatId as string;
 
     const vibes = await Vibe.find({
       ...buildChatLookup(chatId),
